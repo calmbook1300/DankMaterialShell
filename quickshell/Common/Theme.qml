@@ -1449,7 +1449,7 @@ Singleton {
 
         switch (SettingsData.widgetColorMode) {
         case "colorful":
-            return surfaceText;
+            return primary;
         case "default":
         default:
             return surfaceText;
