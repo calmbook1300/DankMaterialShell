@@ -9,7 +9,9 @@ import qs.Common
 Singleton {
     id: root
 
-    readonly property list<MprisPlayer> availablePlayers: Mpris.players.values
+    readonly property list<MprisPlayer> allPlayers: Mpris.players.values
+    readonly property list<string> ignoredPlayerIds: ["Mozilla org.mozilla.firefox"]
+    readonly property list<MprisPlayer> availablePlayers: allPlayers.filter(p => !p.identity || !ignoredPlayerIds.includes(p.identity))
     property MprisPlayer activePlayer: null
 
     onAvailablePlayersChanged: _resolveActivePlayer()
