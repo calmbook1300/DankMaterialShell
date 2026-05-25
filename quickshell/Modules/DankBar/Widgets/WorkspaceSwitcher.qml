@@ -447,15 +447,24 @@ Item {
 
         workspaces = workspaces.slice().sort((a, b) => a.idx - b.idx);
 
-        if (!SettingsData.showOccupiedWorkspacesOnly) {
-            return workspaces;
+        if (SettingsData.showOccupiedWorkspacesOnly) {
+          return workspaces.filter(ws => {
+              if (ws.is_active)
+                  return true;
+              return NiriService.windows?.some(win => win.workspace_id === ws.id) ?? false;
+          });
         }
 
-        return workspaces.filter(ws => {
-            if (ws.is_active)
-                return true;
-            return NiriService.windows?.some(win => win.workspace_id === ws.id) ?? false;
-        });
+        // if (SettingsData.showNamesForOccupiedWorkspacesOnly) {
+        if (true) {
+          return workspaces.map(ws => ({
+            "id": ws.id,
+            "idx": ws.idx,
+            "name": NiriService.windows?.some(win => win.workspace_id === ws.id) ? ws.name : " "
+          }));
+        }
+
+        return workspaces;
     }
 
     function getNiriActiveWorkspace() {
