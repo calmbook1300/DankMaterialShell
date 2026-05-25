@@ -423,7 +423,12 @@ BasePill {
                             anchors.fill: parent
                             enabled: root.playerAvailable
                             cursorShape: Qt.PointingHandCursor
+                            acceptedButtons: Qt.LeftButton | Qt.MiddleButton
                             onPressed: mouse => {
+                                if (mouse.button == Qt.MiddleButton) {
+                                  AudioService.toggleMute();
+                                  return;
+                                }
                                 root.triggerRipple(this, mouse.x, mouse.y);
                                 if (root.popoutTarget && root.popoutTarget.setTriggerPosition) {
                                     const globalPos = mapToItem(null, 0, 0);
@@ -472,7 +477,7 @@ BasePill {
                         height: 24
                         radius: 12
                         anchors.verticalCenter: parent.verticalCenter
-                        color: root._isPlaying ? Theme.primary : Theme.primaryHover
+                        color: prevArea.containsMouse ? BlurService.hoverColor(Theme.widgetBaseHoverColor) : "transparent"
                         visible: root.playerAvailable
                         opacity: activePlayer ? 1 : 0.3
 
@@ -480,7 +485,7 @@ BasePill {
                             anchors.centerIn: parent
                             name: root._isPlaying ? "pause" : "play_arrow"
                             size: 14
-                            color: root._isPlaying ? Theme.background : Theme.primary
+                            color: root._isPlaying ? Theme.primary : Theme.widgetTextColor
                         }
 
                         MouseArea {
