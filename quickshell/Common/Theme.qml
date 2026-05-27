@@ -1452,7 +1452,7 @@ Singleton {
             return primary;
         case "default":
         default:
-            return surfaceText;
+            return primary;
         }
     }
 
