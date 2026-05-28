@@ -27,6 +27,7 @@ BasePill {
     }
 
     onActivePlayerChanged: _syncMeta()
+    visible: _isPlaying
 
     function _syncMeta() {
         if (!activePlayer) {
