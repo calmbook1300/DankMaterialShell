@@ -70,6 +70,8 @@ Card {
                         // technically they might not be on mangowc, but its what we support in the docs
                         if (CompositorService.isDwl)
                             return I18n.tr("on MangoWC");
+                        if (CompositorService.isMango)
+                            return I18n.tr("on MangoWC");
                         if (CompositorService.isSway)
                             return I18n.tr("on Sway");
                         if (CompositorService.isScroll)
@@ -99,7 +101,9 @@ Card {
                 }
 
                 StyledText {
-                    text: DgopService.shortUptime || I18n.tr("up")
+                    text: DgopService.shortUptime
+                        ? I18n.tr("up") + DgopService.shortUptime.slice(2)
+                        : I18n.tr("up")
                     font.pixelSize: Theme.fontSizeSmall
                     color: Qt.rgba(Theme.surfaceText.r, Theme.surfaceText.g, Theme.surfaceText.b, 0.7)
                     anchors.verticalCenter: parent.verticalCenter

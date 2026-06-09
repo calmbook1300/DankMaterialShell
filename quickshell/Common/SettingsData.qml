@@ -173,9 +173,11 @@ Singleton {
     property int hyprlandLayoutGapsOverride: -1
     property int hyprlandLayoutRadiusOverride: -1
     property int hyprlandLayoutBorderSize: -1
+    property bool hyprlandResizeOnBorder: false
     property int mangoLayoutGapsOverride: -1
     property int mangoLayoutRadiusOverride: -1
     property int mangoLayoutBorderSize: -1
+    property bool mangoTrackpadNaturalScrolling: true
 
     property int firstDayOfWeek: -1
     property bool showWeekNumber: false
@@ -315,6 +317,8 @@ Singleton {
     property bool controlCenterShowBatteryIcon: false
     property bool controlCenterShowPrinterIcon: false
     property bool controlCenterShowScreenSharingIcon: true
+    property bool controlCenterShowIdleInhibitorIcon: false
+    property bool controlCenterShowDoNotDisturbIcon: false
     property bool showPrivacyButton: true
     property bool privacyShowMicIcon: false
     property bool privacyShowCameraIcon: false
@@ -370,6 +374,7 @@ Singleton {
     property bool showWorkspaceApps: false
     property bool workspaceDragReorder: true
     property bool groupWorkspaceApps: true
+    property bool groupActiveWorkspaceApps: false
     property int maxWorkspaceIcons: 3
     property int workspaceAppIconSizeOffset: 0
     property bool workspaceFollowFocus: false
@@ -405,6 +410,7 @@ Singleton {
     property int appsDockEnlargePercentage: 125
     property int appsDockIconSizePercentage: 100
     property bool keyboardLayoutNameCompactMode: false
+    property bool keyboardLayoutNameShowIcon: false
     property bool runningAppsCurrentWorkspace: true
     property bool runningAppsGroupByApp: false
     property bool runningAppsCurrentMonitor: false
@@ -414,6 +420,7 @@ Singleton {
     property string lockDateFormat: ""
     property bool greeterRememberLastSession: true
     property bool greeterRememberLastUser: true
+    property bool greeterAutoLogin: false
     property bool greeterEnableFprint: false
     property bool greeterEnableU2f: false
     property string greeterWallpaperPath: ""
@@ -483,6 +490,9 @@ Singleton {
                 "inactiveTimeout": 0
             },
             "dwl": {
+                "cursorHideTimeout": 0
+            },
+            "mango": {
                 "cursorHideTimeout": 0
             }
         })
@@ -1216,6 +1226,8 @@ Singleton {
             HyprlandService.generateLayoutConfig();
         if (CompositorService.isDwl && typeof DwlService !== "undefined")
             DwlService.generateLayoutConfig();
+        if (CompositorService.isMango && typeof MangoService !== "undefined")
+            MangoService.generateLayoutConfig();
     }
 
     function applyStoredIconTheme() {
@@ -1333,6 +1345,15 @@ Singleton {
         });
     }
 
+    function scheduleGreeterAutoLoginSync() {
+        if (isGreeterMode)
+            return;
+        Qt.callLater(() => {
+            Processes.settingsRoot = root;
+            Processes.scheduleGreeterAutoLoginSync();
+        });
+    }
+
     readonly property var _hooks: ({
             "applyStoredTheme": applyStoredTheme,
             "regenSystemThemes": regenSystemThemes,
@@ -1340,7 +1361,8 @@ Singleton {
             "applyStoredIconTheme": applyStoredIconTheme,
             "updateBarConfigs": updateBarConfigs,
             "updateCompositorCursor": updateCompositorCursor,
-            "scheduleAuthApply": scheduleAuthApply
+            "scheduleAuthApply": scheduleAuthApply,
+            "scheduleGreeterAutoLoginSync": scheduleGreeterAutoLoginSync
         })
 
     function set(key, value) {
@@ -2219,7 +2241,10 @@ Singleton {
 
     function getFilteredScreens(componentId) {
         var prefs = screenPreferences && screenPreferences[componentId] || ["all"];
-        if (prefs.includes("all") || (typeof prefs[0] === "string" && prefs[0] === "all")) {
+        if (componentId === "wallpaper" && Array.isArray(prefs) && prefs.length === 0) {
+            return [];
+        }
+        if (!prefs || prefs.length === 0 || prefs.includes("all") || (typeof prefs[0] === "string" && prefs[0] === "all")) {
             return Quickshell.screens;
         }
         var filtered = Quickshell.screens.filter(screen => isScreenInPreferences(screen, prefs));
@@ -2428,6 +2453,10 @@ Singleton {
         }
         if (CompositorService.isDwl && typeof DwlService !== "undefined") {
             DwlService.generateCursorConfig();
+            return;
+        }
+        if (CompositorService.isMango && typeof MangoService !== "undefined") {
+            MangoService.generateCursorConfig();
             return;
         }
     }

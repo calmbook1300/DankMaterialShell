@@ -395,6 +395,7 @@ Rectangle {
                     property bool hasMoreText: truncated
 
                     text: fullText
+                    textFormat: Text.StyledText
                     color: Theme.surfaceVariantText
                     font.pixelSize: Theme.fontSizeSmall
                     width: parent.width
@@ -560,9 +561,9 @@ Rectangle {
                         height: {
                             if (!messageExpanded)
                                 return expandedBaseHeight;
-                            const twoLineHeight = bodyText.font.pixelSize * 1.2 * 2;
-                            if (bodyText.implicitHeight > twoLineHeight + 2)
-                                return expandedBaseHeight + bodyText.implicitHeight - twoLineHeight;
+                            const collapsedBodyHeight = bodyText.collapsedLineHeight;
+                            if (bodyText.implicitHeight > collapsedBodyHeight + 2)
+                                return expandedBaseHeight + bodyText.implicitHeight - collapsedBodyHeight;
                             return expandedBaseHeight;
                         }
                         radius: Theme.cornerRadius
@@ -702,14 +703,17 @@ Rectangle {
 
                                     StyledText {
                                         id: bodyText
+                                        readonly property real collapsedLineCount: compactMode ? 1 : 2
+                                        readonly property real collapsedLineHeight: font.pixelSize * 1.2 * collapsedLineCount
                                         property bool hasMoreText: truncated
 
                                         text: modelData?.htmlBody || ""
+                                        textFormat: Text.StyledText
                                         color: Theme.surfaceVariantText
                                         font.pixelSize: Theme.fontSizeSmall
                                         width: parent.width
                                         elide: messageExpanded ? Text.ElideNone : Text.ElideRight
-                                        maximumLineCount: messageExpanded ? -1 : 2
+                                        maximumLineCount: messageExpanded ? -1 : collapsedLineCount
                                         wrapMode: Text.WrapAtWordBoundaryOrAnywhere
                                         visible: text.length > 0
                                         linkColor: Theme.primary

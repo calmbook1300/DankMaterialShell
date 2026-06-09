@@ -110,20 +110,7 @@ PanelWindow {
 
     readonly property bool usesOverlayLayer: CompositorService.framePeerSurfacesUseOverlayForScreen(barWindow.screen) || (barConfig?.useOverlayLayer ?? false)
 
-    readonly property var dBarLayer: {
-        switch (Quickshell.env("DMS_DANKBAR_LAYER")) {
-        case "bottom":
-            return WlrLayer.Bottom;
-        case "overlay":
-            return WlrLayer.Overlay;
-        case "background":
-            return WlrLayer.Background;
-        case "top":
-            return WlrLayer.Top;
-        default:
-            return barWindow.usesOverlayLayer ? WlrLayer.Overlay : WlrLayer.Top;
-        }
-    }
+    readonly property var dBarLayer: LayerShell.fromEnv("DMS_DANKBAR_LAYER", barWindow.usesOverlayLayer ? WlrLayer.Overlay : WlrLayer.Top)
 
     property var blurRegion: null
     property var _blurWidgetItems: []
@@ -340,6 +327,24 @@ PanelWindow {
             hasMaximizedToplevel = false;
             return;
         }
+        if (CompositorService.isMango) {
+            const out = MangoService.outputs[screenName];
+            const active = new Set((out?.activeTags) || []);
+            const wins = MangoService.windows || [];
+            for (let i = 0; i < wins.length; i++) {
+                const w = wins[i];
+                if (!w || w.monitor !== screenName || w.is_minimized)
+                    continue;
+                if (active.size > 0 && !(w.tags || []).some(t => active.has(t)))
+                    continue;
+                if (w.is_maximized || w.is_fullscreen) {
+                    hasMaximizedToplevel = true;
+                    return;
+                }
+            }
+            hasMaximizedToplevel = false;
+            return;
+        }
         if (!CompositorService.isHyprland && !CompositorService.isNiri) {
             hasMaximizedToplevel = false;
             return;
@@ -364,7 +369,7 @@ PanelWindow {
             shouldHideForWindows = false;
             return;
         }
-        if (!CompositorService.isNiri && !CompositorService.isHyprland) {
+        if (!CompositorService.isNiri && !CompositorService.isHyprland && !CompositorService.isMango) {
             shouldHideForWindows = false;
             return;
         }
@@ -838,7 +843,7 @@ PanelWindow {
                 return true;
 
             const showOnWindowsSetting = barConfig?.showOnWindowsOpen ?? false;
-            if (showOnWindowsSetting && autoHide && (CompositorService.isNiri || CompositorService.isHyprland)) {
+            if (showOnWindowsSetting && autoHide && (CompositorService.isNiri || CompositorService.isHyprland || CompositorService.isMango)) {
                 if (barWindow.shouldHideForWindows)
                     return topBarMouseArea.containsMouse || popoutPinsReveal || revealSticky || ipcReveal;
                 return true;

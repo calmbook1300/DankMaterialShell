@@ -586,7 +586,7 @@ Item {
                 }
 
                 StyledText {
-                    text: I18n.tr("Time format")
+                    text: I18n.tr("Time Format")
                     font.pixelSize: Theme.fontSizeMedium
                     font.weight: Font.Medium
                     color: Theme.surfaceText
@@ -605,7 +605,7 @@ Item {
                 SettingsToggleRow {
                     settingKey: "greeterShowSeconds"
                     tags: ["greeter", "time", "seconds"]
-                    text: I18n.tr("Show seconds")
+                    text: I18n.tr("Show Seconds")
                     checked: SettingsData.greeterShowSeconds
                     onToggled: checked => SettingsData.set("greeterShowSeconds", checked)
                 }
@@ -630,7 +630,7 @@ Item {
                 SettingsDropdownRow {
                     settingKey: "greeterLockDateFormat"
                     tags: ["greeter", "date", "format"]
-                    text: I18n.tr("Date format")
+                    text: I18n.tr("Date Format")
                     description: I18n.tr("Greeter only — format for the date on the login screen")
                     options: root._lockDateFormatPresets.map(p => p.label)
                     currentValue: {
@@ -742,6 +742,16 @@ Item {
                     description: I18n.tr("Pre-fill the last successful username on the greeter")
                     checked: SettingsData.greeterRememberLastUser
                     onToggled: checked => SettingsData.set("greeterRememberLastUser", checked)
+                }
+
+                SettingsToggleRow {
+                    settingKey: "greeterAutoLogin"
+                    tags: ["greeter", "autologin", "login", "startup", "password"]
+                    text: I18n.tr("Auto-login on startup")
+                    description: SettingsData.greeterRememberLastUser && SettingsData.greeterRememberLastSession ? I18n.tr("Skip the greeter password after boot until you sign out. Lock screen unlock is unchanged. Takes effect on the next reboot after sync.") : I18n.tr("Requires remembering the last user and session. Enable those options first.")
+                    checked: SettingsData.greeterAutoLogin
+                    enabled: SettingsData.greeterRememberLastUser && SettingsData.greeterRememberLastSession
+                    onToggled: checked => SettingsData.set("greeterAutoLogin", checked)
                 }
             }
 

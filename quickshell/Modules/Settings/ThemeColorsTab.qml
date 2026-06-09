@@ -23,8 +23,11 @@ Item {
 
     property var cursorIncludeStatus: ({
             "exists": false,
-            "included": false
+            "included": false,
+            "configFormat": "",
+            "readOnly": false
         })
+    readonly property bool cursorReadOnly: CompositorService.isHyprland && cursorIncludeStatus.readOnly === true
     property bool checkingCursorInclude: false
     property bool fixingCursorInclude: false
 
@@ -46,6 +49,7 @@ Item {
                 "includeLine": "require(\"dms.cursor\")"
             };
         case "dwl":
+        case "mango":
             return {
                 "configFile": configDir + "/mango/config.conf",
                 "cursorFile": configDir + "/mango/dms/cursor.conf",
@@ -59,16 +63,18 @@ Item {
 
     function checkCursorIncludeStatus() {
         const compositor = CompositorService.compositor;
-        if (compositor !== "niri" && compositor !== "hyprland" && compositor !== "dwl") {
+        if (compositor !== "niri" && compositor !== "hyprland" && compositor !== "dwl" && compositor !== "mango") {
             cursorIncludeStatus = {
                 "exists": false,
-                "included": false
+                "included": false,
+                "configFormat": "",
+                "readOnly": false
             };
             return;
         }
 
         const filename = (compositor === "niri") ? "cursor.kdl" : ((compositor === "hyprland") ? "cursor.lua" : "cursor.conf");
-        const compositorArg = (compositor === "dwl") ? "mangowc" : compositor;
+        const compositorArg = (compositor === "dwl" || compositor === "mango") ? "mangowc" : compositor;
 
         checkingCursorInclude = true;
         Proc.runCommand("check-cursor-include", ["dms", "config", "resolve-include", compositorArg, filename], (output, exitCode) => {
@@ -76,7 +82,9 @@ Item {
             if (exitCode !== 0) {
                 cursorIncludeStatus = {
                     "exists": false,
-                    "included": false
+                    "included": false,
+                    "configFormat": "",
+                    "readOnly": false
                 };
                 return;
             }
@@ -85,13 +93,19 @@ Item {
             } catch (e) {
                 cursorIncludeStatus = {
                     "exists": false,
-                    "included": false
+                    "included": false,
+                    "configFormat": "",
+                    "readOnly": false
                 };
             }
         });
     }
 
     function fixCursorInclude() {
+        if (cursorReadOnly) {
+            ToastService.showWarning(I18n.tr("Hyprland conf mode"), I18n.tr("This install is still using hyprland.conf. Run dms setup to migrate before editing cursor settings."), "dms setup", "hyprland-migration");
+            return;
+        }
         const paths = getCursorConfigPaths();
         if (!paths)
             return;
@@ -180,7 +194,7 @@ Item {
                 themeColorsTab.templateDetection = JSON.parse(output.trim());
             } catch (e) {}
         });
-        if (CompositorService.isNiri || CompositorService.isHyprland || CompositorService.isDwl)
+        if (CompositorService.isNiri || CompositorService.isHyprland || CompositorService.isDwl || CompositorService.isMango)
             checkCursorIncludeStatus();
     }
 
@@ -1626,7 +1640,7 @@ Item {
                 SettingsControlledByFrame {
                     visible: themeColorsTab.connectedFrameModeActive
                     parentModal: themeColorsTab.parentModal
-                    settingLabel: I18n.tr("Surface Opacity")
+                    settingLabel: I18n.tr("Transparency")
                     reason: I18n.tr("Managed by Frame in Connected Mode")
                 }
 
@@ -1634,7 +1648,7 @@ Item {
                     tab: "theme"
                     tags: ["surface", "popup", "transparency", "opacity", "modal"]
                     settingKey: "popupTransparency"
-                    text: I18n.tr("Surface Opacity")
+                    text: I18n.tr("Transparency")
                     description: I18n.tr("Controls opacity of all popouts, modals, and their content layers")
                     visible: !themeColorsTab.connectedFrameModeActive
                     value: Math.round(SettingsData.popupTransparency * 100)
@@ -1855,7 +1869,7 @@ Item {
                     tags: ["blur", "background", "transparency", "glass", "frosted"]
                     settingKey: "blurEnabled"
                     text: I18n.tr("Background Blur")
-                    description: !BlurService.available ? I18n.tr("Requires a newer version of Quickshell") : I18n.tr("Blur the background behind bars, popouts, modals, and notifications. Requires compositor support and configuration.")
+                    description: !BlurService.available ? I18n.tr("Your compositor does not support background blur (ext-background-effect-v1)") : I18n.tr("Blur the background behind bars, popouts, modals, and notifications. Requires compositor support and configuration.")
                     checked: SettingsData.blurEnabled ?? false
                     enabled: BlurService.available
                     onToggled: checked => SettingsData.set("blurEnabled", checked)
@@ -1944,315 +1958,6 @@ Item {
 
             SettingsCard {
                 tab: "theme"
-                tags: ["niri", "layout", "gaps", "radius", "window", "border"]
-                title: I18n.tr("Niri Layout Overrides").replace("Niri", "niri")
-                settingKey: "niriLayout"
-                iconName: "crop_square"
-                visible: CompositorService.isNiri
-
-                SettingsToggleRow {
-                    tab: "theme"
-                    tags: ["niri", "gaps", "override"]
-                    settingKey: "niriLayoutGapsOverrideEnabled"
-                    text: I18n.tr("Override Gaps")
-                    description: I18n.tr("Use custom gaps instead of bar spacing")
-                    checked: SettingsData.niriLayoutGapsOverride >= 0
-                    onToggled: checked => {
-                        if (checked) {
-                            const currentGaps = Math.max(4, (SettingsData.barConfigs[0]?.spacing ?? 4));
-                            SettingsData.set("niriLayoutGapsOverride", currentGaps);
-                            return;
-                        }
-                        SettingsData.set("niriLayoutGapsOverride", -1);
-                    }
-                }
-
-                SettingsSliderRow {
-                    tab: "theme"
-                    tags: ["niri", "gaps", "override"]
-                    settingKey: "niriLayoutGapsOverride"
-                    text: I18n.tr("Window Gaps")
-                    description: I18n.tr("Space between windows")
-                    visible: SettingsData.niriLayoutGapsOverride >= 0
-                    value: Math.max(0, SettingsData.niriLayoutGapsOverride)
-                    minimum: 0
-                    maximum: 50
-                    unit: "px"
-                    defaultValue: Math.max(4, (SettingsData.barConfigs[0]?.spacing ?? 4))
-                    onSliderValueChanged: newValue => SettingsData.set("niriLayoutGapsOverride", newValue)
-                }
-
-                SettingsToggleRow {
-                    tab: "theme"
-                    tags: ["niri", "radius", "override"]
-                    settingKey: "niriLayoutRadiusOverrideEnabled"
-                    text: I18n.tr("Override Corner Radius")
-                    description: I18n.tr("Use custom window radius instead of theme radius")
-                    checked: SettingsData.niriLayoutRadiusOverride >= 0
-                    onToggled: checked => {
-                        if (checked) {
-                            SettingsData.set("niriLayoutRadiusOverride", SettingsData.cornerRadius);
-                            return;
-                        }
-                        SettingsData.set("niriLayoutRadiusOverride", -1);
-                    }
-                }
-
-                SettingsSliderRow {
-                    tab: "theme"
-                    tags: ["niri", "radius", "override"]
-                    settingKey: "niriLayoutRadiusOverride"
-                    text: I18n.tr("Window Corner Radius")
-                    description: I18n.tr("Rounded corners for windows")
-                    visible: SettingsData.niriLayoutRadiusOverride >= 0
-                    value: Math.max(0, SettingsData.niriLayoutRadiusOverride)
-                    minimum: 0
-                    maximum: 100
-                    unit: "px"
-                    defaultValue: SettingsData.cornerRadius
-                    onSliderValueChanged: newValue => SettingsData.set("niriLayoutRadiusOverride", newValue)
-                }
-
-                SettingsToggleRow {
-                    tab: "theme"
-                    tags: ["niri", "border", "override"]
-                    settingKey: "niriLayoutBorderSizeEnabled"
-                    text: I18n.tr("Override Border Size")
-                    description: I18n.tr("Use custom border/focus-ring width")
-                    checked: SettingsData.niriLayoutBorderSize >= 0
-                    onToggled: checked => {
-                        if (checked) {
-                            SettingsData.set("niriLayoutBorderSize", 2);
-                            return;
-                        }
-                        SettingsData.set("niriLayoutBorderSize", -1);
-                    }
-                }
-
-                SettingsSliderRow {
-                    tab: "theme"
-                    tags: ["niri", "border", "override"]
-                    settingKey: "niriLayoutBorderSize"
-                    text: I18n.tr("Border Size")
-                    description: I18n.tr("Width of window border and focus ring")
-                    visible: SettingsData.niriLayoutBorderSize >= 0
-                    value: Math.max(0, SettingsData.niriLayoutBorderSize)
-                    minimum: 0
-                    maximum: 10
-                    unit: "px"
-                    defaultValue: 2
-                    onSliderValueChanged: newValue => SettingsData.set("niriLayoutBorderSize", newValue)
-                }
-            }
-
-            SettingsCard {
-                tab: "theme"
-                tags: ["hyprland", "layout", "gaps", "radius", "window", "border", "rounding"]
-                title: I18n.tr("Hyprland Layout Overrides")
-                settingKey: "hyprlandLayout"
-                iconName: "crop_square"
-                visible: CompositorService.isHyprland
-
-                SettingsToggleRow {
-                    tab: "theme"
-                    tags: ["hyprland", "gaps", "override"]
-                    settingKey: "hyprlandLayoutGapsOverrideEnabled"
-                    text: I18n.tr("Override Gaps")
-                    description: I18n.tr("Use custom gaps instead of bar spacing")
-                    checked: SettingsData.hyprlandLayoutGapsOverride >= 0
-                    onToggled: checked => {
-                        if (checked) {
-                            const currentGaps = Math.max(4, (SettingsData.barConfigs[0]?.spacing ?? 4));
-                            SettingsData.set("hyprlandLayoutGapsOverride", currentGaps);
-                            return;
-                        }
-                        SettingsData.set("hyprlandLayoutGapsOverride", -1);
-                    }
-                }
-
-                SettingsSliderRow {
-                    tab: "theme"
-                    tags: ["hyprland", "gaps", "override"]
-                    settingKey: "hyprlandLayoutGapsOverride"
-                    text: I18n.tr("Window Gaps")
-                    description: I18n.tr("Space between windows (gaps_in and gaps_out)")
-                    visible: SettingsData.hyprlandLayoutGapsOverride >= 0
-                    value: Math.max(0, SettingsData.hyprlandLayoutGapsOverride)
-                    minimum: 0
-                    maximum: 50
-                    unit: "px"
-                    defaultValue: Math.max(4, (SettingsData.barConfigs[0]?.spacing ?? 4))
-                    onSliderValueChanged: newValue => SettingsData.set("hyprlandLayoutGapsOverride", newValue)
-                }
-
-                SettingsToggleRow {
-                    tab: "theme"
-                    tags: ["hyprland", "radius", "override", "rounding"]
-                    settingKey: "hyprlandLayoutRadiusOverrideEnabled"
-                    text: I18n.tr("Override Corner Radius")
-                    description: I18n.tr("Use custom window rounding instead of theme radius")
-                    checked: SettingsData.hyprlandLayoutRadiusOverride >= 0
-                    onToggled: checked => {
-                        if (checked) {
-                            SettingsData.set("hyprlandLayoutRadiusOverride", SettingsData.cornerRadius);
-                            return;
-                        }
-                        SettingsData.set("hyprlandLayoutRadiusOverride", -1);
-                    }
-                }
-
-                SettingsSliderRow {
-                    tab: "theme"
-                    tags: ["hyprland", "radius", "override", "rounding"]
-                    settingKey: "hyprlandLayoutRadiusOverride"
-                    text: I18n.tr("Window Rounding")
-                    description: I18n.tr("Rounded corners for windows (decoration.rounding)")
-                    visible: SettingsData.hyprlandLayoutRadiusOverride >= 0
-                    value: Math.max(0, SettingsData.hyprlandLayoutRadiusOverride)
-                    minimum: 0
-                    maximum: 100
-                    unit: "px"
-                    defaultValue: SettingsData.cornerRadius
-                    onSliderValueChanged: newValue => SettingsData.set("hyprlandLayoutRadiusOverride", newValue)
-                }
-
-                SettingsToggleRow {
-                    tab: "theme"
-                    tags: ["hyprland", "border", "override"]
-                    settingKey: "hyprlandLayoutBorderSizeEnabled"
-                    text: I18n.tr("Override Border Size")
-                    description: I18n.tr("Use custom border size")
-                    checked: SettingsData.hyprlandLayoutBorderSize >= 0
-                    onToggled: checked => {
-                        if (checked) {
-                            SettingsData.set("hyprlandLayoutBorderSize", 2);
-                            return;
-                        }
-                        SettingsData.set("hyprlandLayoutBorderSize", -1);
-                    }
-                }
-
-                SettingsSliderRow {
-                    tab: "theme"
-                    tags: ["hyprland", "border", "override"]
-                    settingKey: "hyprlandLayoutBorderSize"
-                    text: I18n.tr("Border Size")
-                    description: I18n.tr("Width of window border (general.border_size)")
-                    visible: SettingsData.hyprlandLayoutBorderSize >= 0
-                    value: Math.max(0, SettingsData.hyprlandLayoutBorderSize)
-                    minimum: 0
-                    maximum: 10
-                    unit: "px"
-                    defaultValue: 2
-                    onSliderValueChanged: newValue => SettingsData.set("hyprlandLayoutBorderSize", newValue)
-                }
-            }
-
-            SettingsCard {
-                tab: "theme"
-                tags: ["mangowc", "mango", "dwl", "layout", "gaps", "radius", "window", "border"]
-                title: I18n.tr("MangoWC Layout Overrides")
-                settingKey: "mangoLayout"
-                iconName: "crop_square"
-                visible: CompositorService.isDwl
-
-                SettingsToggleRow {
-                    tab: "theme"
-                    tags: ["mangowc", "mango", "gaps", "override"]
-                    settingKey: "mangoLayoutGapsOverrideEnabled"
-                    text: I18n.tr("Override Gaps")
-                    description: I18n.tr("Use custom gaps instead of bar spacing")
-                    checked: SettingsData.mangoLayoutGapsOverride >= 0
-                    onToggled: checked => {
-                        if (checked) {
-                            const currentGaps = Math.max(4, (SettingsData.barConfigs[0]?.spacing ?? 4));
-                            SettingsData.set("mangoLayoutGapsOverride", currentGaps);
-                            return;
-                        }
-                        SettingsData.set("mangoLayoutGapsOverride", -1);
-                    }
-                }
-
-                SettingsSliderRow {
-                    tab: "theme"
-                    tags: ["mangowc", "mango", "gaps", "override"]
-                    settingKey: "mangoLayoutGapsOverride"
-                    text: I18n.tr("Window Gaps")
-                    description: I18n.tr("Space between windows (gappih/gappiv/gappoh/gappov)")
-                    visible: SettingsData.mangoLayoutGapsOverride >= 0
-                    value: Math.max(0, SettingsData.mangoLayoutGapsOverride)
-                    minimum: 0
-                    maximum: 50
-                    unit: "px"
-                    defaultValue: Math.max(4, (SettingsData.barConfigs[0]?.spacing ?? 4))
-                    onSliderValueChanged: newValue => SettingsData.set("mangoLayoutGapsOverride", newValue)
-                }
-
-                SettingsToggleRow {
-                    tab: "theme"
-                    tags: ["mangowc", "mango", "radius", "override"]
-                    settingKey: "mangoLayoutRadiusOverrideEnabled"
-                    text: I18n.tr("Override Corner Radius")
-                    description: I18n.tr("Use custom window radius instead of theme radius")
-                    checked: SettingsData.mangoLayoutRadiusOverride >= 0
-                    onToggled: checked => {
-                        if (checked) {
-                            SettingsData.set("mangoLayoutRadiusOverride", SettingsData.cornerRadius);
-                            return;
-                        }
-                        SettingsData.set("mangoLayoutRadiusOverride", -1);
-                    }
-                }
-
-                SettingsSliderRow {
-                    tab: "theme"
-                    tags: ["mangowc", "mango", "radius", "override"]
-                    settingKey: "mangoLayoutRadiusOverride"
-                    text: I18n.tr("Window Corner Radius")
-                    description: I18n.tr("Rounded corners for windows (border_radius)")
-                    visible: SettingsData.mangoLayoutRadiusOverride >= 0
-                    value: Math.max(0, SettingsData.mangoLayoutRadiusOverride)
-                    minimum: 0
-                    maximum: 100
-                    unit: "px"
-                    defaultValue: SettingsData.cornerRadius
-                    onSliderValueChanged: newValue => SettingsData.set("mangoLayoutRadiusOverride", newValue)
-                }
-
-                SettingsToggleRow {
-                    tab: "theme"
-                    tags: ["mangowc", "mango", "border", "override"]
-                    settingKey: "mangoLayoutBorderSizeEnabled"
-                    text: I18n.tr("Override Border Size")
-                    description: I18n.tr("Use custom border size")
-                    checked: SettingsData.mangoLayoutBorderSize >= 0
-                    onToggled: checked => {
-                        if (checked) {
-                            SettingsData.set("mangoLayoutBorderSize", 2);
-                            return;
-                        }
-                        SettingsData.set("mangoLayoutBorderSize", -1);
-                    }
-                }
-
-                SettingsSliderRow {
-                    tab: "theme"
-                    tags: ["mangowc", "mango", "border", "override"]
-                    settingKey: "mangoLayoutBorderSize"
-                    text: I18n.tr("Border Size")
-                    description: I18n.tr("Width of window border (borderpx)")
-                    visible: SettingsData.mangoLayoutBorderSize >= 0
-                    value: Math.max(0, SettingsData.mangoLayoutBorderSize)
-                    minimum: 0
-                    maximum: 10
-                    unit: "px"
-                    defaultValue: 2
-                    onSliderValueChanged: newValue => SettingsData.set("mangoLayoutBorderSize", newValue)
-                }
-            }
-
-            SettingsCard {
-                tab: "theme"
                 tags: ["modal", "darken", "background", "overlay"]
                 title: I18n.tr("Modal Background")
                 settingKey: "modalBackground"
@@ -2311,7 +2016,7 @@ Item {
                 title: I18n.tr("Cursor Theme")
                 settingKey: "cursorTheme"
                 iconName: "mouse"
-                visible: CompositorService.isNiri || CompositorService.isHyprland || CompositorService.isDwl
+                visible: CompositorService.isNiri || CompositorService.isHyprland || CompositorService.isDwl || CompositorService.isMango
 
                 Column {
                     width: parent.width
@@ -2410,6 +2115,17 @@ Item {
 
                     SettingsToggleRow {
                         tab: "theme"
+                        tags: ["mango", "touchpad", "trackpad", "natural", "scrolling"]
+                        settingKey: "mangoTrackpadNaturalScrolling"
+                        text: I18n.tr("Natural Touchpad Scrolling")
+                        description: I18n.tr("Invert touchpad scroll direction")
+                        visible: CompositorService.isMango
+                        checked: SettingsData.mangoTrackpadNaturalScrolling
+                        onToggled: checked => SettingsData.set("mangoTrackpadNaturalScrolling", checked)
+                    }
+
+                    SettingsToggleRow {
+                        tab: "theme"
                         tags: ["cursor", "hide", "typing"]
                         settingKey: "cursorHideWhenTyping"
                         text: I18n.tr("Hide When Typing")
@@ -2467,6 +2183,8 @@ Item {
                                 return SettingsData.cursorSettings.hyprland?.inactiveTimeout || 0;
                             if (CompositorService.isDwl)
                                 return SettingsData.cursorSettings.dwl?.cursorHideTimeout || 0;
+                            if (CompositorService.isMango)
+                                return SettingsData.cursorSettings.mango?.cursorHideTimeout || 0;
                             return 0;
                         }
                         minimum: 0
@@ -2487,6 +2205,10 @@ Item {
                                 if (!updated.dwl)
                                     updated.dwl = {};
                                 updated.dwl.cursorHideTimeout = newValue;
+                            } else if (CompositorService.isMango) {
+                                if (!updated.mango)
+                                    updated.mango = {};
+                                updated.mango.cursorHideTimeout = newValue;
                             }
                             SettingsData.set("cursorSettings", updated);
                         }

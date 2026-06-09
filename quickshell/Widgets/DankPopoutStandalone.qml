@@ -65,20 +65,11 @@ Item {
     readonly property bool backgroundDismissWindowRequired: backgroundInteractive
     readonly property bool backgroundWindowRequired: backgroundDismissWindowRequired || root.overlayContent !== null
     readonly property bool _fullHeight: fullHeightSurface
-    readonly property var effectivePopoutLayer: {
-        switch (Quickshell.env("DMS_POPOUT_LAYER")) {
-        case "bottom":
-            root.log.warn("'bottom' layer is not valid for popouts. Defaulting to 'top' layer.");
-            return WlrLayershell.Top;
-        case "background":
-            root.log.warn("'background' layer is not valid for popouts. Defaulting to 'top' layer.");
-            return WlrLayershell.Top;
-        case "overlay":
-            return WlrLayershell.Overlay;
-        default:
-            return root.triggerUsesOverlayLayer ? WlrLayershell.Overlay : WlrLayershell.Top;
-        }
-    }
+    readonly property var effectivePopoutLayer: LayerShell.fromEnv("DMS_POPOUT_LAYER", root.triggerUsesOverlayLayer ? WlrLayer.Overlay : WlrLayer.Top, {
+        "allow": ["top", "overlay"],
+        "invalidLayer": WlrLayer.Top,
+        "label": "popouts"
+    })
 
     function _frameEdgeInset(side) {
         if (!screen)
@@ -407,9 +398,11 @@ Item {
     property real renderedAlignedY: alignedY
     property real renderedAlignedHeight: alignedHeight
     readonly property bool renderedGeometryGrowing: alignedHeight >= renderedAlignedHeight
+    // Snap rendered geometry while the entrance morph runs so it doesn't ride a second animation.
+    readonly property bool _settlingToOpen: _fullHeight && shouldBeVisible && morphAnim.running
 
     Behavior on renderedAlignedY {
-        enabled: root.animationsEnabled && contentWindow.visible && root.shouldBeVisible
+        enabled: root.animationsEnabled && contentWindow.visible && root.shouldBeVisible && !root._settlingToOpen
         NumberAnimation {
             duration: Theme.variantDuration(root.animationDuration, root.renderedGeometryGrowing)
             easing.type: Easing.BezierSpline
@@ -418,7 +411,7 @@ Item {
     }
 
     Behavior on renderedAlignedHeight {
-        enabled: root.animationsEnabled && contentWindow.visible && root.shouldBeVisible
+        enabled: root.animationsEnabled && contentWindow.visible && root.shouldBeVisible && !root._settlingToOpen
         NumberAnimation {
             duration: Theme.variantDuration(root.animationDuration, root.renderedGeometryGrowing)
             easing.type: Easing.BezierSpline
@@ -620,6 +613,8 @@ Item {
         WlrLayershell.layer: root.effectivePopoutLayer
         WlrLayershell.exclusiveZone: -1
         WlrLayershell.keyboardFocus: {
+            if (PopoutManager.screenshotActive)
+                return WlrKeyboardFocus.None;
             if (customKeyboardFocus !== null)
                 return customKeyboardFocus;
             if (!shouldBeVisible)
@@ -729,6 +724,7 @@ Item {
                 Behavior on openProgress {
                     enabled: root.animationsEnabled
                     NumberAnimation {
+                        id: morphAnim
                         duration: Theme.variantDuration(root.animationDuration, root.shouldBeVisible)
                         easing.type: Easing.BezierSpline
                         easing.bezierCurve: root.shouldBeVisible ? root.animationEnterCurve : root.animationExitCurve

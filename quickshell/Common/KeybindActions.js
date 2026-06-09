@@ -11,6 +11,15 @@ const DMS_ACTIONS = [
     { id: "spawn dms ipc call spotlight toggle", label: "Default Launcher: Toggle" },
     { id: "spawn dms ipc call spotlight open", label: "Default Launcher: Open" },
     { id: "spawn dms ipc call spotlight close", label: "Default Launcher: Close" },
+    { id: "spawn dms ipc call defaultApp browser", label: "Default Web Browser: Open" },
+    { id: "spawn dms ipc call defaultApp fileManager", label: "Default File Manager: Open" },
+    { id: "spawn dms ipc call defaultApp mail", label: "Default Mail: Open" },
+    { id: "spawn dms ipc call defaultApp calendar", label: "Default Calendar: Open" },
+    { id: "spawn dms ipc call defaultApp textEditor", label: "Default Text Editor: Open" },
+    { id: "spawn dms ipc call defaultApp pdfReader", label: "Default PDF Reader: Open" },
+    { id: "spawn dms ipc call defaultApp imageViewer", label: "Default Image Viewer: Open" },
+    { id: "spawn dms ipc call defaultApp videoPlayer", label: "Default Video Player: Open" },
+    { id: "spawn dms ipc call defaultApp musicPlayer", label: "Default Music Player: Open" },
     { id: "spawn dms ipc call spotlight-bar toggle", label: "Spotlight Bar: Toggle" },
     { id: "spawn dms ipc call spotlight-bar open", label: "Spotlight Bar: Open" },
     { id: "spawn dms ipc call spotlight-bar close", label: "Spotlight Bar: Close" },
@@ -770,6 +779,26 @@ const DMS_ACTION_ARGS = {
     }
 };
 
+const DMS_AMOUNT_LABELS = {
+    "audio increment": "Volume Up",
+    "audio decrement": "Volume Down",
+    "mpris increment": "Player Volume Up",
+    "mpris decrement": "Player Volume Down",
+    "brightness increment": "Brightness Up",
+    "brightness decrement": "Brightness Down"
+};
+
+function getDmsAmountLabel(action) {
+    var parsed = parseDmsActionArgs(action);
+    var label = DMS_AMOUNT_LABELS[parsed.base];
+    if (!label)
+        return null;
+    var amount = parsed.args?.amount;
+    if (amount === undefined || amount === null || amount === "")
+        return label;
+    return label + " (" + amount + "%)";
+}
+
 function getActionTypes() {
     return ACTION_TYPES;
 }
@@ -843,6 +872,10 @@ function findCompositorAction(compositor, actionId) {
 function getActionLabel(action, compositor) {
     if (!action)
         return "";
+
+    var amountLabel = getDmsAmountLabel(action);
+    if (amountLabel)
+        return amountLabel;
 
     var dmsAct = findDmsAction(action);
     if (dmsAct)

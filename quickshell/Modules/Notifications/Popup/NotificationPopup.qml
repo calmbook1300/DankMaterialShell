@@ -156,28 +156,9 @@ PanelWindow {
 
     visible: !_finalized
     WlrLayershell.layer: {
-        const envLayer = Quickshell.env("DMS_NOTIFICATION_LAYER");
-        if (envLayer) {
-            switch (envLayer) {
-            case "bottom":
-                return WlrLayershell.Bottom;
-            case "overlay":
-                return WlrLayershell.Overlay;
-            case "background":
-                return WlrLayershell.Background;
-            case "top":
-                return WlrLayershell.Top;
-            }
-        }
-
-        if (!notificationData)
-            return WlrLayershell.Top;
-
-        SettingsData.notificationOverlayEnabled;
-
-        const shouldUseOverlay = (SettingsData.notificationOverlayEnabled) || (notificationData.urgency === NotificationUrgency.Critical);
-
-        return shouldUseOverlay ? WlrLayershell.Overlay : WlrLayershell.Top;
+        const shouldUseOverlay = notificationData && (SettingsData.notificationOverlayEnabled || notificationData.urgency === NotificationUrgency.Critical);
+        const fallback = shouldUseOverlay ? WlrLayer.Overlay : WlrLayer.Top;
+        return LayerShell.fromEnv("DMS_NOTIFICATION_LAYER", fallback);
     }
     WlrLayershell.exclusiveZone: -1
     WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
@@ -755,6 +736,7 @@ PanelWindow {
                 visible: false
                 width: Math.max(0, backgroundContainer.width - Theme.spacingL - (Theme.spacingL + Theme.notificationHoverRevealMargin) - popupIconSize - Theme.spacingM)
                 text: notificationData ? (notificationData.htmlBody || "") : ""
+                textFormat: Text.StyledText
                 font.pixelSize: Theme.fontSizeSmall
                 elide: Text.ElideNone
                 horizontalAlignment: Text.AlignLeft
@@ -912,6 +894,7 @@ PanelWindow {
                         property bool hasMoreText: truncated
 
                         text: notificationData ? (notificationData.htmlBody || "") : ""
+                        textFormat: Text.StyledText
                         color: Theme.surfaceVariantText
                         font.pixelSize: Theme.fontSizeSmall
                         width: parent.width
