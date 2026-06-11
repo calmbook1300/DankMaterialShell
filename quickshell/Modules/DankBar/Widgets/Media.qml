@@ -474,11 +474,11 @@ BasePill {
                     }
 
                     Rectangle {
-                        width: 24
-                        height: 24
-                        radius: 12
+                        width: 20
+                        height: 20
+                        radius: 10
                         anchors.verticalCenter: parent.verticalCenter
-                        color: prevArea.containsMouse ? BlurService.hoverColor(Theme.widgetBaseHoverColor) : "transparent"
+                        color: toggleArea.containsMouse ? BlurService.hoverColor(Theme.widgetBaseHoverColor) : "transparent"
                         visible: root.playerAvailable
                         opacity: activePlayer ? 1 : 0.3
 
@@ -486,10 +486,11 @@ BasePill {
                             anchors.centerIn: parent
                             name: root._isPlaying ? "pause" : "play_arrow"
                             size: 14
-                            color: root._isPlaying ? Theme.primary : Theme.widgetTextColor
+                            color: Theme.widgetTextColor
                         }
 
                         MouseArea {
+                            id: toggleArea
                             anchors.fill: parent
                             enabled: root.playerAvailable
                             cursorShape: Qt.PointingHandCursor
