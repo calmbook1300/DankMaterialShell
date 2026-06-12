@@ -53,6 +53,13 @@ Item {
                     onToggled: checked => SettingsData.set("mediaAdaptiveWidthEnabled", checked)
                 }
 
+                SettingsToggleRow {
+                    text: I18n.tr("Hide when idle")
+                    description: I18n.tr("Hide the media widget when no media is playing")
+                    checked: SettingsData.mediaHideWhenIdleEnabled
+                    onToggled: checked => SettingsData.set("mediaHideWhenIdleEnabled", checked)
+                }
+
                 SettingsDropdownRow {
                     property var scrollOptsInternal: ["volume", "song", "nothing"]
                     property var scrollOptsDisplay: [I18n.tr("Change Volume", "media scroll wheel option"), I18n.tr("Change Song", "media scroll wheel option"), I18n.tr("Nothing", "media scroll wheel option")]

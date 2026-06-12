@@ -27,7 +27,7 @@ BasePill {
     }
 
     onActivePlayerChanged: _syncMeta()
-    visible: _isPlaying
+    visible: !SettingsData.mediaHideWhenIdleEnabled || _isPlaying
 
     function _syncMeta() {
         if (!activePlayer) {

@@ -153,6 +153,7 @@ var SPEC = {
     waveProgressEnabled: { def: true },
     scrollTitleEnabled: { def: true },
     mediaAdaptiveWidthEnabled: { def: true },
+    mediaHideWhenIdleEnabled: { def: false },
     audioVisualizerEnabled: { def: true },
     audioScrollMode: { def: "volume" },
     audioWheelScrollAmount: { def: 5 },
