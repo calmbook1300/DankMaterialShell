@@ -516,6 +516,8 @@ Singleton {
     property bool notepadUseMonospace: true
     property string notepadFontFamily: ""
     property real notepadFontSize: 14
+    property real notificationSummaryFontSize: Spec.SPEC.notificationSummaryFontSize.def
+    property real notificationBodyFontSize: Spec.SPEC.notificationBodyFontSize.def
     property bool notepadShowLineNumbers: false
     property real notepadTransparencyOverride: -1
     property real notepadLastCustomTransparency: 0.7
@@ -696,6 +698,7 @@ Singleton {
     property int notificationTimeoutNormal: 5000
     property int notificationTimeoutCritical: 0
     property bool notificationCompactMode: false
+    property bool notificationShowTimeoutBar: false
     property bool notificationDedupeEnabled: true
     property int notificationPopupPosition: SettingsData.Position.Top
     property int notificationAnimationSpeed: SettingsData.AnimationSpeed.Short
