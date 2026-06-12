@@ -163,8 +163,18 @@ Item {
                     text: I18n.tr("Show Occupied Workspaces Only")
                     description: I18n.tr("Display only workspaces that contain windows")
                     checked: SettingsData.showOccupiedWorkspacesOnly
-                    visible: CompositorService.isNiri || CompositorService.isHyprland || CompositorService.isMango
+                    visible: CompositorService.isNiri
                     onToggled: checked => SettingsData.set("showOccupiedWorkspacesOnly", checked)
+                }
+
+                SettingsToggleRow {
+                    settingKey: "showLabelsForOccupiedWorkspacesOnly"
+                    tags: ["workspace", "occupied", "active", "windows"]
+                    text: I18n.tr("Show Labels for Occupied Workspaces Only")
+                    description: I18n.tr("Display labels only for workspaces that contain windows")
+                    checked: SettingsData.showLabelsForOccupiedWorkspacesOnly
+                    visible: CompositorService.isNiri || CompositorService.isHyprland || CompositorService.isMango
+                    onToggled: checked => SettingsData.set("showLabelsForOccupiedWorkspacesOnly", checked)
                 }
 
                 SettingsToggleRow {

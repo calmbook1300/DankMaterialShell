@@ -379,6 +379,7 @@ Singleton {
     property int workspaceAppIconSizeOffset: 0
     property bool workspaceFollowFocus: false
     property bool showOccupiedWorkspacesOnly: false
+    property bool showLabelsForOccupiedWorkspacesOnly: false
     property bool reverseScrolling: false
     property bool dwlShowAllTags: false
     property bool workspaceActiveAppHighlightEnabled: false

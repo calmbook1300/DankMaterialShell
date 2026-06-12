@@ -467,8 +467,7 @@ Item {
           });
         }
 
-        // if (SettingsData.showNamesForOccupiedWorkspacesOnly) {
-        if (true) {
+        if (SettingsData.showLabelsForOccupiedWorkspacesOnly) {
           return workspaces.map(ws => ({
             "id": ws.id,
             "idx": ws.idx,

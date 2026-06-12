@@ -1080,6 +1080,35 @@
     "conditionKey": "isNiri"
   },
   {
+    "section": "showLabelsForOccupiedWorkspacesOnly",
+    "label": "Show Labels for Occupied Workspaces Only",
+    "tabIndex": 4,
+    "category": "Dank Bar",
+    "keywords": [
+      "active",
+      "bar",
+      "contain",
+      "dank",
+      "desktop",
+      "desktops",
+      "display",
+      "monitor",
+      "occupied",
+      "output",
+      "panel",
+      "screen",
+      "show",
+      "statusbar",
+      "topbar",
+      "virtual",
+      "windows",
+      "workspace",
+      "workspaces"
+    ],
+    "description": "Display labels only for workspaces that contain windows",
+    "conditionKey": "isNiri"
+  },
+  {
     "section": "showWorkspaceApps",
     "label": "Show Workspace Apps",
     "tabIndex": 4,

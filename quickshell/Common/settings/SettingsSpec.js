@@ -139,6 +139,7 @@ var SPEC = {
     groupActiveWorkspaceApps: { def: false },
     workspaceFollowFocus: { def: false },
     showOccupiedWorkspacesOnly: { def: false },
+    showLabelsForOccupiedWorkspacesOnly: { def: false },
     reverseScrolling: { def: false },
     dwlShowAllTags: { def: false },
     workspaceActiveAppHighlightEnabled: { def: false },
