@@ -86,6 +86,14 @@ Item {
     anchors.bottomMargin: _bottomMargin
     clip: false
 
+    MouseArea {
+        anchors.fill: parent
+        acceptedButtons: Qt.RightButton
+        onClicked: {
+          AudioService.toggleMute();
+        }
+    }
+
     DeferredAction {
         id: enableFrameInsetAnimation
         onTriggered: topBarContent._animateFrameInsets = true
