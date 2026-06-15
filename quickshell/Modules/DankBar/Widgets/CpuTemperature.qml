@@ -102,17 +102,17 @@ BasePill {
                     StyledTextMetrics {
                         id: tempBaseline
                         font.pixelSize: Theme.barTextSize(root.barThickness, root.barConfig?.fontScale, root.barConfig?.maximizeWidgetText)
-                        text: "88°"
+                        text: "88°C"
                     }
 
                     StyledText {
                         id: cpuTempText
                         text: {
                             if (DgopService.cpuTemperature === undefined || DgopService.cpuTemperature === null || DgopService.cpuTemperature < 0) {
-                                return "--°";
+                                return "--°C";
                             }
 
-                            return Math.round(DgopService.cpuTemperature) + "°";
+                            return Math.round(DgopService.cpuTemperature) + "°C";
                         }
                         font.pixelSize: Theme.barTextSize(root.barThickness, root.barConfig?.fontScale, root.barConfig?.maximizeWidgetText)
                         color: Theme.widgetTextColor
