@@ -37,6 +37,7 @@ var SPEC = {
 
     firstDayOfWeek: { def: -1 },
     showWeekNumber: { def: false },
+    calendarBackend: { def: "auto" },
     use24HourClock: { def: true },
     showSeconds: { def: false },
     padHours12Hour: { def: false },
@@ -158,6 +159,7 @@ var SPEC = {
     audioVisualizerEnabled: { def: true },
     audioScrollMode: { def: "volume" },
     audioWheelScrollAmount: { def: 5 },
+    audioDeviceScrollVolumeEnabled: { def: false },
     clockCompactMode: { def: false },
     focusedWindowCompactMode: { def: false },
     focusedWindowSize: { def: 1 },
@@ -165,6 +167,9 @@ var SPEC = {
     barMaxVisibleApps: { def: 0 },
     barMaxVisibleRunningApps: { def: 0 },
     barShowOverflowBadge: { def: true },
+    trayAutoOverflow: { def: true },
+    trayPopupSingleLine: { def: true },
+    trayMaxVisibleItems: { def: 0 },
     appsDockHideIndicators: { def: false },
     appsDockColorizeActive: { def: false },
     appsDockActiveColorMode: { def: "primary" },
@@ -227,6 +232,7 @@ var SPEC = {
     launcherUseOverlayLayer: { def: false },
     launcherStyle: { def: "full" },
     spotlightBarShowModeChips: { def: false },
+    keybindsFloatingWindow: { def: false },
 
     useAutoLocation: { def: false },
     weatherEnabled: { def: true },
@@ -265,8 +271,13 @@ var SPEC = {
     notificationSummaryFontSize: { def: 0 },
     notificationBodyFontSize: { def: 0 },
     notepadShowLineNumbers: { def: false },
+    notepadAutoSave: { def: false },
+    notepadSlideoutSide: { def: "right" },
+    notepadDefaultMode: { def: "slideout" },
     notepadTransparencyOverride: { def: -1 },
     notepadLastCustomTransparency: { def: 0.7 },
+    notepadUseCompositorGap: { def: false },
+    notepadEdgeGap: { def: 0 },
 
     soundsEnabled: { def: true },
     useSystemSoundTheme: { def: false },
@@ -274,6 +285,7 @@ var SPEC = {
     soundNewNotification: { def: true },
     soundVolumeChanged: { def: true },
     soundPluggedIn: { def: true },
+    muteSoundsWhenMediaPlaying: { def: true },
 
     acMonitorTimeout: { def: 0 },
     acLockTimeout: { def: 0 },
@@ -574,6 +586,7 @@ var SPEC = {
 
     builtInPluginSettings: { def: {} },
     clipboardEnterToPaste: { def: false },
+    clipboardVisibleEntryActions: { def: ["pin", "edit", "delete"] },
 
     launcherPluginVisibility: { def: {} },
     launcherPluginOrder: { def: [] },

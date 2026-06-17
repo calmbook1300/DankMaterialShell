@@ -108,6 +108,7 @@ Singleton {
     }
 
     property bool clipboardEnterToPaste: false
+    property var clipboardVisibleEntryActions: ["pin", "edit", "delete"]
 
     property var launcherPluginVisibility: ({})
 
@@ -181,6 +182,7 @@ Singleton {
 
     property int firstDayOfWeek: -1
     property bool showWeekNumber: false
+    property string calendarBackend: "auto"
     property bool use24HourClock: true
     property bool showSeconds: false
     property bool padHours12Hour: false
@@ -398,6 +400,7 @@ Singleton {
     property bool audioVisualizerEnabled: true
     property string audioScrollMode: "volume"
     property int audioWheelScrollAmount: 5
+    property bool audioDeviceScrollVolumeEnabled: false
     property bool clockCompactMode: false
     property int focusedWindowSize: 1
     property bool focusedWindowCompactMode: false
@@ -405,6 +408,9 @@ Singleton {
     property int barMaxVisibleApps: 0
     property int barMaxVisibleRunningApps: 0
     property bool barShowOverflowBadge: true
+    property bool trayAutoOverflow: true
+    property bool trayPopupSingleLine: true
+    property int trayMaxVisibleItems: 0
     property bool appsDockHideIndicators: false
     property bool appsDockColorizeActive: false
     property string appsDockActiveColorMode: "primary"
@@ -461,6 +467,8 @@ Singleton {
     property bool launcherUseOverlayLayer: false
     property string launcherStyle: "full"
     property bool spotlightBarShowModeChips: false
+    property bool keybindsFloatingWindow: false
+    onKeybindsFloatingWindowChanged: saveSettings()
 
     property string _legacyWeatherLocation: "New York, NY"
     property string _legacyWeatherCoordinates: "40.7128,-74.0060"
@@ -520,13 +528,39 @@ Singleton {
     property real notificationSummaryFontSize: Spec.SPEC.notificationSummaryFontSize.def
     property real notificationBodyFontSize: Spec.SPEC.notificationBodyFontSize.def
     property bool notepadShowLineNumbers: false
+    property bool notepadAutoSave: false
+    property string notepadSlideoutSide: "right"
+    property string notepadDefaultMode: "slideout"
     property real notepadTransparencyOverride: -1
     property real notepadLastCustomTransparency: 0.7
+    property bool notepadUseCompositorGap: false
+    property int notepadEdgeGap: 0
+
+    // Compositor layout gap when enabled and available, else the manual value.
+    readonly property int notepadEffectiveEdgeGap: {
+        if (notepadUseCompositorGap) {
+            var g = -1;
+            if (CompositorService.isNiri)
+                g = niriLayoutGapsOverride;
+            else if (CompositorService.isHyprland)
+                g = hyprlandLayoutGapsOverride;
+            else if (CompositorService.isMango)
+                g = mangoLayoutGapsOverride;
+            if (g >= 0)
+                return g;
+        }
+        return Math.max(0, notepadEdgeGap);
+    }
 
     onNotepadUseMonospaceChanged: saveSettings()
     onNotepadFontFamilyChanged: saveSettings()
     onNotepadFontSizeChanged: saveSettings()
     onNotepadShowLineNumbersChanged: saveSettings()
+    onNotepadAutoSaveChanged: saveSettings()
+    onNotepadSlideoutSideChanged: saveSettings()
+    onNotepadDefaultModeChanged: saveSettings()
+    onNotepadUseCompositorGapChanged: saveSettings()
+    onNotepadEdgeGapChanged: saveSettings()
     // onCenteringModeChanged: saveSettings()
     onNotepadTransparencyOverrideChanged: {
         if (notepadTransparencyOverride > 0) {
@@ -542,6 +576,7 @@ Singleton {
     property bool soundVolumeChanged: true
     property bool soundPluggedIn: true
     property bool soundLogin: false
+    property bool muteSoundsWhenMediaPlaying: true
 
     property int acMonitorTimeout: 0
     property int acLockTimeout: 0
@@ -1650,6 +1685,15 @@ Singleton {
             "configs": anyChanged ? out : configs,
             "changed": anyChanged
         };
+    }
+
+    function effectiveBarConfigForRender(config, usesFrameBarChrome) {
+        if (!config || !connectedFrameModeActive || usesFrameBarChrome)
+            return config;
+        const backup = connectedFrameBarStyleBackups[config.id];
+        if (!backup)
+            return config;
+        return Object.assign({}, config, backup);
     }
 
     // Single entry point for connected-mode settings state.

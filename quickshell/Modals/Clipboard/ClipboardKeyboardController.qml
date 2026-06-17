@@ -125,8 +125,6 @@ QtObject {
             if (!ClipboardService.keyboardNavigationActive) {
                 ClipboardService.keyboardNavigationActive = true;
                 ClipboardService.selectedIndex = 0;
-            } else if (ClipboardService.selectedIndex === 0) {
-                ClipboardService.keyboardNavigationActive = false;
             } else {
                 selectPrevious();
             }
@@ -155,8 +153,6 @@ QtObject {
                 if (!ClipboardService.keyboardNavigationActive) {
                     ClipboardService.keyboardNavigationActive = true;
                     ClipboardService.selectedIndex = 0;
-                } else if (ClipboardService.selectedIndex === 0) {
-                    ClipboardService.keyboardNavigationActive = false;
                 } else {
                     selectPrevious();
                 }
@@ -184,8 +180,7 @@ QtObject {
         if (event.modifiers & Qt.ShiftModifier) {
             switch (event.key) {
             case Qt.Key_Delete:
-                modal.clearAll();
-                modal.hide();
+                modal.confirmClearAll();
                 event.accepted = true;
                 return;
             case Qt.Key_Return:

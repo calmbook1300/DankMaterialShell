@@ -22,7 +22,14 @@ Rectangle {
     readonly property string entryType: modal ? modal.getEntryType(entry) : "text"
     readonly property string entryPreview: modal ? modal.getEntryPreview(entry) : ""
     readonly property var pinnedDuplicateEntry: !entry.pinned ? ClipboardService.getPinnedEntryByHash(entry.hash) : null
-    readonly property bool effectivePinned: entry.pinned || pinnedDuplicateEntry !== null
+    readonly property bool hasPinnedDuplicate: pinnedDuplicateEntry !== null
+    readonly property bool effectivePinned: entry.pinned || hasPinnedDuplicate
+    readonly property var visibleEntryActions: SettingsData.clipboardVisibleEntryActions || ["pin", "edit", "delete"]
+    readonly property bool showPinAction: visibleEntryActions.includes("pin")
+    readonly property bool showEditAction: visibleEntryActions.includes("edit")
+    readonly property bool showDeleteAction: visibleEntryActions.includes("delete")
+    readonly property bool showPinnedIndicator: hasPinnedDuplicate && !showPinAction
+    readonly property bool showAnyAction: showPinAction || showEditAction || showDeleteAction || showPinnedIndicator
 
     radius: Theme.cornerRadius
     color: {
@@ -63,12 +70,28 @@ Rectangle {
         anchors.rightMargin: Theme.spacingS
         anchors.verticalCenter: parent.verticalCenter
         spacing: Theme.spacingXS
+        visible: root.showAnyAction
+
+        Item {
+            width: 40
+            height: 40
+            visible: root.showPinnedIndicator
+
+            // Status indicator only; the Pin action remains hidden.
+            DankIcon {
+                anchors.centerIn: parent
+                name: "push_pin"
+                size: Theme.iconSize - 6
+                color: Theme.primary
+            }
+        }
 
         DankActionButton {
             iconName: "push_pin"
             iconSize: Theme.iconSize - 6
-            iconColor: effectivePinned ? Theme.primary : Theme.surfaceText
-            backgroundColor: effectivePinned ? Theme.primarySelected : "transparent"
+            iconColor: (entry.pinned || hasPinnedDuplicate) ? Theme.primary : Theme.surfaceText
+            backgroundColor: (entry.pinned || hasPinnedDuplicate) ? Theme.primarySelected : "transparent"
+            visible: root.showPinAction
             onClicked: {
                 if (entry.pinned) {
                     unpinRequested(entry);
@@ -86,6 +109,7 @@ Rectangle {
             iconName: "edit"
             iconSize: Theme.iconSize - 6
             iconColor: Theme.surfaceText
+            visible: root.showEditAction
 
             onClicked: {
                 if (entryType === "image") {
@@ -99,6 +123,7 @@ Rectangle {
             iconName: "close"
             iconSize: Theme.iconSize - 6
             iconColor: Theme.surfaceText
+            visible: root.showDeleteAction
             onClicked: deleteRequested()
         }
     }
@@ -106,8 +131,8 @@ Rectangle {
     Item {
         anchors.left: indexBadge.right
         anchors.leftMargin: Theme.spacingM
-        anchors.right: actionButtons.left
-        anchors.rightMargin: Theme.spacingM
+        anchors.right: root.showAnyAction ? actionButtons.left : parent.right
+        anchors.rightMargin: root.showAnyAction ? Theme.spacingM : Theme.spacingS
         anchors.verticalCenter: parent.verticalCenter
         // height: contentColumn.implicitHeight
         height: ClipboardConstants.itemHeight
@@ -168,8 +193,8 @@ Rectangle {
     MouseArea {
         id: mouseArea
         anchors.left: parent.left
-        anchors.right: actionButtons.left
-        anchors.rightMargin: Theme.spacingS
+        anchors.right: root.showAnyAction ? actionButtons.left : parent.right
+        anchors.rightMargin: root.showAnyAction ? Theme.spacingS : 0
         anchors.top: parent.top
         anchors.bottom: parent.bottom
         hoverEnabled: true

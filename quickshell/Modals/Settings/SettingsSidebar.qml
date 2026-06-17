@@ -105,8 +105,8 @@ Rectangle {
                 },
                 {
                     "id": "compositor_layout",
-                    "text": CompositorService.isNiri ? "niri" : (CompositorService.isHyprland ? "Hyprland" : "MangoWC"),
-                    "icon": "crop_square",
+                    "text": CompositorService.isNiri ? "Niri" : (CompositorService.isHyprland ? "Hyprland" : "MangoWC"),
+                    "icon": "layers",
                     "tabIndex": 37,
                     "layoutCapable": true
                 }
@@ -118,16 +118,16 @@ Rectangle {
             "icon": "toolbar",
             "children": [
                 {
-                    "id": "dankbar_settings",
-                    "text": I18n.tr("Settings"),
-                    "icon": "tune",
-                    "tabIndex": 3
-                },
-                {
                     "id": "dankbar_appearance",
                     "text": I18n.tr("Appearance"),
                     "icon": "palette",
                     "tabIndex": 6
+                },
+                {
+                    "id": "dankbar_settings",
+                    "text": I18n.tr("Settings"),
+                    "icon": "tune",
+                    "tabIndex": 3
                 },
                 {
                     "id": "dankbar_widgets",
@@ -238,8 +238,33 @@ Rectangle {
             "id": "network",
             "text": I18n.tr("Network"),
             "icon": "wifi",
-            "tabIndex": 7,
-            "dmsOnly": true
+            "dmsOnly": true,
+            "children": [
+                {
+                    "id": "network_status",
+                    "text": I18n.tr("Status"),
+                    "icon": "lan",
+                    "tabIndex": 7
+                },
+                {
+                    "id": "network_ethernet",
+                    "text": I18n.tr("Ethernet"),
+                    "icon": "settings_ethernet",
+                    "tabIndex": 39
+                },
+                {
+                    "id": "network_wifi",
+                    "text": I18n.tr("WiFi"),
+                    "icon": "wifi",
+                    "tabIndex": 40
+                },
+                {
+                    "id": "network_vpn",
+                    "text": I18n.tr("VPN"),
+                    "icon": "vpn_key",
+                    "tabIndex": 41
+                }
+            ]
         },
         {
             "id": "applications",
