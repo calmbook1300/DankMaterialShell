@@ -37,8 +37,15 @@ DankPopout {
         });
     }
 
+    function releaseTextInputFocus() {
+        contentLoader.item?.releaseTextInputFocus();
+    }
+
     function hide() {
-        close();
+        releaseTextInputFocus();
+        Qt.callLater(function () {
+            root.close();
+        });
     }
 
     function clearAll() {
@@ -57,6 +64,7 @@ DankPopout {
 
     onShouldBeVisibleChanged: {
         if (!shouldBeVisible) {
+            releaseTextInputFocus();
             return;
         }
         if (clipboardAvailable) {
@@ -132,9 +140,10 @@ DankPopout {
             LayoutMirroring.enabled: I18n.isRtl
             LayoutMirroring.childrenInherit: true
 
+            surfaceHost: root
             clearConfirmDialog: clearConfirmDialog
             onCloseRequested: root.hide()
-            onInstantCloseRequested: root.close()
+            onInstantCloseRequested: root.hide()
 
             Component.onCompleted: {
                 activeTab = root.activeTab;

@@ -35,6 +35,7 @@ StyledRect {
     property color leftIconFocusedColor: Theme.primary
     property bool showClearButton: false
     property bool showPasswordToggle: false
+    property real rightAccessoryWidth: 0
     property bool passwordVisible: false
     property bool usePopupTransparency: !checkParentDisablesTransparency()
     property color backgroundColor: usePopupTransparency ? Theme.withAlpha(Theme.surfaceContainerHigh, Theme.popupTransparency) : Theme.surfaceContainerHigh
@@ -46,7 +47,7 @@ StyledRect {
     property real cornerRadius: Theme.cornerRadius
     readonly property real leftPadding: Theme.spacingM + (leftIconName ? leftIconSize + Theme.spacingM : 0)
     readonly property real rightPadding: {
-        let p = Theme.spacingS;
+        let p = Theme.spacingS + rightAccessoryWidth;
         if (showPasswordToggle)
             p += 20 + Theme.spacingXS;
         if (showClearButton && text.length > 0)
@@ -201,7 +202,7 @@ StyledRect {
         id: rightButtonsRow
 
         anchors.right: parent.right
-        anchors.rightMargin: Theme.spacingS
+        anchors.rightMargin: Theme.spacingS + root.rightAccessoryWidth
         anchors.verticalCenter: parent.verticalCenter
         spacing: Theme.spacingXS
         visible: showPasswordToggle || (showClearButton && text.length > 0)

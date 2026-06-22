@@ -8,6 +8,7 @@ FocusScope {
     id: root
 
     property var clearConfirmDialog: null
+    property var surfaceHost: null
 
     property string activeTab: "recents"
     property bool showKeyboardHints: false
@@ -16,6 +17,7 @@ FocusScope {
 
     property string mode: "history"
     property string searchText: ClipboardService.searchText
+    property string activeFilter: SettingsData.clipboardRememberTypeFilter ? SettingsData.clipboardTypeFilter : "all"
 
     readonly property bool clipboardAvailable: ClipboardService.clipboardAvailable
     readonly property bool wtypeAvailable: ClipboardService.wtypeAvailable
@@ -31,6 +33,11 @@ FocusScope {
     property alias searchField: historyContent.searchField
     property alias editorView: editorView
     property alias keyboardController: keyboardController
+    readonly property alias contextMenuActive: historyContent.contextMenuActive
+
+    function closeContextMenu() {
+        historyContent.closeContextMenu();
+    }
 
     signal closeRequested
     signal instantCloseRequested
@@ -41,7 +48,7 @@ FocusScope {
             return;
         }
         ClipboardService.selectedIndex = 0;
-        ClipboardService.keyboardNavigationActive = false;
+        ClipboardService.keyboardNavigationActive = true;
     }
     onPinnedCountChanged: {
         if (activeTab === "saved" && pinnedCount === 0) {
@@ -50,16 +57,60 @@ FocusScope {
     }
     onSearchTextChanged: ClipboardService.searchText = searchText
 
+    onActiveFilterChanged: {
+        ClipboardService.activeFilter = activeFilter;
+        ClipboardService.selectedIndex = 0;
+        ClipboardService.keyboardNavigationActive = true;
+        ClipboardService.updateFilteredModel();
+        if (SettingsData.clipboardRememberTypeFilter) {
+            SettingsData.set("clipboardTypeFilter", activeFilter);
+        }
+    }
+
+    function releaseTextInputFocus() {
+        // Drop text-input focus before hiding the Wayland surface.
+        if (searchField) {
+            searchField.setFocus(false);
+        }
+        if (editorView) {
+            editorView.releaseTextInputFocus();
+        }
+        root.forceActiveFocus();
+    }
+
+    function requestClose(instant) {
+        releaseTextInputFocus();
+        if (instant) {
+            root.instantCloseRequested();
+        } else {
+            root.closeRequested();
+        }
+    }
+
     function hide() {
-        closeRequested();
+        requestClose(false);
     }
 
     function pasteSelected() {
-        ClipboardService.pasteSelected(() => root.instantCloseRequested());
+        const entry = selectedEntry();
+        if (!entry)
+            return;
+        ClipboardService.pasteEntry(entry, () => root.requestClose(true));
+    }
+
+    function pasteEntry(entry) {
+        ClipboardService.pasteEntry(entry, () => root.requestClose(true));
     }
 
     function copyEntry(entry) {
-        ClipboardService.copyEntry(entry, () => root.closeRequested());
+        ClipboardService.copyEntry(entry, () => root.requestClose(false));
+    }
+
+    function selectedEntry() {
+        const entries = activeTab === "saved" ? pinnedEntries : unpinnedEntries;
+        if (!entries || entries.length === 0 || selectedIndex < 0 || selectedIndex >= entries.length)
+            return null;
+        return entries[selectedIndex];
     }
 
     function deleteEntry(entry) {
@@ -118,6 +169,9 @@ FocusScope {
     function resetState() {
         activeImageLoads = 0;
         mode = "history";
+        historyContent.closeContextMenu();
+        historyContent.closeFilterMenu();
+        activeFilter = SettingsData.clipboardRememberTypeFilter ? SettingsData.clipboardTypeFilter : "all";
         ClipboardService.reset();
         keyboardController.reset();
     }
