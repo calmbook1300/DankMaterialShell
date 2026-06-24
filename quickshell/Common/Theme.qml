@@ -140,7 +140,7 @@ Singleton {
 
     Component.onCompleted: {
         Quickshell.execDetached(["mkdir", "-p", stateDir]);
-        Proc.runCommand("matugenCheck", ["which", "matugen"], (output, code) => {
+        Proc.runCommand("matugenCheck", ["sh", "-c", "command -v matugen"], (output, code) => {
             matugenAvailable = (code === 0) && !envDisableMatugen;
             const isGreeterMode = (typeof SessionData !== "undefined" && SessionData.isGreeterMode);
 
@@ -2012,6 +2012,23 @@ Singleton {
             return Image.Pad;
         default:
             return Image.PreserveAspectCrop;
+        }
+    }
+
+    // Returns numeric fillMode value for shader use (matches shader calculateUV logic)
+    function getShaderFillMode(modeName) {
+        switch (modeName) {
+        case "Stretch": return 0;
+        case "Fit":
+        case "PreserveAspectFit": return 1;
+        case "Fill":
+        case "PreserveAspectCrop": return 2;
+        case "Tile": return 3;
+        case "TileVertically": return 4;
+        case "TileHorizontally": return 5;
+        case "Pad": return 6;
+        case "Scrolling": return 7;
+        default: return 2;
         }
     }
 
