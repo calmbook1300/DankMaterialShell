@@ -164,6 +164,19 @@ var SPEC = {
     workspaceFocusedBorderColor: { def: "primary" },
     workspaceFocusedBorderCustomColor: { def: "#6750A4" },
     workspaceFocusedBorderThickness: { def: 2 },
+    workspaceUnfocusedMonitorSeparateAppearance: { def: false },
+    workspaceUnfocusedMonitorColorMode: { def: "default" },
+    workspaceUnfocusedMonitorFocusedCustomColor: { def: "#6750A4" },
+    workspaceUnfocusedMonitorOccupiedColorMode: { def: "none" },
+    workspaceUnfocusedMonitorOccupiedCustomColor: { def: "#625B71" },
+    workspaceUnfocusedMonitorUnfocusedColorMode: { def: "default" },
+    workspaceUnfocusedMonitorUnfocusedCustomColor: { def: "#49454E" },
+    workspaceUnfocusedMonitorUrgentColorMode: { def: "default" },
+    workspaceUnfocusedMonitorUrgentCustomColor: { def: "#B3261E" },
+    workspaceUnfocusedMonitorBorderEnabled: { def: false },
+    workspaceUnfocusedMonitorBorderColor: { def: "primary" },
+    workspaceUnfocusedMonitorBorderCustomColor: { def: "#6750A4" },
+    workspaceUnfocusedMonitorBorderThickness: { def: 2 },
     workspaceNameIcons: { def: {} },
     waveProgressEnabled: { def: true },
     scrollTitleEnabled: { def: true },
@@ -173,6 +186,7 @@ var SPEC = {
     audioScrollMode: { def: "volume" },
     audioWheelScrollAmount: { def: 5 },
     audioDeviceScrollVolumeEnabled: { def: false },
+    mediaExcludePlayers: { def: [] },
     clockCompactMode: { def: false },
     focusedWindowCompactMode: { def: false },
     focusedWindowSize: { def: 1 },
@@ -250,6 +264,7 @@ var SPEC = {
 
     useAutoLocation: { def: false },
     weatherEnabled: { def: true },
+    dashTabs: { def: [{ id: "overview", enabled: true }, { id: "media", enabled: true }, { id: "wallpaper", enabled: true }, { id: "weather", enabled: true }, { id: "settings", enabled: true }] },
 
     networkPreference: { def: "auto" },
 
@@ -557,7 +572,9 @@ var SPEC = {
             shadowOpacity: 60,
             shadowColorMode: "default",
             shadowCustomColor: "#000000",
-            clickThrough: false
+            clickThrough: false,
+            hoverPopouts: false,
+            hoverPopoutDelay: 150
         }], onChange: "updateBarConfigs"
     },
 
@@ -630,6 +647,7 @@ var SPEC = {
     frameCloseGaps: { def: true },
     frameLauncherEmergeSide: { def: "bottom" },
     frameLauncherArcExtender: { def: false },
+    frameLauncherEdgeHover: { def: false },
     frameMode: { def: "connected" },
     barInsetPaddingShared: { def: -1 },
     barInsetPaddingSyncAll: { def: false },

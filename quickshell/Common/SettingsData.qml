@@ -291,6 +291,8 @@ Singleton {
     onFrameLauncherEmergeSideChanged: saveSettings()
     property bool frameLauncherArcExtender: false
     onFrameLauncherArcExtenderChanged: saveSettings()
+    property bool frameLauncherEdgeHover: false
+    onFrameLauncherEdgeHoverChanged: saveSettings()
     readonly property string frameModalEmergeSide: frameLauncherEmergeSide === "top" ? "bottom" : "top"
     property string frameMode: "connected"
     onFrameModeChanged: saveSettings()
@@ -426,6 +428,19 @@ Singleton {
     property string workspaceFocusedBorderColor: "primary"
     property string workspaceFocusedBorderCustomColor: "#6750A4"
     property int workspaceFocusedBorderThickness: 2
+    property bool workspaceUnfocusedMonitorSeparateAppearance: false
+    property string workspaceUnfocusedMonitorColorMode: "default"
+    property string workspaceUnfocusedMonitorFocusedCustomColor: "#6750A4"
+    property string workspaceUnfocusedMonitorOccupiedColorMode: "none"
+    property string workspaceUnfocusedMonitorOccupiedCustomColor: "#625B71"
+    property string workspaceUnfocusedMonitorUnfocusedColorMode: "default"
+    property string workspaceUnfocusedMonitorUnfocusedCustomColor: "#49454E"
+    property string workspaceUnfocusedMonitorUrgentColorMode: "default"
+    property string workspaceUnfocusedMonitorUrgentCustomColor: "#B3261E"
+    property bool workspaceUnfocusedMonitorBorderEnabled: false
+    property string workspaceUnfocusedMonitorBorderColor: "primary"
+    property string workspaceUnfocusedMonitorBorderCustomColor: "#6750A4"
+    property int workspaceUnfocusedMonitorBorderThickness: 2
     property var workspaceNameIcons: ({})
     property bool waveProgressEnabled: true
     property bool scrollTitleEnabled: true
@@ -435,6 +450,7 @@ Singleton {
     property string audioScrollMode: "volume"
     property int audioWheelScrollAmount: 5
     property bool audioDeviceScrollVolumeEnabled: false
+    property var mediaExcludePlayers: []
     property bool clockCompactMode: false
     property int focusedWindowSize: 1
     property bool focusedWindowCompactMode: false
@@ -512,6 +528,97 @@ Singleton {
     readonly property string weatherCoordinates: SessionData.weatherCoordinates
     property bool useAutoLocation: false
     property bool weatherEnabled: true
+
+    readonly property var _dashTabIds: ["overview", "media", "wallpaper", "weather", "settings"]
+    readonly property var _dashTabsDefault: [
+        {
+            "id": "overview",
+            "enabled": true
+        },
+        {
+            "id": "media",
+            "enabled": true
+        },
+        {
+            "id": "wallpaper",
+            "enabled": true
+        },
+        {
+            "id": "weather",
+            "enabled": true
+        },
+        {
+            "id": "settings",
+            "enabled": true
+        }
+    ]
+    property var dashTabs: _dashTabsDefault
+    onDashTabsChanged: saveSettings()
+
+    function getDashTabs() {
+        const stored = Array.isArray(dashTabs) ? dashTabs : [];
+        const result = [];
+        const seen = {};
+        for (var i = 0; i < stored.length; i++) {
+            const id = stored[i] && stored[i].id;
+            if (_dashTabIds.indexOf(id) < 0 || seen[id])
+                continue;
+            seen[id] = true;
+            result.push({
+                "id": id,
+                "enabled": stored[i].enabled !== false
+            });
+        }
+        for (var j = 0; j < _dashTabIds.length; j++) {
+            if (!seen[_dashTabIds[j]])
+                result.push({
+                    "id": _dashTabIds[j],
+                    "enabled": true
+                });
+        }
+        return result;
+    }
+
+    function visibleDashTabIds() {
+        return getDashTabs().filter(t => t.enabled && (t.id !== "weather" || weatherEnabled)).map(t => t.id);
+    }
+
+    function dashTabIndexForId(id) {
+        const idx = visibleDashTabIds().indexOf(id);
+        return idx < 0 ? 0 : idx;
+    }
+
+    function setDashTabOrder(ids) {
+        const current = getDashTabs();
+        const ordered = [];
+        for (var i = 0; i < ids.length; i++) {
+            const existing = current.find(t => t.id === ids[i]);
+            if (existing)
+                ordered.push(existing);
+        }
+        for (var j = 0; j < current.length; j++) {
+            if (ids.indexOf(current[j].id) < 0)
+                ordered.push(current[j]);
+        }
+        dashTabs = ordered;
+    }
+
+    function setDashTabEnabled(id, on) {
+        const current = getDashTabs();
+        if (!on && id !== "settings" && current.filter(t => t.enabled && t.id !== "settings").length <= 1)
+            return;
+        dashTabs = current.map(t => t.id === id ? {
+                "id": t.id,
+                "enabled": on
+            } : t);
+    }
+
+    function resetDashTabs() {
+        dashTabs = _dashTabsDefault.map(t => ({
+                    "id": t.id,
+                    "enabled": t.enabled
+                }));
+    }
 
     property string networkPreference: "auto"
 
@@ -897,7 +1004,9 @@ Singleton {
             "shadowOpacity": 60,
             "shadowColorMode": "default",
             "shadowCustomColor": "#000000",
-            "clickThrough": false
+            "clickThrough": false,
+            "hoverPopouts": false,
+            "hoverPopoutDelay": 150
         }
     ]
 
@@ -1210,6 +1319,35 @@ Singleton {
         let targetGlobalIdx = instances.findIndex(inst => inst.id === targetInstance.id);
         if (newIndexInGroup > currentGroupIdx)
             targetGlobalIdx++;
+        instances.splice(targetGlobalIdx, 0, item);
+        desktopWidgetInstances = instances;
+        saveSettings();
+        return true;
+    }
+
+    function moveDesktopWidgetInstanceToGroup(instanceId, groupId, newIndexInGroup) {
+        const instances = JSON.parse(JSON.stringify(desktopWidgetInstances || []));
+        const groups = desktopWidgetGroups || [];
+        const idx = instances.findIndex(inst => inst.id === instanceId);
+        if (idx === -1)
+            return false;
+        const [item] = instances.splice(idx, 1);
+        item.group = groupId || null;
+        const groupMatches = inst => {
+            if (!groupId)
+                return !inst.group || !groups.some(g => g.id === inst.group);
+            return inst.group === groupId;
+        };
+        const groupInstances = instances.filter(groupMatches);
+        const clamped = Math.max(0, Math.min(newIndexInGroup, groupInstances.length));
+        let targetGlobalIdx;
+        if (clamped >= groupInstances.length) {
+            const last = groupInstances[groupInstances.length - 1];
+            targetGlobalIdx = last ? instances.findIndex(inst => inst.id === last.id) + 1 : instances.length;
+        } else {
+            const targetInstance = groupInstances[clamped];
+            targetGlobalIdx = instances.findIndex(inst => inst.id === targetInstance.id);
+        }
         instances.splice(targetGlobalIdx, 0, item);
         desktopWidgetInstances = instances;
         saveSettings();
@@ -2334,6 +2472,46 @@ Singleton {
         return barConfigs.filter(cfg => cfg.enabled);
     }
 
+    function _sideToPosition(side) {
+        switch (side) {
+        case "top":
+            return SettingsData.Position.Top;
+        case "bottom":
+            return SettingsData.Position.Bottom;
+        case "left":
+            return SettingsData.Position.Left;
+        case "right":
+            return SettingsData.Position.Right;
+        }
+        return -1;
+    }
+
+    // Check if a bar occupies the specified screen edge
+    function barOccupiesSide(screen, side) {
+        if (!screen)
+            return false;
+        const sidePos = _sideToPosition(side);
+        if (sidePos < 0)
+            return false;
+        const bars = getEnabledBarConfigs();
+        for (var i = 0; i < bars.length; i++) {
+            const bc = bars[i];
+            if (bc.position !== sidePos)
+                continue;
+            const prefs = bc.screenPreferences || ["all"];
+            if (prefs.includes("all") || isScreenInPreferences(screen, prefs))
+                return true;
+        }
+        return false;
+    }
+
+    // Check if the dock occupies the specified screen edge.
+    function dockOccupiesSide(side) {
+        if (!showDock)
+            return false;
+        return dockPosition === _sideToPosition(side);
+    }
+
     function getScreensSortedByPosition() {
         const screens = [];
         for (var i = 0; i < Quickshell.screens.length; i++) {
@@ -2913,6 +3091,32 @@ Singleton {
             return;
         subs.splice(index, 1);
         appIdSubstitutions = subs;
+        saveSettings();
+    }
+
+    function addMediaExcludePlayer(identity) {
+        if (identity === undefined || identity === null)
+            return;
+        var normalizedIdentity = identity.toString().trim().toLowerCase();
+        if (!normalizedIdentity)
+            return;
+        var list = mediaExcludePlayers ? mediaExcludePlayers.slice() : [];
+        var normalizedList = list.map(function (id) {
+            return id ? id.toString().trim().toLowerCase() : "";
+        });
+        if (normalizedList.indexOf(normalizedIdentity) >= 0)
+            return;
+        list.push(normalizedIdentity);
+        mediaExcludePlayers = list;
+        saveSettings();
+    }
+
+    function removeMediaExcludePlayer(index) {
+        var list = mediaExcludePlayers ? mediaExcludePlayers.slice() : [];
+        if (index < 0 || index >= list.length)
+            return;
+        list.splice(index, 1);
+        mediaExcludePlayers = list;
         saveSettings();
     }
 
