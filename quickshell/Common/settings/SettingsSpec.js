@@ -29,10 +29,12 @@ var SPEC = {
     niriLayoutRadiusOverride: { def: -1, onChange: "updateCompositorLayout" },
     niriLayoutBorderSize: { def: -1, onChange: "updateCompositorLayout" },
     hyprlandLayoutGapsOverride: { def: -1, onChange: "updateCompositorLayout" },
+    hyprlandLayoutGapsOutOverride: { def: -1, onChange: "updateCompositorLayout" },
     hyprlandLayoutRadiusOverride: { def: -1, onChange: "updateCompositorLayout" },
     hyprlandLayoutBorderSize: { def: -1, onChange: "updateCompositorLayout" },
     hyprlandResizeOnBorder: { def: false, onChange: "updateCompositorLayout" },
     mangoLayoutGapsOverride: { def: -1, onChange: "updateCompositorLayout" },
+    mangoLayoutGapsOutOverride: { def: -1, onChange: "updateCompositorLayout" },
     mangoLayoutRadiusOverride: { def: -1, onChange: "updateCompositorLayout" },
     mangoLayoutBorderSize: { def: -1, onChange: "updateCompositorLayout" },
     mangoTrackpadNaturalScrolling: { def: true, onChange: "updateCompositorCursor" },
@@ -220,18 +222,20 @@ var SPEC = {
     centeringMode: { def: "index" },
     clockDateFormat: { def: "" },
     lockDateFormat: { def: "" },
-    greeterRememberLastSession: { def: true },
-    greeterRememberLastUser: { def: true },
+    greeterRememberLastSession: { def: true, onChange: "markGreeterSyncPending" },
+    greeterRememberLastUser: { def: true, onChange: "markGreeterSyncPending" },
     greeterAutoLogin: { def: false, onChange: "scheduleGreeterAutoLoginSync" },
     greeterEnableFprint: { def: false, onChange: "scheduleAuthApply" },
     greeterEnableU2f: { def: false, onChange: "scheduleAuthApply" },
-    greeterWallpaperPath: { def: "" },
-    greeterUse24HourClock: { def: true },
-    greeterShowSeconds: { def: false },
-    greeterPadHours12Hour: { def: false },
-    greeterLockDateFormat: { def: "" },
-    greeterFontFamily: { def: "" },
-    greeterWallpaperFillMode: { def: "" },
+    greeterWallpaperPath: { def: "", onChange: "markGreeterSyncPending" },
+    greeterUse24HourClock: { def: true, onChange: "markGreeterSyncPending" },
+    greeterShowSeconds: { def: false, onChange: "markGreeterSyncPending" },
+    greeterPadHours12Hour: { def: false, onChange: "markGreeterSyncPending" },
+    greeterLockDateFormat: { def: "", onChange: "markGreeterSyncPending" },
+    greeterFontFamily: { def: "", onChange: "markGreeterSyncPending" },
+    greeterWallpaperFillMode: { def: "", onChange: "markGreeterSyncPending" },
+    greeterSyncPending: { def: false },
+    greeterSyncBaseline: { def: {} },
     mediaSize: { def: 1 },
 
     appLauncherViewMode: { def: "list" },
@@ -455,6 +459,9 @@ var SPEC = {
     lockScreenVideoEnabled: { def: false },
     lockScreenVideoPath: { def: "" },
     lockScreenVideoCycling: { def: false },
+    lockScreenWallpaperPath: { def: "" },
+    lockScreenWallpaperFillMode: { def: "" },
+    lockScreenFontFamily: { def: "" },
     hideBrightnessSlider: { def: false },
 
     notificationTimeoutLow: { def: 5000 },
@@ -661,10 +668,11 @@ function getValidKeys() {
 function set(root, key, value, saveFn, hooks) {
     if (!(key in SPEC)) return;
     if (value === undefined || value === null) value = SPEC[key].def;
+    var oldValue = root[key];
     root[key] = value;
     var hookName = SPEC[key].onChange;
     if (hookName && hooks && hooks[hookName]) {
-        hooks[hookName](root);
+        hooks[hookName](root, key, oldValue);
     }
     saveFn();
 }

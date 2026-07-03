@@ -34,6 +34,16 @@ Item {
     property int hyprlandLayoutCount: 0
     property bool lockerReadySent: false
     property bool lockerReadyArmed: false
+    readonly property bool hasCustomWallpaper: SettingsData.lockScreenWallpaperPath !== ""
+    readonly property string lockFontFamily: SettingsData.lockScreenFontFamily
+
+    component ClockDigitText: StyledText {
+        font.pixelSize: 120
+        font.weight: Font.Light
+        color: "white"
+        horizontalAlignment: Text.AlignHCenter
+        font.family: root.lockFontFamily !== "" ? root.lockFontFamily : resolvedFontFamily
+    }
 
     signal unlockRequested
 
@@ -190,6 +200,8 @@ Item {
     Loader {
         anchors.fill: parent
         active: {
+            if (root.hasCustomWallpaper)
+                return false;
             var currentWallpaper = SessionData.getMonitorWallpaper(screenName);
             return !currentWallpaper || (currentWallpaper && currentWallpaper.startsWith("#"));
         }
@@ -205,10 +217,16 @@ Item {
         anchors.fill: parent
 
         readonly property string wallpaperSource: {
+            if (root.hasCustomWallpaper)
+                return root.encodeFileUrl(SettingsData.lockScreenWallpaperPath);
             var w = SessionData.getMonitorWallpaper(screenName);
             return (w && !w.startsWith("#")) ? encodeFileUrl(w) : "";
         }
-        readonly property string fillModeName: SessionData.getMonitorWallpaperFillMode(screenName)
+        readonly property string fillModeName: {
+            if (SettingsData.lockScreenWallpaperFillMode !== "")
+                return SettingsData.lockScreenWallpaperFillMode;
+            return root.hasCustomWallpaper ? "Fill" : SessionData.getMonitorWallpaperFillMode(root.screenName);
+        }
 
         active: wallpaperSource !== ""
         asynchronous: false
@@ -332,91 +350,55 @@ Item {
                 }
                 property bool hasSeconds: timeParts.length > 2
 
-                StyledText {
+                ClockDigitText {
                     width: 75
                     text: clockText.hours.length > 1 ? clockText.hours[0] : ""
-                    font.pixelSize: 120
-                    font.weight: Font.Light
-                    color: "white"
-                    horizontalAlignment: Text.AlignHCenter
                 }
 
-                StyledText {
+                ClockDigitText {
                     width: 75
                     text: clockText.hours.length > 1 ? clockText.hours[1] : clockText.hours.length > 0 ? clockText.hours[0] : ""
-                    font.pixelSize: 120
-                    font.weight: Font.Light
-                    color: "white"
-                    horizontalAlignment: Text.AlignHCenter
                 }
 
-                StyledText {
+                ClockDigitText {
                     text: ":"
-                    font.pixelSize: 120
-                    font.weight: Font.Light
-                    color: "white"
                 }
 
-                StyledText {
+                ClockDigitText {
                     width: 75
                     text: clockText.minutes.length > 0 ? clockText.minutes[0] : ""
-                    font.pixelSize: 120
-                    font.weight: Font.Light
-                    color: "white"
-                    horizontalAlignment: Text.AlignHCenter
                 }
 
-                StyledText {
+                ClockDigitText {
                     width: 75
                     text: clockText.minutes.length > 1 ? clockText.minutes[1] : ""
-                    font.pixelSize: 120
-                    font.weight: Font.Light
-                    color: "white"
-                    horizontalAlignment: Text.AlignHCenter
                 }
 
-                StyledText {
+                ClockDigitText {
                     text: clockText.hasSeconds ? ":" : ""
-                    font.pixelSize: 120
-                    font.weight: Font.Light
-                    color: "white"
                     visible: clockText.hasSeconds
                 }
 
-                StyledText {
+                ClockDigitText {
                     width: 75
                     text: clockText.hasSeconds && clockText.seconds.length > 0 ? clockText.seconds[0] : ""
-                    font.pixelSize: 120
-                    font.weight: Font.Light
-                    color: "white"
-                    horizontalAlignment: Text.AlignHCenter
                     visible: clockText.hasSeconds
                 }
 
-                StyledText {
+                ClockDigitText {
                     width: 75
                     text: clockText.hasSeconds && clockText.seconds.length > 1 ? clockText.seconds[1] : ""
-                    font.pixelSize: 120
-                    font.weight: Font.Light
-                    color: "white"
-                    horizontalAlignment: Text.AlignHCenter
                     visible: clockText.hasSeconds
                 }
 
-                StyledText {
+                ClockDigitText {
                     width: 20
                     text: " "
-                    font.pixelSize: 120
-                    font.weight: Font.Light
-                    color: "white"
                     visible: clockText.ampm !== ""
                 }
 
-                StyledText {
+                ClockDigitText {
                     text: clockText.ampm
-                    font.pixelSize: 120
-                    font.weight: Font.Light
-                    color: "white"
                     visible: clockText.ampm !== ""
                 }
             }
@@ -435,6 +417,7 @@ Item {
                 return systemClock.date.toLocaleDateString(I18n.locale(), Locale.LongFormat);
             }
             font.pixelSize: Theme.fontSizeXLarge
+            font.family: root.lockFontFamily !== "" ? root.lockFontFamily : resolvedFontFamily
             color: "white"
             opacity: 0.9
         }
@@ -667,7 +650,7 @@ Item {
                                         anchors.right: parent.right
                                         anchors.top: parent.top
                                         anchors.margins: Theme.spacingS
-                                        spacing: 2
+                                        spacing: Theme.spacingXXS
 
                                         Row {
                                             width: parent.width
@@ -846,6 +829,13 @@ Item {
                             cursorPosition -= 1;
                         }
 
+                        function deleteForward() {
+                            clampCursorPosition();
+                            if (cursorPosition === text.length)
+                                return;
+                            text = text.slice(0, cursorPosition) + text.slice(cursorPosition + 1);
+                        }
+
                         function isPrintableText(value) {
                             if (value.length === 0)
                                 return false;
@@ -915,14 +905,36 @@ Item {
                                 return;
                             }
 
-                            if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
+                            switch (event.key) {
+                            case Qt.Key_Return:
+                            case Qt.Key_Enter:
                                 accepted();
                                 event.accepted = true;
                                 return;
-                            }
-
-                            if (event.key === Qt.Key_Backspace) {
+                            case Qt.Key_Backspace:
                                 backspace();
+                                event.accepted = true;
+                                return;
+                            case Qt.Key_Delete:
+                                deleteForward();
+                                event.accepted = true;
+                                return;
+                            case Qt.Key_Left:
+                                clampCursorPosition();
+                                cursorPosition = Math.max(0, cursorPosition - 1);
+                                event.accepted = true;
+                                return;
+                            case Qt.Key_Right:
+                                clampCursorPosition();
+                                cursorPosition = Math.min(text.length, cursorPosition + 1);
+                                event.accepted = true;
+                                return;
+                            case Qt.Key_Home:
+                                cursorPosition = 0;
+                                event.accepted = true;
+                                return;
+                            case Qt.Key_End:
+                                cursorPosition = text.length;
                                 event.accepted = true;
                                 return;
                             }
@@ -1028,6 +1040,8 @@ Item {
                     }
 
                     StyledText {
+                        id: passwordDisplay
+
                         anchors.left: lockIconContainer.right
                         anchors.leftMargin: Theme.spacingM
                         anchors.right: (revealButton.visible ? revealButton.left : (virtualKeyboardButton.visible ? virtualKeyboardButton.left : (securityKeyButton.visible ? securityKeyButton.left : (enterButton.visible ? enterButton.left : (loadingSpinner.visible ? loadingSpinner.left : parent.right)))))
@@ -1053,6 +1067,33 @@ Item {
                             NumberAnimation {
                                 duration: Theme.mediumDuration
                                 easing.type: Theme.standardEasing
+                            }
+                        }
+                    }
+
+                    TextMetrics {
+                        id: passwordCursorMetrics
+                        font: passwordDisplay.font
+                        text: passwordDisplay.text.slice(0, passwordField.cursorPosition)
+                    }
+
+                    DankTextCursor {
+                        id: passwordCursor
+
+                        x: passwordDisplay.x + passwordCursorMetrics.advanceWidth + Math.min(0, passwordDisplay.width - passwordDisplay.implicitWidth)
+                        anchors.verticalCenter: parent.verticalCenter
+                        height: passwordDisplay.font.pixelSize + 4
+                        shown: !demoMode && passwordField.activeFocus && !pam.passwd.active && !pam.u2fPending && !root.unlocking
+
+                        Connections {
+                            target: passwordField
+
+                            function onCursorPositionChanged() {
+                                passwordCursor.resetBlink();
+                            }
+
+                            function onTextChanged() {
+                                passwordCursor.resetBlink();
                             }
                         }
                     }
@@ -1246,7 +1287,7 @@ Item {
             anchors.top: passwordLayout.bottom
             anchors.topMargin: Theme.spacingS
             anchors.horizontalCenter: passwordLayout.horizontalCenter
-            spacing: 4
+            spacing: Theme.spacingXS
             opacity: DMSService.capsLockState ? 1 : 0
 
             DankIcon {
@@ -1304,7 +1345,7 @@ Item {
 
                 Row {
                     id: keyboardLayoutRow
-                    spacing: 4
+                    spacing: Theme.spacingXS
 
                     Item {
                         width: Theme.iconSize
@@ -1546,7 +1587,7 @@ Item {
             }
 
             Row {
-                spacing: 6
+                spacing: Theme.spacingXS
                 visible: WeatherService.weather.available
                 anchors.verticalCenter: parent.verticalCenter
 
@@ -1664,7 +1705,7 @@ Item {
             }
 
             Row {
-                spacing: 4
+                spacing: Theme.spacingXS
                 visible: BatteryService.batteryAvailable
                 anchors.verticalCenter: parent.verticalCenter
 

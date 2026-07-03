@@ -620,6 +620,12 @@ Singleton {
         sendRequest("loginctl.unlock", null, callback);
     }
 
+    function setLockedHint(locked, callback) {
+        sendRequest("loginctl.setLockedHint", {
+            "locked": locked
+        }, callback);
+    }
+
     function bluetoothPair(devicePath, callback) {
         sendRequest("bluetooth.pair", {
             "device": devicePath

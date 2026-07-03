@@ -1,6 +1,5 @@
 import QtCore
 import QtQuick
-import Quickshell
 import qs.Common
 import qs.Services
 import qs.Widgets
@@ -22,6 +21,7 @@ Item {
     readonly property bool readOnly: CompositorService.isHyprland && layoutIncludeStatus.readOnly === true
     property bool checkingInclude: false
     property bool fixingInclude: false
+    property string xrayConflictSource: ""
 
     function getLayoutConfigPaths() {
         const configDir = Paths.strip(StandardPaths.writableLocation(StandardPaths.ConfigLocation));
@@ -120,9 +120,28 @@ Item {
         });
     }
 
+    function checkXrayConflicts() {
+        if (!CompositorService.isNiri)
+            return;
+        const configDir = Paths.strip(StandardPaths.writableLocation(StandardPaths.ConfigLocation));
+        const script = `cd "${configDir}/niri" 2>/dev/null || exit 0
+files="config.kdl"
+for f in $(sed -nE 's/^[[:space:]]*include[[:space:]]+"([^"]+)".*/\\1/p' config.kdl 2>/dev/null); do
+    case "$f" in dms/*|/*dms/*) continue ;; esac
+    [ -f "$f" ] && files="$files $f"
+done
+awk '$1 == "xray" { print FILENAME ":" FNR; exit }' $files 2>/dev/null`;
+
+        Proc.runCommand("check-xray-conflict", ["sh", "-c", script], (output, exitCode) => {
+            xrayConflictSource = exitCode === 0 ? output.trim() : "";
+        });
+    }
+
     Component.onCompleted: {
-        if (CompositorService.isNiri || CompositorService.isHyprland || CompositorService.isMango)
+        if (CompositorService.isNiri || CompositorService.isHyprland || CompositorService.isMango) {
             checkLayoutIncludeStatus();
+            checkXrayConflicts();
+        }
     }
 
     DankFlickable {
@@ -215,6 +234,39 @@ Item {
                 }
             }
 
+            StyledRect {
+                width: parent.width
+                height: xrayConflictRow.implicitHeight + Theme.spacingL * 2
+                radius: Theme.cornerRadius
+                color: Theme.withAlpha(Theme.primary, 0.15)
+                border.color: Theme.withAlpha(Theme.primary, 0.3)
+                border.width: 1
+                visible: root.xrayConflictSource !== ""
+
+                Row {
+                    id: xrayConflictRow
+                    anchors.fill: parent
+                    anchors.margins: Theme.spacingL
+                    spacing: Theme.spacingM
+
+                    DankIcon {
+                        name: "warning"
+                        size: Theme.iconSize
+                        color: Theme.primary
+                        anchors.verticalCenter: parent.verticalCenter
+                    }
+
+                    StyledText {
+                        width: parent.width - Theme.iconSize - Theme.spacingM
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: I18n.tr("An xray rule at %1 may conflict with the Xray settings below").arg(root.xrayConflictSource)
+                        font.pixelSize: Theme.fontSizeSmall
+                        color: Theme.surfaceVariantText
+                        wrapMode: Text.WordWrap
+                    }
+                }
+            }
+
             SettingsCard {
                 width: parent.width
                 tags: ["niri", "layout", "gaps", "radius", "window", "border"]
@@ -223,19 +275,30 @@ Item {
                 iconName: "layers"
                 visible: CompositorService.isNiri
 
-                SettingsToggleRow {
-                    tags: ["niri", "gaps", "override"]
-                    settingKey: "niriLayoutGapsOverrideEnabled"
-                    text: I18n.tr("Override Gaps")
-                    description: I18n.tr("Use custom gaps instead of bar spacing")
-                    checked: SettingsData.niriLayoutGapsOverride >= 0
-                    onToggled: checked => {
-                        if (checked) {
-                            const currentGaps = Math.max(4, (SettingsData.barConfigs[0]?.spacing ?? 4));
-                            SettingsData.set("niriLayoutGapsOverride", currentGaps);
+                SettingsButtonGroupRow {
+                    tags: ["niri", "gaps", "override", "unmanaged"]
+                    settingKey: "niriLayoutGapsMode"
+                    text: I18n.tr("Gaps")
+                    description: I18n.tr("Auto matches bar spacing; Off leaves gaps to your niri config")
+                    model: [I18n.tr("Auto"), I18n.tr("Custom"), I18n.tr("Off")]
+                    currentIndex: {
+                        if (SettingsData.niriLayoutGapsOverride === -2)
+                            return 2;
+                        return SettingsData.niriLayoutGapsOverride >= 0 ? 1 : 0;
+                    }
+                    onSelectionChanged: (index, selected) => {
+                        if (!selected)
                             return;
+                        switch (index) {
+                        case 1:
+                            SettingsData.set("niriLayoutGapsOverride", Math.max(4, (SettingsData.barConfigs[0]?.spacing ?? 4)));
+                            return;
+                        case 2:
+                            SettingsData.set("niriLayoutGapsOverride", -2);
+                            return;
+                        default:
+                            SettingsData.set("niriLayoutGapsOverride", -1);
                         }
-                        SettingsData.set("niriLayoutGapsOverride", -1);
                     }
                 }
 
@@ -310,6 +373,27 @@ Item {
                     defaultValue: 2
                     onSliderValueChanged: newValue => SettingsData.set("niriLayoutBorderSize", newValue)
                 }
+
+                SettingsToggleRow {
+                    visible: CompositorService.isNiri
+                    tags: ["niri", "xray", "blur", "background-effect", "performance"]
+                    settingKey: "niriLayoutXrayEnabled"
+                    text: I18n.tr("Xray Blur Effect")
+                    description: I18n.tr("Blurred surfaces show the wallpaper instead of the content beneath")
+                    checked: NiriService.layoutXrayEnabled
+                    onToggled: checked => NiriService.setLayoutXray(checked)
+                }
+
+                SettingsToggleRow {
+                    // Hidden in Frame Connected mode, where it has no target
+                    visible: CompositorService.isNiri && !SettingsData.connectedFrameModeActive
+                    tags: ["niri", "xray", "bar", "frame", "performance"]
+                    settingKey: "niriLayoutBarXrayEnabled"
+                    text: SettingsData.frameEnabled ? I18n.tr("Frame Xray") : I18n.tr("Dank Bar Xray")
+                    description: I18n.tr("Always blur against the wallpaper, even with Xray off")
+                    checked: NiriService.layoutBarXrayEnabled
+                    onToggled: checked => NiriService.setLayoutBarXray(checked)
+                }
             }
 
             SettingsCard {
@@ -320,27 +404,38 @@ Item {
                 iconName: "crop_square"
                 visible: CompositorService.isHyprland
 
-                SettingsToggleRow {
-                    tags: ["hyprland", "gaps", "override"]
-                    settingKey: "hyprlandLayoutGapsOverrideEnabled"
-                    text: I18n.tr("Override Gaps")
-                    description: I18n.tr("Use custom gaps instead of bar spacing")
-                    checked: SettingsData.hyprlandLayoutGapsOverride >= 0
-                    onToggled: checked => {
-                        if (checked) {
-                            const currentGaps = Math.max(4, (SettingsData.barConfigs[0]?.spacing ?? 4));
-                            SettingsData.set("hyprlandLayoutGapsOverride", currentGaps);
+                SettingsButtonGroupRow {
+                    tags: ["hyprland", "gaps", "override", "inner", "outer", "unmanaged"]
+                    settingKey: "hyprlandLayoutGapsMode"
+                    text: I18n.tr("Gaps")
+                    description: I18n.tr("Auto matches bar spacing; Off leaves gaps to your Hyprland config")
+                    model: [I18n.tr("Auto"), I18n.tr("Custom"), I18n.tr("Off")]
+                    currentIndex: {
+                        if (SettingsData.hyprlandLayoutGapsOverride === -2)
+                            return 2;
+                        return SettingsData.hyprlandLayoutGapsOverride >= 0 ? 1 : 0;
+                    }
+                    onSelectionChanged: (index, selected) => {
+                        if (!selected)
                             return;
+                        switch (index) {
+                        case 1:
+                            SettingsData.set("hyprlandLayoutGapsOverride", Math.max(4, (SettingsData.barConfigs[0]?.spacing ?? 4)));
+                            return;
+                        case 2:
+                            SettingsData.set("hyprlandLayoutGapsOverride", -2);
+                            return;
+                        default:
+                            SettingsData.set("hyprlandLayoutGapsOverride", -1);
                         }
-                        SettingsData.set("hyprlandLayoutGapsOverride", -1);
                     }
                 }
 
                 SettingsSliderRow {
-                    tags: ["hyprland", "gaps", "override"]
+                    tags: ["hyprland", "gaps", "override", "inner"]
                     settingKey: "hyprlandLayoutGapsOverride"
-                    text: I18n.tr("Window Gaps")
-                    description: I18n.tr("Space between windows") + " (gaps_in/gaps_out)"
+                    text: I18n.tr("Inner Gaps")
+                    description: I18n.tr("Space between windows") + " (gaps_in)"
                     visible: SettingsData.hyprlandLayoutGapsOverride >= 0
                     value: Math.max(0, SettingsData.hyprlandLayoutGapsOverride)
                     minimum: 0
@@ -348,6 +443,20 @@ Item {
                     unit: "px"
                     defaultValue: Math.max(4, (SettingsData.barConfigs[0]?.spacing ?? 4))
                     onSliderValueChanged: newValue => SettingsData.set("hyprlandLayoutGapsOverride", newValue)
+                }
+
+                SettingsSliderRow {
+                    tags: ["hyprland", "gaps", "override", "outer", "edge"]
+                    settingKey: "hyprlandLayoutGapsOutOverride"
+                    text: I18n.tr("Outer Gaps")
+                    description: I18n.tr("Space between windows and screen edges") + " (gaps_out)"
+                    visible: SettingsData.hyprlandLayoutGapsOverride >= 0
+                    value: SettingsData.hyprlandLayoutGapsOutOverride >= 0 ? SettingsData.hyprlandLayoutGapsOutOverride : Math.max(0, SettingsData.hyprlandLayoutGapsOverride)
+                    minimum: 0
+                    maximum: 50
+                    unit: "px"
+                    defaultValue: Math.max(0, SettingsData.hyprlandLayoutGapsOverride)
+                    onSliderValueChanged: newValue => SettingsData.set("hyprlandLayoutGapsOutOverride", newValue)
                 }
 
                 SettingsToggleRow {
@@ -416,6 +525,27 @@ Item {
                     checked: SettingsData.hyprlandResizeOnBorder
                     onToggled: checked => SettingsData.set("hyprlandResizeOnBorder", checked)
                 }
+
+                SettingsToggleRow {
+                    visible: CompositorService.isHyprland
+                    tags: ["hyprland", "xray", "blur", "background-effect", "performance"]
+                    settingKey: "hyprlandLayoutXrayEnabled"
+                    text: I18n.tr("Xray Blur Effect")
+                    description: I18n.tr("Blurred surfaces show the wallpaper instead of the content beneath")
+                    checked: HyprlandService.layoutXrayEnabled
+                    onToggled: checked => HyprlandService.setLayoutXray(checked)
+                }
+
+                SettingsToggleRow {
+                    // Hidden in Frame Connected mode, where it has no target
+                    visible: CompositorService.isHyprland && !SettingsData.connectedFrameModeActive
+                    tags: ["hyprland", "xray", "bar", "frame", "performance"]
+                    settingKey: "hyprlandLayoutBarXrayEnabled"
+                    text: SettingsData.frameEnabled ? I18n.tr("Frame Xray") : I18n.tr("Dank Bar Xray")
+                    description: I18n.tr("Always blur against the wallpaper, even with Xray off")
+                    checked: HyprlandService.layoutBarXrayEnabled
+                    onToggled: checked => HyprlandService.setLayoutBarXray(checked)
+                }
             }
 
             SettingsCard {
@@ -426,27 +556,38 @@ Item {
                 iconName: "crop_square"
                 visible: CompositorService.isMango
 
-                SettingsToggleRow {
-                    tags: ["mangowc", "mango", "gaps", "override"]
-                    settingKey: "mangoLayoutGapsOverrideEnabled"
-                    text: I18n.tr("Override Gaps")
-                    description: I18n.tr("Use custom gaps instead of bar spacing")
-                    checked: SettingsData.mangoLayoutGapsOverride >= 0
-                    onToggled: checked => {
-                        if (checked) {
-                            const currentGaps = Math.max(4, (SettingsData.barConfigs[0]?.spacing ?? 4));
-                            SettingsData.set("mangoLayoutGapsOverride", currentGaps);
+                SettingsButtonGroupRow {
+                    tags: ["mangowc", "mango", "gaps", "override", "inner", "outer", "unmanaged"]
+                    settingKey: "mangoLayoutGapsMode"
+                    text: I18n.tr("Gaps")
+                    description: I18n.tr("Auto matches bar spacing; Off leaves gaps to your MangoWC config")
+                    model: [I18n.tr("Auto"), I18n.tr("Custom"), I18n.tr("Off")]
+                    currentIndex: {
+                        if (SettingsData.mangoLayoutGapsOverride === -2)
+                            return 2;
+                        return SettingsData.mangoLayoutGapsOverride >= 0 ? 1 : 0;
+                    }
+                    onSelectionChanged: (index, selected) => {
+                        if (!selected)
                             return;
+                        switch (index) {
+                        case 1:
+                            SettingsData.set("mangoLayoutGapsOverride", Math.max(4, (SettingsData.barConfigs[0]?.spacing ?? 4)));
+                            return;
+                        case 2:
+                            SettingsData.set("mangoLayoutGapsOverride", -2);
+                            return;
+                        default:
+                            SettingsData.set("mangoLayoutGapsOverride", -1);
                         }
-                        SettingsData.set("mangoLayoutGapsOverride", -1);
                     }
                 }
 
                 SettingsSliderRow {
-                    tags: ["mangowc", "mango", "gaps", "override"]
+                    tags: ["mangowc", "mango", "gaps", "override", "inner"]
                     settingKey: "mangoLayoutGapsOverride"
-                    text: I18n.tr("Window Gaps")
-                    description: I18n.tr("Space between windows") + " (gappih/gappiv/gappoh/gappov)"
+                    text: I18n.tr("Inner Gaps")
+                    description: I18n.tr("Space between windows") + " (gappih/gappiv)"
                     visible: SettingsData.mangoLayoutGapsOverride >= 0
                     value: Math.max(0, SettingsData.mangoLayoutGapsOverride)
                     minimum: 0
@@ -454,6 +595,20 @@ Item {
                     unit: "px"
                     defaultValue: Math.max(4, (SettingsData.barConfigs[0]?.spacing ?? 4))
                     onSliderValueChanged: newValue => SettingsData.set("mangoLayoutGapsOverride", newValue)
+                }
+
+                SettingsSliderRow {
+                    tags: ["mangowc", "mango", "gaps", "override", "outer", "edge"]
+                    settingKey: "mangoLayoutGapsOutOverride"
+                    text: I18n.tr("Outer Gaps")
+                    description: I18n.tr("Space between windows and screen edges") + " (gappoh/gappov)"
+                    visible: SettingsData.mangoLayoutGapsOverride >= 0
+                    value: SettingsData.mangoLayoutGapsOutOverride >= 0 ? SettingsData.mangoLayoutGapsOutOverride : Math.max(0, SettingsData.mangoLayoutGapsOverride)
+                    minimum: 0
+                    maximum: 50
+                    unit: "px"
+                    defaultValue: Math.max(0, SettingsData.mangoLayoutGapsOverride)
+                    onSliderValueChanged: newValue => SettingsData.set("mangoLayoutGapsOutOverride", newValue)
                 }
 
                 SettingsToggleRow {

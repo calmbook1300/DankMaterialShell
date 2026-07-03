@@ -38,6 +38,7 @@ Item {
     property bool contentHandlesKeys: false
     property bool fullHeightSurface: false
     property bool _primeContent: false
+    property bool _contentWarm: false
     property bool _resizeActive: false
     property real _chromeAnimTravelX: 1
     property real _chromeAnimTravelY: 1
@@ -472,6 +473,7 @@ Item {
         isClosing = false;
         animationsEnabled = false;
         _primeContent = true;
+        _contentWarm = true;
         _supersededClose = false;
 
         const screenChanged = _lastOpenedScreen !== null && _lastOpenedScreen !== screen;
@@ -965,7 +967,7 @@ Item {
         WlrLayershell.namespace: root.layerNamespace
         WlrLayershell.layer: root.effectivePopoutLayer
         WlrLayershell.exclusiveZone: -1
-        WlrLayershell.keyboardFocus: KeyboardFocus.keyboardFocus(shouldBeVisible || (isClosing && CompositorService.useHyprlandFocusGrab), customKeyboardFocus)
+        WlrLayershell.keyboardFocus: KeyboardFocus.keyboardFocus(shouldBeVisible, customKeyboardFocus)
 
         readonly property bool _fullHeight: root.fullHeightSurface
         anchors {
@@ -1038,7 +1040,7 @@ Item {
             readonly property string connectedBarSide: barTop ? "top" : (barBottom ? "bottom" : (barLeft ? "left" : "right"))
             readonly property real surfaceRadius: root.usesConnectedSurfaceChrome ? Theme.connectedSurfaceRadius : Theme.cornerRadius
             readonly property color surfaceColor: root.usesConnectedSurfaceChrome ? Theme.connectedSurfaceColor : Theme.withAlpha(Theme.surfaceContainer, Theme.popupTransparency)
-            readonly property color surfaceBorderColor: root.usesConnectedSurfaceChrome ? Theme.withAlpha(Theme.outlineMedium, 0) : (BlurService.enabled ? BlurService.borderColor : Theme.outlineMedium)
+            readonly property color surfaceBorderColor: root.usesConnectedSurfaceChrome ? Theme.withAlpha(BlurService.borderColor, 0) : BlurService.borderColor
             readonly property real surfaceBorderWidth: root.usesConnectedSurfaceChrome ? 0 : BlurService.borderWidth
             readonly property real surfaceTopLeftRadius: root.usesConnectedSurfaceChrome && (barTop || barLeft) ? 0 : surfaceRadius
             readonly property real surfaceTopRightRadius: root.usesConnectedSurfaceChrome && (barTop || barRight) ? 0 : surfaceRadius
@@ -1334,7 +1336,8 @@ Item {
                         Loader {
                             id: contentLoader
                             anchors.fill: parent
-                            active: root._primeContent || shouldBeVisible || contentWindow.visible
+                            // _contentWarm keeps the tree loaded across close for fast re-open; reclaimed by PopoutService on lock/idle.
+                            active: root._primeContent || shouldBeVisible || contentWindow.visible || root._contentWarm
                             asynchronous: false
                         }
                     }

@@ -15,6 +15,8 @@ Rectangle {
     property bool canChangeViewMode: true
     property bool canCollapse: true
     property bool isSticky: false
+    property bool popupAbove: false
+    property Item popupAboveItem: null
 
     signal viewModeToggled
 
@@ -122,9 +124,10 @@ Rectangle {
                     if (categoryPopup.visible) {
                         categoryPopup.close();
                     } else {
-                        const pos = categoryChip.mapToItem(Overlay.overlay, 0, 0);
-                        categoryPopup.x = pos.x;
-                        categoryPopup.y = pos.y + categoryChip.height + 4;
+                        const chipPos = categoryChip.mapToItem(Overlay.overlay, 0, 0);
+                        const abovePos = (root.popupAboveItem ?? categoryChip).mapToItem(Overlay.overlay, 0, 0);
+                        categoryPopup.x = chipPos.x;
+                        categoryPopup.y = root.popupAbove ? abovePos.y - categoryPopup.height - 4 : chipPos.y + categoryChip.height + 4;
                         categoryPopup.open();
                     }
                 }
@@ -166,7 +169,7 @@ Rectangle {
                         anchors.fill: parent
                         anchors.margins: Theme.spacingS
                         model: root.controller?.appCategories ?? []
-                        spacing: 2
+                        spacing: Theme.spacingXXS
                         clip: true
                         interactive: contentHeight > height
                         implicitHeight: contentHeight
@@ -243,7 +246,7 @@ Rectangle {
         Row {
             id: viewModeRow
             anchors.verticalCenter: parent.verticalCenter
-            spacing: 2
+            spacing: Theme.spacingXXS
             visible: root.canChangeViewMode && !root.section?.collapsed
 
             Repeater {
@@ -325,7 +328,7 @@ Rectangle {
         anchors.fill: parent
         anchors.rightMargin: rightContent.width + Theme.spacingS
         cursorShape: root.canCollapse ? Qt.PointingHandCursor : Qt.ArrowCursor
-        enabled: root.canCollapse
+        enabled: root.canCollapse && !leftContent.hasAppCategories
         onClicked: {
             if (root.canCollapse && root.controller && root.section) {
                 root.controller.toggleSection(root.section.id);

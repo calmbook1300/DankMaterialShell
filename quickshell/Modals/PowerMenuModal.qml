@@ -26,6 +26,8 @@ DankModal {
     property int holdActionIndex: -1
     property real holdProgress: 0
     property bool showHoldHint: false
+    property bool holdFromKeyboard: false
+    property string pendingKeyAction: ""
 
     readonly property bool needsConfirmation: SettingsData.powerActionConfirm
     readonly property int holdDurationMs: SettingsData.powerActionHoldDuration * 1000
@@ -39,6 +41,10 @@ DankModal {
 
     function startHold(action, actionIndex) {
         if (!needsConfirmation || !actionNeedsConfirm(action)) {
+            if (holdFromKeyboard) {
+                pendingKeyAction = action;
+                return;
+            }
             executeAction(action);
             return;
         }
@@ -50,6 +56,7 @@ DankModal {
     }
 
     function cancelHold() {
+        pendingKeyAction = "";
         if (holdAction === "")
             return;
         const wasHolding = holdProgress > 0;
@@ -68,8 +75,12 @@ DankModal {
             cancelHold();
             return;
         }
-        const action = holdAction;
         holdTimer.stop();
+        if (holdFromKeyboard) {
+            pendingKeyAction = holdAction;
+            return;
+        }
+        const action = holdAction;
         holdAction = "";
         holdActionIndex = -1;
         holdProgress = 0;
@@ -274,6 +285,8 @@ DankModal {
         holdActionIndex = -1;
         holdProgress = 0;
         showHoldHint = false;
+        holdFromKeyboard = false;
+        pendingKeyAction = "";
         updateVisibleActions();
         const defaultIndex = getDefaultActionIndex();
         selectedIndex = defaultIndex;
@@ -296,6 +309,7 @@ DankModal {
             event.accepted = true;
             return;
         }
+        holdFromKeyboard = true;
         if (SettingsData.powerMenuGridLayout) {
             handleGridNavigation(event, true);
         } else {
@@ -317,7 +331,16 @@ DankModal {
     function handleListNavigation(event, isPressed) {
         if (!isPressed) {
             if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter || event.key === Qt.Key_R || event.key === Qt.Key_X || event.key === Qt.Key_L || event.key === Qt.Key_S || event.key === Qt.Key_H || event.key === Qt.Key_D || (event.key === Qt.Key_P && !(event.modifiers & Qt.ControlModifier))) {
-                cancelHold();
+                if (pendingKeyAction !== "") {
+                    const action = pendingKeyAction;
+                    pendingKeyAction = "";
+                    holdAction = "";
+                    holdActionIndex = -1;
+                    holdProgress = 0;
+                    executeAction(action);
+                } else {
+                    cancelHold();
+                }
                 event.accepted = true;
             }
             return;
@@ -411,7 +434,16 @@ DankModal {
     function handleGridNavigation(event, isPressed) {
         if (!isPressed) {
             if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter || event.key === Qt.Key_R || event.key === Qt.Key_X || event.key === Qt.Key_L || event.key === Qt.Key_S || event.key === Qt.Key_H || event.key === Qt.Key_D || (event.key === Qt.Key_P && !(event.modifiers & Qt.ControlModifier))) {
-                cancelHold();
+                if (pendingKeyAction !== "") {
+                    const action = pendingKeyAction;
+                    pendingKeyAction = "";
+                    holdAction = "";
+                    holdActionIndex = -1;
+                    holdProgress = 0;
+                    executeAction(action);
+                } else {
+                    cancelHold();
+                }
                 event.accepted = true;
             }
             return;
@@ -645,6 +677,7 @@ DankModal {
                             hoverEnabled: true
                             cursorShape: Qt.PointingHandCursor
                             onPressed: {
+                                root.holdFromKeyboard = false;
                                 root.selectedRow = Math.floor(index / root.gridColumns);
                                 root.selectedCol = index % root.gridColumns;
                                 root.selectedIndex = index;
@@ -792,6 +825,7 @@ DankModal {
                             hoverEnabled: true
                             cursorShape: Qt.PointingHandCursor
                             onPressed: {
+                                root.holdFromKeyboard = false;
                                 root.selectedIndex = index;
                                 root.startHold(modelData, index);
                             }

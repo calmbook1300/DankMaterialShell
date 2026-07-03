@@ -177,10 +177,12 @@ Singleton {
     property int niriLayoutRadiusOverride: -1
     property int niriLayoutBorderSize: -1
     property int hyprlandLayoutGapsOverride: -1
+    property int hyprlandLayoutGapsOutOverride: -1
     property int hyprlandLayoutRadiusOverride: -1
     property int hyprlandLayoutBorderSize: -1
     property bool hyprlandResizeOnBorder: false
     property int mangoLayoutGapsOverride: -1
+    property int mangoLayoutGapsOutOverride: -1
     property int mangoLayoutRadiusOverride: -1
     property int mangoLayoutBorderSize: -1
     property bool mangoTrackpadNaturalScrolling: true
@@ -262,7 +264,11 @@ Singleton {
     }
 
     property bool frameEnabled: false
-    onFrameEnabledChanged: saveSettings()
+    onFrameEnabledChanged: {
+        saveSettings();
+        if (!_loading)
+            updateFrameCompositorLayout();
+    }
     property real frameThickness: 16
     onFrameThicknessChanged: saveSettings()
     property int barInsetPaddingShared: -1
@@ -295,7 +301,11 @@ Singleton {
     onFrameLauncherEdgeHoverChanged: saveSettings()
     readonly property string frameModalEmergeSide: frameLauncherEmergeSide === "top" ? "bottom" : "top"
     property string frameMode: "connected"
-    onFrameModeChanged: saveSettings()
+    onFrameModeChanged: {
+        saveSettings();
+        if (!_loading && frameEnabled)
+            updateFrameCompositorLayout();
+    }
     property var connectedFrameBarStyleBackups: ({})
     onConnectedFrameBarStyleBackupsChanged: saveSettings()
     readonly property bool connectedFrameModeActive: frameEnabled && frameMode === "connected"
@@ -488,6 +498,8 @@ Singleton {
     property string greeterLockDateFormat: ""
     property string greeterFontFamily: ""
     property string greeterWallpaperFillMode: ""
+    property bool greeterSyncPending: false
+    property var greeterSyncBaseline: ({})
     property int mediaSize: 1
 
     property string appLauncherViewMode: "list"
@@ -885,6 +897,9 @@ Singleton {
     property bool lockScreenVideoEnabled: false
     property string lockScreenVideoPath: ""
     property bool lockScreenVideoCycling: false
+    property string lockScreenWallpaperPath: ""
+    property string lockScreenWallpaperFillMode: ""
+    property string lockScreenFontFamily: ""
     property bool hideBrightnessSlider: false
 
     property int notificationTimeoutLow: 5000
@@ -1009,6 +1024,17 @@ Singleton {
             "hoverPopoutDelay": 150
         }
     ]
+
+    // Standalone bar xray is unsafe when windows can render beneath its surface
+    function _standaloneBarXrayAvailable(configs) {
+        const list = configs || [];
+        const activeBars = list.filter(c => c && c.enabled && (c.visible ?? true));
+        const gapsOverride = (typeof CompositorService !== "undefined" && CompositorService.isHyprland) ? hyprlandLayoutGapsOverride : niriLayoutGapsOverride;
+        const layoutGaps = gapsOverride >= 0 ? gapsOverride : Math.max(4, (list[0]?.spacing ?? 4));
+        return activeBars.every(c => !c.autoHide && !(c.useOverlayLayer ?? false) && (c.spacing ?? 4) + (c.bottomGap ?? 0) + layoutGaps >= 0);
+    }
+
+    readonly property bool standaloneBarXrayAvailable: _standaloneBarXrayAvailable(barConfigs)
 
     property bool desktopClockEnabled: false
     property string desktopClockStyle: "analog"
@@ -1454,6 +1480,17 @@ Singleton {
             MangoService.generateLayoutConfig();
     }
 
+    function updateFrameCompositorLayout() {
+        // Generate before begin() so compositor readiness is already pending at transitionRequested
+        if (typeof CompositorService !== "undefined") {
+            if (CompositorService.isNiri && typeof NiriService !== "undefined")
+                NiriService.generateNiriLayoutConfig(true);
+            if (CompositorService.isHyprland && typeof HyprlandService !== "undefined")
+                HyprlandService.generateLayoutConfig(true);
+        }
+        FrameTransitionState.begin();
+    }
+
     function resolveIconTheme() {
         if (iconThemePerMode && typeof SessionData !== "undefined" && SessionData.isLightMode)
             return iconThemeLight;
@@ -1649,6 +1686,32 @@ Singleton {
         });
     }
 
+    function markGreeterSyncPending(who, key, oldValue) {
+        if (isGreeterMode)
+            return;
+        if (!(key in greeterSyncBaseline)) {
+            var baseline = greeterSyncBaseline;
+            baseline[key] = oldValue;
+            greeterSyncBaseline = baseline;
+        }
+        greeterSyncPending = true;
+    }
+
+    function clearGreeterSyncPending() {
+        greeterSyncBaseline = {};
+        greeterSyncPending = false;
+        saveSettings();
+    }
+
+    function revertGreeterSyncPending() {
+        for (var key in greeterSyncBaseline) {
+            root[key] = greeterSyncBaseline[key];
+        }
+        greeterSyncBaseline = {};
+        greeterSyncPending = false;
+        saveSettings();
+    }
+
     readonly property var _hooks: ({
             "applyStoredTheme": applyStoredTheme,
             "regenSystemThemes": regenSystemThemes,
@@ -1657,7 +1720,8 @@ Singleton {
             "updateBarConfigs": updateBarConfigs,
             "updateCompositorCursor": updateCompositorCursor,
             "scheduleAuthApply": scheduleAuthApply,
-            "scheduleGreeterAutoLoginSync": scheduleGreeterAutoLoginSync
+            "scheduleGreeterAutoLoginSync": scheduleGreeterAutoLoginSync,
+            "markGreeterSyncPending": markGreeterSyncPending
         })
 
     function set(key, value) {
@@ -2401,13 +2465,17 @@ Singleton {
         if (index === -1)
             return;
         const positionChanged = updates.position !== undefined && configs[index].position !== updates.position;
+        const barXrayTargetWasAvailable = _standaloneBarXrayAvailable(configs);
         if (updates.autoHide === false || updates.visible === false)
             setBarIpcReveal(barId, false);
 
         Object.assign(configs[index], updates);
-        barConfigs = _sanitizeBarConfigsForConnectedFrame(configs).configs;
+        const sanitizedConfigs = _sanitizeBarConfigsForConnectedFrame(configs).configs;
+        barConfigs = sanitizedConfigs;
         updateBarConfigs();
 
+        if (!frameEnabled && _standaloneBarXrayAvailable(sanitizedConfigs) !== barXrayTargetWasAvailable)
+            updateCompositorLayout();
         if (positionChanged) {
             NotificationService.dismissAllPopups();
         }
@@ -3540,6 +3608,9 @@ Singleton {
         onLoaded: {
             if (isGreeterMode)
                 return;
+            const wasLoaded = _hasLoaded;
+            const prevFrameEnabled = frameEnabled;
+            const prevFrameMode = frameMode;
             _loading = true;
             _hasUnsavedChanges = false;
             try {
@@ -3574,6 +3645,9 @@ Singleton {
             } finally {
                 _loading = false;
             }
+            // External edits reload under _loading, which skips the per-property transition triggers
+            if (wasLoaded && !_parseError && (frameEnabled !== prevFrameEnabled || (frameEnabled && frameMode !== prevFrameMode)))
+                updateFrameCompositorLayout();
         }
         onLoadFailed: error => {
             if (!isGreeterMode) {

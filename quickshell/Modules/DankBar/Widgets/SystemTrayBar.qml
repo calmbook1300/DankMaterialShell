@@ -1051,6 +1051,9 @@ BasePill {
         HyprlandFocusGrab {
             windows: [overflowMenu].concat(KeyboardFocus.barWindows)
             active: root.useOverflowPopup && KeyboardFocus.wantsGrab(root.menuOpen, null)
+
+            property var restoreToplevel: null
+            onActiveChanged: restoreToplevel = active ? KeyboardFocus.captureActiveToplevel() : KeyboardFocus.restoreToplevel(restoreToplevel)
         }
 
         Connections {
@@ -1328,7 +1331,7 @@ BasePill {
                     anchors.verticalCenter: menuContainer.popupUsesVerticalLine ? undefined : parent.verticalCenter
                     anchors.horizontalCenter: menuContainer.popupUsesVerticalLine ? parent.horizontalCenter : undefined
                     columns: menuContainer.popupUsesVerticalLine ? 1 : (root.useSingleLineOverflowPopup ? root.hiddenBarItems.length : Math.min(5, root.hiddenBarItems.length))
-                    spacing: 2
+                    spacing: Theme.spacingXXS
                     rowSpacing: 2
 
                     Repeater {
@@ -1595,6 +1598,9 @@ BasePill {
                 HyprlandFocusGrab {
                     windows: [menuWindow].concat(KeyboardFocus.barWindows)
                     active: KeyboardFocus.wantsGrab(menuRoot.showMenu, null)
+
+                    property var restoreToplevel: null
+                    onActiveChanged: restoreToplevel = active ? KeyboardFocus.captureActiveToplevel() : KeyboardFocus.restoreToplevel(restoreToplevel)
                 }
 
                 anchors {

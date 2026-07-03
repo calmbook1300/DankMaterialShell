@@ -57,6 +57,7 @@ Item {
     property bool contentHandlesKeys: false
     property bool fullHeightSurface: false
     property bool _primeContent: false
+    property bool _contentWarm: false
     property bool _resizeActive: false
     property real _surfaceMarginLeft: 0
     property real _surfaceMarginTop: 0
@@ -305,6 +306,7 @@ Item {
         isClosing = false;
         animationsEnabled = false;
         _primeContent = true;
+        _contentWarm = true;
 
         _frozenMaskX = maskX;
         _frozenMaskY = maskY;
@@ -636,7 +638,7 @@ Item {
         WlrLayershell.namespace: root.layerNamespace
         WlrLayershell.layer: root.effectivePopoutLayer
         WlrLayershell.exclusiveZone: -1
-        WlrLayershell.keyboardFocus: KeyboardFocus.keyboardFocus(shouldBeVisible || (isClosing && CompositorService.useHyprlandFocusGrab), customKeyboardFocus)
+        WlrLayershell.keyboardFocus: KeyboardFocus.keyboardFocus(shouldBeVisible, customKeyboardFocus)
 
         anchors {
             left: true
@@ -891,7 +893,8 @@ Item {
                         Loader {
                             id: contentLoader
                             anchors.fill: parent
-                            active: root._primeContent || shouldBeVisible || contentWindow.visible
+                            // _contentWarm keeps the tree loaded across close for fast re-open; reclaimed by PopoutService on lock/idle.
+                            active: root._primeContent || shouldBeVisible || contentWindow.visible || root._contentWarm
                             asynchronous: false
                         }
                     }
@@ -906,7 +909,7 @@ Item {
                         visible: contentWrapper.visible
                         radius: Theme.cornerRadius
                         color: "transparent"
-                        border.color: BlurService.enabled ? BlurService.borderColor : Theme.outlineMedium
+                        border.color: BlurService.borderColor
                         border.width: BlurService.borderWidth
                         z: 100
                     }

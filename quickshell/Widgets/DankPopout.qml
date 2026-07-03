@@ -65,7 +65,10 @@ Item {
                 list.push(root.backgroundWindow);
             return list.concat(KeyboardFocus.barWindows);
         }
-        active: KeyboardFocus.wantsGrab(root.shouldBeVisible || root.isClosing, root.customKeyboardFocus)
+        active: KeyboardFocus.wantsGrab(root.shouldBeVisible, root.customKeyboardFocus)
+
+        property var restoreToplevel: null
+        onActiveChanged: restoreToplevel = active ? KeyboardFocus.captureActiveToplevel() : KeyboardFocus.restoreToplevel(restoreToplevel)
     }
 
     Loader {
@@ -131,12 +134,7 @@ Item {
         }
     }
 
-    Connections {
-        target: CompositorService
-        function onToplevelsChanged() {
-            root._maybeResolveBackend();
-        }
-    }
+    // Backend re-resolution on toplevel activity is covered by CompositorService.frameBlockedByScreen.
 
     function _usesConnectedBackendForScreen(targetScreen) {
         return CompositorService.usesConnectedFrameChromeForScreen(targetScreen);

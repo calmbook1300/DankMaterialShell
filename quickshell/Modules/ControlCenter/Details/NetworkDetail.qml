@@ -395,7 +395,7 @@ Rectangle {
         property bool currentConnected: false
 
         background: Rectangle {
-            color: Theme.withAlpha(Theme.surfaceContainer, Theme.popupTransparency)
+            color: BlurService.enabled ? Theme.surfaceContainer : Theme.withAlpha(Theme.surfaceContainer, Theme.popupTransparency)
             radius: Theme.cornerRadius
             border.width: 0
             border.color: Theme.outlineStrong
@@ -683,7 +683,7 @@ Rectangle {
                 Row {
                     id: pinWifiRow
                     anchors.centerIn: parent
-                    spacing: 4
+                    spacing: Theme.spacingXS
 
                     DankIcon {
                         name: "push_pin"
@@ -793,7 +793,7 @@ Rectangle {
         }
 
         background: Rectangle {
-            color: Theme.withAlpha(Theme.surfaceContainer, Theme.popupTransparency)
+            color: BlurService.enabled ? Theme.surfaceContainer : Theme.withAlpha(Theme.surfaceContainer, Theme.popupTransparency)
             radius: Theme.cornerRadius
             border.width: 0
             border.color: Theme.outlineStrong

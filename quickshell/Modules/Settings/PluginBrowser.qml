@@ -482,6 +482,8 @@ FloatingWindow {
     color: Theme.surfaceContainer
     visible: false
 
+    onClosed: hide()
+
     onVisibleChanged: {
         if (visible) {
             pendingInstallHandled = false;
@@ -867,10 +869,7 @@ FloatingWindow {
                     anchors.topMargin: Theme.spacingS
                     anchors.bottomMargin: Theme.spacingS
                     spacing: Theme.spacingS
-                    model: ScriptModel {
-                        values: root.filteredPlugins
-                        objectProp: "id"
-                    }
+                    model: root.filteredPlugins
                     clip: true
                     visible: !root.isLoading
                     add: null
@@ -930,7 +929,7 @@ FloatingWindow {
 
                                 Column {
                                     width: parent.width - Theme.iconSize - Theme.spacingM - installButton.width - Theme.spacingM
-                                    spacing: 2
+                                    spacing: Theme.spacingXXS
 
                                     Row {
                                         spacing: Theme.spacingXS
@@ -957,7 +956,7 @@ FloatingWindow {
                                             Row {
                                                 id: featuredRow
                                                 anchors.centerIn: parent
-                                                spacing: 2
+                                                spacing: Theme.spacingXXS
 
                                                 DankIcon {
                                                     name: "star"
@@ -1053,7 +1052,7 @@ FloatingWindow {
                                             Row {
                                                 id: upvoteRow
                                                 anchors.centerIn: parent
-                                                spacing: 2
+                                                spacing: Theme.spacingXXS
 
                                                 DankIcon {
                                                     name: "thumb_up"
