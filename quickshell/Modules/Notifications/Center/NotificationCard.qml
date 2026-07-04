@@ -263,7 +263,7 @@ Rectangle {
                 const icon = iconFromImage;
                 return icon.startsWith("material:") || icon.startsWith("svg:") || icon.startsWith("unicode:") || icon.startsWith("image:");
             }
-            readonly property bool hasNotificationImage: rawImage !== "" && !rawImage.startsWith("image://icon/")
+            readonly property bool hasNotificationImage: rawImage !== "" && (!rawImage.startsWith("image://icon/") || iconFromImage.startsWith("/"))
 
             width: iconSize
             height: iconSize
@@ -606,7 +606,7 @@ Rectangle {
                                     const icon = iconFromImage;
                                     return icon.startsWith("material:") || icon.startsWith("svg:") || icon.startsWith("unicode:") || icon.startsWith("image:");
                                 }
-                                readonly property bool hasNotificationImage: rawImage !== "" && !rawImage.startsWith("image://icon/")
+                                readonly property bool hasNotificationImage: rawImage !== "" && (!rawImage.startsWith("image://icon/") || iconFromImage.startsWith("/"))
 
                                 width: expandedIconSize
                                 height: expandedIconSize

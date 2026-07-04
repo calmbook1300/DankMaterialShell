@@ -393,6 +393,10 @@ Item {
                                 ctx.clearRect(0, 0, width, height);
                                 if (!hist || hist.length < 2)
                                     return;
+                                var r = Math.max(0, tile.radius);
+                                ctx.beginPath();
+                                ctx.roundedRect(0, 0, width, height, r, r);
+                                ctx.clip();
                                 var maxVal = 100;
                                 if (tile.tileType === "net" || tile.tileType === "disk") {
                                     maxVal = 1;

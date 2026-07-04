@@ -330,7 +330,8 @@ BasePill {
                         }
 
                         StyledText {
-                            anchors.centerIn: parent
+                            anchors.horizontalCenter: iconImg.horizontalCenter
+                            anchors.verticalCenter: parent.verticalCenter
                             visible: !iconImg.visible && !Paths.isSteamApp(effectiveAppId)
                             text: {
                                 root._desktopEntriesUpdateTrigger;
@@ -573,7 +574,8 @@ BasePill {
                         }
 
                         StyledText {
-                            anchors.centerIn: parent
+                            anchors.horizontalCenter: iconImg.horizontalCenter
+                            anchors.verticalCenter: parent.verticalCenter
                             visible: !iconImg.visible && !Paths.isSteamApp(effectiveAppId)
                             text: {
                                 root._desktopEntriesUpdateTrigger;

@@ -866,6 +866,11 @@ Singleton {
         readonly property string cleanImage: {
             if (!image)
                 return "";
+            if (image.startsWith("image://icon/")) {
+                const payload = image.substring(13);
+                if (payload.startsWith("/"))
+                    return "file://" + payload;
+            }
             return Paths.strip(image);
         }
         property int urgencyOverride: notification?.urgency ?? NotificationUrgency.Normal

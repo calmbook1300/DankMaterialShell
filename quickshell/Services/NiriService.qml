@@ -70,7 +70,10 @@ Singleton {
         validateProcess.running = true;
     }
 
-    Component.onCompleted: fetchOutputs()
+    Component.onCompleted: {
+        fetchOutputs();
+        Paths.mkdir(screenshotsDir);
+    }
 
     Timer {
         id: suppressToastTimer
@@ -846,6 +849,7 @@ Singleton {
     }
 
     function screenshot() {
+        Paths.mkdir(screenshotsDir);
         pendingScreenshotPath = "";
         const timestamp = Date.now();
         const path = `${screenshotsDir}/dms-screenshot-${timestamp}.png`;
@@ -862,6 +866,7 @@ Singleton {
     }
 
     function screenshotScreen() {
+        Paths.mkdir(screenshotsDir);
         pendingScreenshotPath = "";
         const timestamp = Date.now();
         const path = `${screenshotsDir}/dms-screenshot-${timestamp}.png`;
@@ -879,6 +884,7 @@ Singleton {
     }
 
     function screenshotWindow() {
+        Paths.mkdir(screenshotsDir);
         pendingScreenshotPath = "";
         const timestamp = Date.now();
         const path = `${screenshotsDir}/dms-screenshot-${timestamp}.png`;

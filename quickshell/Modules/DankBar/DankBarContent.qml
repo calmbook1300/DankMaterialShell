@@ -261,13 +261,34 @@ Item {
         } else if (CompositorService.isSway || CompositorService.isScroll || CompositorService.isMiracle) {
             if (!screenName || SettingsData.workspaceFollowFocus) {
                 const focusedWs = I3.workspaces?.values?.find(ws => ws.focused === true);
-                return focusedWs ? focusedWs.num : 1;
+                return focusedWs ? swayWorkspaceKey(focusedWs) : 1;
             }
 
             const focusedWs = I3.workspaces?.values?.find(ws => ws.monitor?.name === screenName && ws.focused === true);
-            return focusedWs ? focusedWs.num : 1;
+            return focusedWs ? swayWorkspaceKey(focusedWs) : 1;
         }
         return 1;
+    }
+
+    // Sway reports num -1 for purely-named workspaces, so identity must fall back to name
+    function swayWorkspaceKey(ws) {
+        return ws.num !== -1 ? ws.num : ws.name;
+    }
+
+    function escapeSwayWorkspaceName(name) {
+        return String(name ?? "").replace(/\\/g, "\\\\").replace(/"/g, "\\\"");
+    }
+
+    function dispatchSwayWorkspace(ws) {
+        if (!ws)
+            return;
+        try {
+            if (ws.num !== undefined && ws.num !== -1) {
+                I3.dispatch(`workspace number ${ws.num}`);
+            } else if (ws.name) {
+                I3.dispatch(`workspace "${escapeSwayWorkspaceName(ws.name)}"`);
+            }
+        } catch (_) {}
     }
 
     function switchWorkspace(direction) {
@@ -309,14 +330,12 @@ Item {
             }
         } else if (CompositorService.isSway || CompositorService.isScroll || CompositorService.isMiracle) {
             const currentWs = getCurrentWorkspace();
-            const currentIndex = realWorkspaces.findIndex(ws => ws.num === currentWs);
+            const currentIndex = realWorkspaces.findIndex(ws => swayWorkspaceKey(ws) === currentWs);
             const validIndex = currentIndex === -1 ? 0 : currentIndex;
             const nextIndex = direction > 0 ? Math.min(validIndex + 1, realWorkspaces.length - 1) : Math.max(validIndex - 1, 0);
 
             if (nextIndex !== validIndex) {
-                try {
-                    I3.dispatch(`workspace number ${realWorkspaces[nextIndex].num}`);
-                } catch (_) {}
+                dispatchSwayWorkspace(realWorkspaces[nextIndex]);
             }
         }
     }

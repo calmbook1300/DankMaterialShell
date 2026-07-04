@@ -123,7 +123,8 @@ Rectangle {
                 const icon = iconFromImage;
                 return icon.startsWith("material:") || icon.startsWith("svg:") || icon.startsWith("unicode:") || icon.startsWith("image:");
             }
-            readonly property bool hasNotificationImage: rawImage !== "" && !rawImage.startsWith("image://icon/")
+            readonly property bool hasNotificationImage: rawImage !== "" && (!rawImage.startsWith("image://icon/") || iconFromImage.startsWith("/"))
+            readonly property string resolvedImage: iconFromImage.startsWith("/") ? ("file://" + iconFromImage) : rawImage
 
             width: iconSize
             height: iconSize
@@ -132,7 +133,7 @@ Rectangle {
 
             imageSource: {
                 if (hasNotificationImage)
-                    return historyItem.image;
+                    return resolvedImage;
                 if (imageHasSpecialPrefix)
                     return "";
                 const appIcon = historyItem.appIcon;

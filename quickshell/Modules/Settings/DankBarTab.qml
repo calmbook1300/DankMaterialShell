@@ -1133,10 +1133,6 @@ Item {
                 }
             }
 
-            WorkspaceAppearanceCard {
-                visible: dankBarTab.appearanceOnly
-            }
-
             SettingsCard {
                 tab: "appearance"
                 iconName: "rounded_corner"

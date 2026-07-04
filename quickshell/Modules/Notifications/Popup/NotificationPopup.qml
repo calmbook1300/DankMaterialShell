@@ -814,8 +814,8 @@ PanelWindow {
                         const icon = iconFromImage;
                         return icon.startsWith("material:") || icon.startsWith("svg:") || icon.startsWith("unicode:") || icon.startsWith("image:");
                     }
-                    readonly property bool hasNotificationImage: rawImage !== "" && !rawImage.startsWith("image://icon/")
-                    readonly property bool needsImagePersist: hasNotificationImage && rawImage.startsWith("image://qsimage/") && !notificationData.persistedImagePath
+                    readonly property bool hasNotificationImage: rawImage !== "" && (!rawImage.startsWith("image://icon/") || iconFromImage.startsWith("/"))
+                    readonly property bool needsImagePersist: hasNotificationImage && (rawImage.startsWith("image://qsimage/") || iconFromImage.startsWith("/")) && !notificationData.persistedImagePath
 
                     width: popupIconSize
                     height: popupIconSize
