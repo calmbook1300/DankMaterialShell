@@ -1534,6 +1534,8 @@ func packageInstallHint() string {
 		return "Install with 'sudo dnf install dms-greeter' (requires COPR: sudo dnf copr enable avengemedia/danklinux)"
 	case distros.FamilyArch:
 		return "Install from AUR with 'paru -S greetd-dms-greeter-git' or 'yay -S greetd-dms-greeter-git'"
+	case distros.FamilyVoid:
+		return "Install with 'sudo xbps-install -S dms-greeter' (requires DMS XBPS repo: echo 'repository=https://avengemedia.github.io/DankMaterialShell/current' | sudo tee /etc/xbps.d/dms.conf)"
 	default:
 		return "Run 'dms greeter install' to install greeter"
 	}
@@ -1572,7 +1574,8 @@ func isPackageOnlyGreeterDistro() bool {
 		config.Family == distros.FamilySUSE ||
 		config.Family == distros.FamilyUbuntu ||
 		config.Family == distros.FamilyFedora ||
-		config.Family == distros.FamilyArch
+		config.Family == distros.FamilyArch ||
+		config.Family == distros.FamilyVoid
 }
 
 func promptCompositorChoice(compositors []string) (string, error) {

@@ -11,11 +11,24 @@ PanelWindow {
     property string appName: ""
     property string desktopEntry: ""
     property point anchorPos: Qt.point(0, 0)
+    property var transientSurfaceTracker: null
 
     signal muted
     signal dismissRequested
 
     readonly property bool isMuted: SettingsData.isAppMuted(appName, desktopEntry)
+
+    onVisibleChanged: transientSurfaceTracker?.setActive(root, visible, root)
+    Component.onDestruction: transientSurfaceTracker?.unregister(root)
+
+    Connections {
+        target: root.transientSurfaceTracker
+        ignoreUnknownSignals: true
+
+        function onCloseRequested() {
+            root.closeMenu();
+        }
+    }
 
     function showAt(x, y, targetScreen) {
         if (targetScreen)

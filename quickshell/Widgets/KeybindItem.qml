@@ -56,7 +56,7 @@ Item {
     readonly property bool hasConfigConflict: configConflict !== null
     readonly property string _originalKey: editingKeyIndex >= 0 && editingKeyIndex < keys.length ? keys[editingKeyIndex].key : ""
     readonly property string _selectedDesc: editingKeyIndex >= 0 && editingKeyIndex < keys.length ? (keys[editingKeyIndex].desc || bindData.desc || "") : (bindData.desc || "")
-    readonly property var _conflicts: editKey ? KeyUtils.getConflictingBinds(editKey, bindData.action, KeybindsService.getFlatBinds()) : []
+    readonly property var _conflicts: editKey ? KeyUtils.getConflictingBinds(editKey, bindData.action, KeybindsService.getFlatBinds(), KeybindsService.currentProvider === "niri" ? KeybindsService.modKey : "Super") : []
     readonly property bool hasConflict: _conflicts.length > 0
 
     readonly property real _inputHeight: Math.round(Theme.fontSizeMedium * 3)
@@ -725,8 +725,11 @@ Item {
                                 if (!mods.includes("Shift"))
                                     mods.push("Shift");
                             }
+                            const hasShift = mods.includes("Shift");
+                            if (KeybindsService.currentProvider === "niri")
+                                mods = KeyUtils.withSymbolicMod(mods, KeybindsService.modKey);
 
-                            const key = KeyUtils.xkbKeyFromQtKey(qtKey, !!(event.modifiers & Qt.KeypadModifier));
+                            const key = KeyUtils.xkbKeyFromQtKey(qtKey, !!(event.modifiers & Qt.KeypadModifier), hasShift);
                             if (!key) {
                                 log.warn("Unknown key:", event.key, "mods:", event.modifiers);
                                 return;
@@ -756,7 +759,7 @@ Item {
                                 }
                                 wheel.accepted = true;
 
-                                const mods = [];
+                                let mods = [];
                                 if (wheel.modifiers & Qt.ControlModifier)
                                     mods.push("Ctrl");
                                 if (wheel.modifiers & Qt.ShiftModifier)
@@ -765,6 +768,8 @@ Item {
                                     mods.push("Alt");
                                 if (wheel.modifiers & Qt.MetaModifier)
                                     mods.push("Super");
+                                if (KeybindsService.currentProvider === "niri")
+                                    mods = KeyUtils.withSymbolicMod(mods, KeybindsService.modKey);
 
                                 let wheelKey = "";
                                 if (wheel.angleDelta.y > 0)

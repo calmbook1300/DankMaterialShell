@@ -18,6 +18,7 @@ FocusScope {
     property alias resultsList: resultsList
     property alias actionPanel: actionPanel
     readonly property alias activeContextMenu: contextMenu
+    property var transientSurfaceTracker: null
 
     property bool editMode: false
     property var editingApp: null
@@ -43,7 +44,7 @@ FocusScope {
     }
 
     function closeTransientUi() {
-        contextMenu.hide();
+        transientSurfaceTracker?.closeAll?.();
         actionPanel.hide();
         root.enabled = true;
     }
@@ -123,6 +124,7 @@ FocusScope {
         controller: root.controller
         searchField: root.searchField
         parentHandler: root
+        transientSurfaceTracker: root.transientSurfaceTracker
 
         onEditAppRequested: app => {
             root.openEditMode(app);
@@ -779,6 +781,7 @@ FocusScope {
                     anchors.fill: parent
                     controller: root.controller
                     leadingSectionHeaderAtBottom: contentHolder.inverted
+                    transientSurfaceTracker: root.transientSurfaceTracker
 
                     onItemRightClicked: (index, item, sceneX, sceneY) => {
                         if (item && contextMenu.hasContextMenuActions(item)) {

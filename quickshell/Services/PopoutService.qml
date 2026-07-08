@@ -4,6 +4,7 @@ import QtQuick
 import Quickshell
 import Quickshell.Wayland
 import qs.Common
+import qs.Services
 
 Singleton {
     id: root
@@ -850,10 +851,28 @@ Singleton {
         }
     }
 
+    function notepadSlideoutForFocusedScreen() {
+        if (!notepadSlideouts || notepadSlideouts.length === 0)
+            return null;
+        const focused = BarWidgetService.getFocusedScreenName();
+        if (focused) {
+            for (var i = 0; i < notepadSlideouts.length; i++) {
+                if (notepadSlideouts[i]?.modelData?.name === focused)
+                    return notepadSlideouts[i];
+            }
+        }
+        return notepadSlideouts[0];
+    }
+
+    // Remembered presentation wins over the configured default until the user
+    // changes the default in settings (handled below).
+    readonly property string notepadResolvedMode: SessionData.notepadLastMode || SettingsData.notepadDefaultMode
+
     function openNotepadSlideout() {
+        SessionData.setNotepadLastMode("slideout");
         notepadPopout?.hide();
         if (notepadSlideouts.length > 0) {
-            notepadSlideouts[0]?.show();
+            notepadSlideoutForFocusedScreen()?.show();
         }
     }
 
@@ -861,6 +880,7 @@ Singleton {
     Connections {
         target: SettingsData
         function onNotepadDefaultModeChanged() {
+            SessionData.setNotepadLastMode(SettingsData.notepadDefaultMode);
             if (SettingsData.notepadDefaultMode === "popout") {
                 var hadSlideout = false;
                 for (var i = 0; i < root.notepadSlideouts.length; i++) {
@@ -879,7 +899,7 @@ Singleton {
     }
 
     function openNotepad() {
-        if (SettingsData.notepadDefaultMode === "popout") {
+        if (notepadResolvedMode === "popout") {
             openNotepadPopout();
             return;
         }
@@ -887,30 +907,32 @@ Singleton {
     }
 
     function closeNotepad() {
-        if (SettingsData.notepadDefaultMode === "popout") {
+        if (notepadResolvedMode === "popout") {
             notepadPopout?.hide();
             return;
         }
         if (notepadSlideouts.length > 0) {
-            notepadSlideouts[0]?.hide();
+            notepadSlideoutForFocusedScreen()?.hide();
         }
     }
 
     function toggleNotepad() {
-        if (SettingsData.notepadDefaultMode === "popout") {
+        if (notepadResolvedMode === "popout") {
             toggleNotepadPopout();
             return;
         }
         if (notepadSlideouts.length > 0) {
-            notepadSlideouts[0]?.toggle();
+            notepadSlideoutForFocusedScreen()?.toggle();
         }
     }
 
     property var notepadPopout: null
     property var notepadPopoutLoader: null
     property bool _notepadPopoutWantsOpen: false
+    property string _notepadPendingOpenFilePath: ""
 
     function openNotepadPopout() {
+        SessionData.setNotepadLastMode("popout");
         closeNotepadSlideouts();
         if (notepadPopout) {
             notepadPopout.show();
@@ -920,10 +942,27 @@ Singleton {
         }
     }
 
+    function openNotepadPopoutWithFile(path) {
+        closeNotepadSlideouts();
+        if (notepadPopout) {
+            notepadPopout.show();
+            notepadPopout.notepad?.openExternalFile(path);
+        } else if (notepadPopoutLoader) {
+            _notepadPendingOpenFilePath = path;
+            _notepadPopoutWantsOpen = true;
+            notepadPopoutLoader.active = true;
+        }
+    }
+
     function _onNotepadPopoutLoaded() {
         if (_notepadPopoutWantsOpen && notepadPopout) {
             _notepadPopoutWantsOpen = false;
             notepadPopout.show();
+            if (_notepadPendingOpenFilePath) {
+                const pendingPath = _notepadPendingOpenFilePath;
+                _notepadPendingOpenFilePath = "";
+                notepadPopout.notepad?.openExternalFile(pendingPath);
+            }
         }
     }
 

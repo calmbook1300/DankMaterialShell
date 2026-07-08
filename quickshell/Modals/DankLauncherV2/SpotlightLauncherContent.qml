@@ -12,6 +12,7 @@ FocusScope {
     property alias searchField: searchInput
     property alias controller: searchController
     readonly property alias activeContextMenu: contextMenu
+    property var transientSurfaceTracker: null
 
     readonly property bool _hasQuery: searchInput.text.length > 0
     readonly property real _searchBarH: 56
@@ -48,7 +49,7 @@ FocusScope {
     }
 
     function closeTransientUi() {
-        contextMenu.hide();
+        transientSurfaceTracker?.closeAll?.();
         root.enabled = true;
     }
 
@@ -220,6 +221,7 @@ FocusScope {
         searchField: searchInput
         parentHandler: root
         allowEditActions: false
+        transientSurfaceTracker: root.transientSurfaceTracker
     }
 
     Connections {

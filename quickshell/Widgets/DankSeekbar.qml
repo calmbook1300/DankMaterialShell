@@ -142,7 +142,10 @@ Item {
                 value: root.value
                 actualValue: root.playerValue
                 showActualPlaybackState: root.isSeeking
-                actualProgressColor: Theme.onSurface_38
+                fillColor: MediaAccentService.accent
+                playheadColor: MediaAccentService.accent
+                trackColor: MediaAccentService.accentTrack
+                actualProgressColor: MediaAccentService.accentSubtle
                 isPlaying: activePlayer && activePlayer.playbackState === MprisPlaybackState.Playing
 
                 MouseArea {
@@ -179,8 +182,8 @@ Item {
             Item {
                 property real lineWidth: 3
                 property color trackColor: Theme.withAlpha(Theme.surfaceVariant, 0.40)
-                property color fillColor: Theme.primary
-                property color playheadColor: Theme.primary
+                property color fillColor: MediaAccentService.accent
+                property color playheadColor: MediaAccentService.accent
                 property color actualProgressColor: Theme.onSurface_38
                 readonly property real midY: height / 2
 

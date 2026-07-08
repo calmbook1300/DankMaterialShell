@@ -239,12 +239,20 @@ Row {
 
                     StyledText {
                         id: buttonText
+
+                        readonly property real capAvailable: {
+                            if (root._segmentCap <= 0)
+                                return -1;
+                            const cap = Math.max(root._segmentCap, root.minButtonWidth);
+                            return Math.max(0, cap - root.buttonPadding * 2 - (checkIcon.visible ? checkIcon.width + contentRow.spacing : 0));
+                        }
+
                         text: typeof modelData === "string" ? modelData : modelData.text || ""
                         font.pixelSize: root.textSize
                         font.weight: segment.selected ? Font.Medium : Font.Normal
                         color: segment.selected ? Theme.buttonText : Theme.surfaceVariantText
                         anchors.verticalCenter: parent.verticalCenter
-                        width: Math.min(implicitWidth, Math.max(0, segment.width - (segment.selected ? 4 : 0) - root.buttonPadding * 2 - (checkIcon.visible ? checkIcon.width + contentRow.spacing : 0)))
+                        width: capAvailable < 0 ? implicitWidth : Math.min(implicitWidth, capAvailable)
                         maximumLineCount: 1
                     }
                 }

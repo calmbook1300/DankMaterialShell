@@ -142,6 +142,8 @@ Singleton {
 
     Component.onCompleted: {
         Quickshell.execDetached(["mkdir", "-p", stateDir]);
+        if (typeof SessionData === "undefined" || !SessionData.isGreeterMode)
+            Quickshell.execDetached([shellDir + "/scripts/gtk.sh", configDir, "", shellDir, "assets-only"]);
         Proc.runCommand("matugenCheck", ["sh", "-c", "command -v matugen"], (output, code) => {
             matugenAvailable = (code === 0) && !envDisableMatugen;
             const isGreeterMode = (typeof SessionData !== "undefined" && SessionData.isGreeterMode);
@@ -1801,8 +1803,11 @@ Singleton {
         const iconTheme = (typeof SettingsData !== "undefined" && SettingsData.iconTheme) ? SettingsData.iconTheme : "System Default";
 
         if (currentTheme === dynamic) {
-            if (!rawWallpaperPath)
+            if (!rawWallpaperPath) {
+                log.warn("Auto theme has no wallpaper - skipping matugen, syncing portal mode only");
+                PortalService.setLightMode(isLight);
                 return;
+            }
             const selectedMatugenType = (typeof SettingsData !== "undefined" && SettingsData.matugenScheme) ? SettingsData.matugenScheme : "scheme-tonal-spot";
             const kind = rawWallpaperPath.startsWith("#") ? "hex" : "image";
             setDesiredTheme(kind, rawWallpaperPath, isLight, iconTheme, selectedMatugenType, null);

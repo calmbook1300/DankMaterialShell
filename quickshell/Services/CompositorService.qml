@@ -154,10 +154,12 @@ Singleton {
                 continue;
             if (!x || !y)
                 return false;
-            // Only niri's enriched snapshots support value comparison.
-            if (x.niriWindowId === undefined || y.niriWindowId === undefined)
+            // Only niri/mango enriched snapshots support value comparison
+            const xKey = x.niriWindowId !== undefined ? x.niriWindowId : x.mangoWindowId;
+            const yKey = y.niriWindowId !== undefined ? y.niriWindowId : y.mangoWindowId;
+            if (xKey === undefined || yKey === undefined)
                 return false;
-            if (x.niriWindowId !== y.niriWindowId || x.niriWorkspaceId !== y.niriWorkspaceId || x.appId !== y.appId || x.title !== y.title || !!x.activated !== !!y.activated || !!x.fullscreen !== !!y.fullscreen || !!x.maximized !== !!y.maximized || !!x.minimized !== !!y.minimized)
+            if (xKey !== yKey || x.niriWorkspaceId !== y.niriWorkspaceId || x.appId !== y.appId || x.title !== y.title || !!x.activated !== !!y.activated || !!x.fullscreen !== !!y.fullscreen || !!x.maximized !== !!y.maximized || !!x.minimized !== !!y.minimized)
                 return false;
         }
         return true;
@@ -483,6 +485,8 @@ Singleton {
     function filterCurrentWorkspace(toplevels, screen) {
         if (useNiriSorting)
             return NiriService.filterCurrentWorkspace(toplevels, screen);
+        if (useMangoSorting)
+            return MangoService.filterCurrentWorkspace(toplevels, screen);
         if (isHyprland)
             return filterHyprlandCurrentWorkspaceSafe(toplevels, screen);
         return toplevels;
@@ -504,6 +508,8 @@ Singleton {
             }
             return NiriService.filterCurrentDisplay(toplevels, screenName);
         }
+        if (useMangoSorting)
+            return MangoService.filterCurrentDisplay(toplevels, screenName);
         if (isHyprland)
             return filterHyprlandCurrentDisplaySafe(toplevels, screenName);
         return toplevels;

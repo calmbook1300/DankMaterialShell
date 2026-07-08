@@ -25,6 +25,7 @@ Item {
     property real anchorY: 0
     property bool openState: false
     property bool renderActive: false
+    property var transientSurfaceTracker: null
     readonly property alias contextWindow: menuWindow
     readonly property bool blurActive: renderActive && openState && BlurService.enabled && Theme.connectedSurfaceBlurEnabled
 
@@ -48,6 +49,18 @@ Item {
 
     signal hideRequested
     signal editAppRequested(var app)
+
+    onRenderActiveChanged: transientSurfaceTracker?.setActive(root, renderActive, contextWindow)
+    Component.onDestruction: transientSurfaceTracker?.unregister(root)
+
+    Connections {
+        target: root.transientSurfaceTracker
+        ignoreUnknownSignals: true
+
+        function onCloseRequested() {
+            root.hide();
+        }
+    }
 
     TextMetrics {
         id: menuTextMetrics

@@ -7,6 +7,7 @@ Rectangle {
 
     property bool expanded: false
     property real maxAllowedHeight: 0
+    property var transientSurfaceTracker: null
     readonly property real naturalContentHeight: contentColumn.height + Theme.spacingL * 2
 
     width: parent.width
@@ -178,6 +179,8 @@ Rectangle {
             }
 
             DankDropdown {
+                id: lowTimeoutDropdown
+                transientSurfaceTracker: root.transientSurfaceTracker
                 text: I18n.tr("Low Priority")
                 description: I18n.tr("Timeout for low priority notifications")
                 currentValue: getTimeoutText(SettingsData.notificationTimeoutLow)
@@ -193,6 +196,8 @@ Rectangle {
             }
 
             DankDropdown {
+                id: normalTimeoutDropdown
+                transientSurfaceTracker: root.transientSurfaceTracker
                 text: I18n.tr("Normal Priority")
                 description: I18n.tr("Timeout for normal priority notifications")
                 currentValue: getTimeoutText(SettingsData.notificationTimeoutNormal)
@@ -208,6 +213,8 @@ Rectangle {
             }
 
             DankDropdown {
+                id: criticalTimeoutDropdown
+                transientSurfaceTracker: root.transientSurfaceTracker
                 text: I18n.tr("Critical Priority")
                 description: I18n.tr("Timeout for critical priority notifications")
                 currentValue: getTimeoutText(SettingsData.notificationTimeoutCritical)

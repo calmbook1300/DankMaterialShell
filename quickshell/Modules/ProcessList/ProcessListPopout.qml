@@ -66,6 +66,7 @@ DankPopout {
 
     ProcessContextMenu {
         id: processContextMenu
+        transientSurfaceTracker: processListPopout.transientSurfaceTracker
     }
 
     content: Component {

@@ -699,6 +699,7 @@ func redetectMatugenVersion(old matugenFlags) (matugenFlags, bool) {
 
 func detectMatugenVersionLocked() (matugenFlags, error) {
 	cmd := exec.Command("matugen", "--version")
+	cmd.Env = utils.EnvWithUserBinPath(nil)
 	output, err := cmd.Output()
 	if err != nil {
 		return matugenFlags{}, fmt.Errorf("failed to get matugen version: %w", err)
@@ -755,6 +756,7 @@ func runMatugen(baseArgs []string) error {
 
 	args := buildMatugenArgs(baseArgs, flags)
 	cmd := exec.Command("matugen", args...)
+	cmd.Env = utils.EnvWithUserBinPath(nil)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	runErr := cmd.Run()
@@ -772,6 +774,7 @@ func runMatugen(baseArgs []string) error {
 	log.Warnf("Matugen version changed (v4: %v -> %v), retrying", flags.isV4, newFlags.isV4)
 	args = buildMatugenArgs(baseArgs, newFlags)
 	retryCmd := exec.Command("matugen", args...)
+	retryCmd.Env = utils.EnvWithUserBinPath(nil)
 	retryCmd.Stdout = os.Stdout
 	retryCmd.Stderr = os.Stderr
 	return retryCmd.Run()
@@ -814,6 +817,7 @@ func execDryRun(opts *Options, flags matugenFlags) (string, error) {
 	}
 
 	cmd := exec.Command("matugen", baseArgs...)
+	cmd.Env = utils.EnvWithUserBinPath(nil)
 	var stderr strings.Builder
 	cmd.Stderr = &stderr
 	output, err := cmd.Output()
@@ -912,7 +916,26 @@ func refreshGTK(mode ColorMode) {
 	}
 }
 
+var colorSchemeEchoHook func(scheme string)
+
+func SetColorSchemeEchoHook(hook func(scheme string)) {
+	colorSchemeEchoHook = hook
+}
+
+func expectColorSchemeEcho(scheme string) {
+	if colorSchemeEchoHook != nil {
+		colorSchemeEchoHook(scheme)
+	}
+}
+
+// The color-scheme round trip is the only mechanism that makes running GTK4
+// apps reload ~/.config/gtk-4.0 CSS (a gtk-theme flip does not). But apps
+// following the portal color-scheme (Chromium) can drop the restore signal
+// mid-repaint and latch the wrong mode, so this is opt-in.
 func refreshGTK4() {
+	if os.Getenv("DMS_ENABLE_GTK4_REFRESH") != "1" {
+		return
+	}
 	output, err := utils.GsettingsGet("org.gnome.desktop.interface", "color-scheme")
 	if err != nil {
 		return
@@ -926,11 +949,13 @@ func refreshGTK4() {
 		toggle = "prefer-dark"
 	}
 
+	expectColorSchemeEcho(toggle)
 	if err := utils.GsettingsSet("org.gnome.desktop.interface", "color-scheme", toggle); err != nil {
 		log.Warnf("Failed to toggle color-scheme for GTK4 refresh: %v", err)
 		return
 	}
-	time.Sleep(50 * time.Millisecond)
+	time.Sleep(400 * time.Millisecond)
+	expectColorSchemeEcho(current)
 	if err := utils.GsettingsSet("org.gnome.desktop.interface", "color-scheme", current); err != nil {
 		log.Warnf("Failed to restore color-scheme for GTK4 refresh: %v", err)
 	}
@@ -1031,6 +1056,9 @@ func closestAdwaitaAccent(primaryHex string) string {
 
 func syncAccentColor(primaryHex string) {
 	accent := closestAdwaitaAccent(primaryHex)
+	if cur, err := utils.GsettingsGet("org.gnome.desktop.interface", "accent-color"); err == nil && strings.Trim(cur, "'") == accent {
+		return
+	}
 	log.Infof("Setting GNOME accent color: %s", accent)
 	if err := utils.GsettingsSet("org.gnome.desktop.interface", "accent-color", accent); err != nil {
 		log.Warnf("Failed to set accent-color: %v", err)

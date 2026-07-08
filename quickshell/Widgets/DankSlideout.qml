@@ -31,6 +31,7 @@ PanelWindow {
     property Component content: null
     property string title: ""
     property alias container: contentContainer
+    property alias loadedItem: contentLoader.item
     property real customTransparency: -1
     property bool mappedVisible: false
     signal aboutToHide
@@ -259,6 +260,7 @@ PanelWindow {
                 anchors.bottomMargin: Theme.spacingL
 
                 Loader {
+                    id: contentLoader
                     anchors.fill: parent
                     sourceComponent: root.content
                 }

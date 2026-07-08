@@ -370,6 +370,9 @@ Singleton {
         const screenName = _screenName(screenOrName);
         if (!screenName)
             return toplevels;
+        // Overview reports active_tags=[0], which would match no client tags.
+        if (isOutputInOverview(screenName))
+            return toplevels;
         const active = _activeTagSet(screenName);
         if (active.size === 0)
             return toplevels;
@@ -539,7 +542,12 @@ Singleton {
             let width = 1920;
             let height = 1080;
             let refreshRate = 60;
-            if (output.modes && output.current_mode !== undefined) {
+            const configured = (output.configured_mode || "").match(/^(\d+)x(\d+)@([\d.]+)$/);
+            if (configured) {
+                width = parseInt(configured[1], 10);
+                height = parseInt(configured[2], 10);
+                refreshRate = Math.round(parseFloat(configured[3]));
+            } else if (output.modes && output.current_mode !== undefined) {
                 const mode = output.modes[output.current_mode];
                 if (mode) {
                     width = mode.width || 1920;

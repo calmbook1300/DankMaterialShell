@@ -1189,29 +1189,20 @@ Singleton {
         const gaps = gapsOverride >= 0 ? gapsOverride : defaultGaps;
         const borderSize = (typeof SettingsData !== "undefined" && SettingsData.niriLayoutBorderSize >= 0) ? SettingsData.niriLayoutBorderSize : defaultBorderSize;
         const frameEnabled = typeof SettingsData !== "undefined" && SettingsData.frameEnabled;
-        const frameConnectedMode = frameEnabled && SettingsData.frameMode === "connected";
-        // Connected frame mode has no separate bar/frame surface to target
-        const barFrameTargetNamespace = !frameEnabled ? (SettingsData.standaloneBarXrayAvailable ? "dms:bar" : null) : (frameConnectedMode ? null : "dms:frame");
+        // dms:frame only in separate mode — connected-mode frame blur overlaps windows via popouts/arcs
+        const excludeNamespaces = ["dms:bar"];
+        if (frameEnabled && SettingsData.frameMode !== "connected")
+            excludeNamespaces.push("dms:frame");
 
-        // Xray is niri's default blur, so only the off state needs a rule
+        // Xray is niri's default blur, so only the off state needs a rule.
         let xrayRules = "";
         if (!layoutXrayEnabled) {
+            const excludeLines = layoutBarXrayEnabled ? excludeNamespaces.map(ns => `\n    exclude namespace="^${ns}$"`).join("") : "";
             xrayRules += `
 
-layer-rule {
+layer-rule {${excludeLines}
     background-effect {
         xray false
-    }
-}`;
-        }
-
-        if (layoutBarXrayEnabled && barFrameTargetNamespace) {
-            xrayRules += `
-
-layer-rule {
-    match namespace="^${barFrameTargetNamespace}$"
-    background-effect {
-        xray true
     }
 }`;
         }
@@ -1445,6 +1436,8 @@ window-rule {
     }
 
     function getOutputIdentifier(output, outputName) {
+        if (output.explicitIdentifier)
+            return outputName;
         if (SettingsData.displayNameMode === "model" && output.make && output.model) {
             const serial = output.serial || "Unknown";
             return output.make + " " + output.model + " " + serial;
@@ -1498,7 +1491,9 @@ window-rule {
                 continue;
             }
 
-            if (output.current_mode !== undefined && output.modes && output.modes[output.current_mode]) {
+            if (output.configured_mode) {
+                kdlContent += `    mode "${output.configured_mode}"\n`;
+            } else if (output.current_mode !== undefined && output.modes && output.modes[output.current_mode]) {
                 const mode = output.modes[output.current_mode];
                 kdlContent += `    mode "${mode.width}x${mode.height}@${(mode.refresh_rate / 1000).toFixed(3)}"\n`;
             }

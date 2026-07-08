@@ -54,10 +54,13 @@ Item {
     property bool addHorizontalPadding: false
     property string emptyText: ""
     property bool usePopupTransparency: !checkParentDisablesTransparency()
+    property var transientSurfaceTracker: null
 
     signal valueChanged(string value)
 
     property bool menuOpen: false
+
+    onMenuOpenChanged: transientSurfaceTracker?.setActive(root, menuOpen, null)
 
     function closeDropdownMenu() {
         if (!root.menuOpen && !dropdownMenu.opened && !dropdownMenu.visible)
@@ -113,8 +116,18 @@ Item {
     implicitHeight: !showTrigger ? 0 : (compactMode ? 40 : Math.max(60, labelColumn.implicitHeight + Theme.spacingM))
 
     Component.onDestruction: {
+        transientSurfaceTracker?.unregister(root);
         if (root.menuOpen || dropdownMenu.opened || dropdownMenu.visible)
             dropdownMenu.close();
+    }
+
+    Connections {
+        target: root.transientSurfaceTracker
+        ignoreUnknownSignals: true
+
+        function onCloseRequested() {
+            root.closeDropdownMenu();
+        }
     }
 
     Column {

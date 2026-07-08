@@ -35,6 +35,10 @@ Item {
     property real _frozenMotionX: 0
     property real _frozenMotionY: 0
 
+    TransientSurfaceTracker {
+        id: transientSurfaces
+    }
+
     readonly property bool useHyprlandFocusGrab: CompositorService.useHyprlandFocusGrab
     readonly property var effectiveScreen: contentWindow.screen
     readonly property real screenWidth: effectiveScreen?.width ?? 1920
@@ -499,9 +503,17 @@ Item {
     }
 
     // Handles hover dismissal grace periods for edge-hover sessions w/cursor
-    readonly property bool _edgeRetractEnabled: (modalHandle && modalHandle.edgeHoverManaged === true) && spotlightOpen && !isClosing
+    readonly property bool _edgeRetractEnabled: (modalHandle && modalHandle.edgeHoverManaged === true) && spotlightOpen && !isClosing && !transientSurfaces.active
     property bool _edgeBodyHover: false
     property bool _edgeArmed: false
+
+    on_EdgeRetractEnabledChanged: {
+        if (!_edgeRetractEnabled) {
+            _edgeRetractGrace.stop();
+        } else if (_edgeArmed && !_edgeBodyHover) {
+            _edgeRetractGrace.restart();
+        }
+    }
 
     Timer {
         id: _edgeRetractGrace
@@ -534,9 +546,7 @@ Item {
 
     HyprlandFocusGrab {
         id: focusGrab
-        readonly property var contextMenuWindow: root.spotlightContent?.activeContextMenu?.contextWindow ?? null
-        readonly property bool contextMenuActive: root.spotlightContent?.activeContextMenu?.renderActive ?? false
-        windows: contextMenuActive && contextMenuWindow ? [contentWindow, contextMenuWindow] : [contentWindow]
+        windows: [contentWindow].concat(transientSurfaces.focusWindows)
         active: root.useHyprlandFocusGrab && root.spotlightOpen
 
         onCleared: {
@@ -869,6 +879,7 @@ Item {
                                 sourceComponent: LauncherContent {
                                     focus: true
                                     parentModal: root
+                                    transientSurfaceTracker: transientSurfaces
                                 }
 
                                 onLoaded: {

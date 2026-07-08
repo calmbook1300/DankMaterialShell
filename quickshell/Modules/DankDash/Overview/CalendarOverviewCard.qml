@@ -86,12 +86,10 @@ Rectangle {
     }
 
     function updateSelectedDateEvents() {
-        if (CalendarService && CalendarService.calendarAvailable) {
-            const events = CalendarService.getEventsForDate(selectedDate);
-            selectedDateEvents = events;
-        } else {
-            selectedDateEvents = [];
-        }
+        const events = (CalendarService && CalendarService.calendarAvailable) ? CalendarService.getEventsForDate(selectedDate) : [];
+        if (JSON.stringify(events) === JSON.stringify(selectedDateEvents))
+            return;
+        selectedDateEvents = events;
     }
 
     function loadEventsForMonth() {
@@ -276,57 +274,29 @@ Rectangle {
             height: 40
             visible: showEventDetails
 
-            Rectangle {
-                width: 32
-                height: 32
+            DankActionButton {
+                buttonSize: 32
+                iconSize: 14
+                iconName: "arrow_back"
+                iconColor: Theme.primary
                 anchors.verticalCenter: parent.verticalCenter
                 anchors.left: parent.left
                 anchors.leftMargin: Theme.spacingS
-                radius: Theme.cornerRadius
-                color: backButtonArea.containsMouse ? Theme.primaryHover : Theme.withAlpha(Theme.primaryHover, 0)
-
-                DankIcon {
-                    anchors.centerIn: parent
-                    name: "arrow_back"
-                    size: 14
-                    color: Theme.primary
-                }
-
-                MouseArea {
-                    id: backButtonArea
-                    anchors.fill: parent
-                    hoverEnabled: true
-                    cursorShape: Qt.PointingHandCursor
-                    onClicked: root.showEventDetails = false
-                }
+                onClicked: root.showEventDetails = false
             }
 
-            Rectangle {
-                width: 32
-                height: 32
+            DankActionButton {
+                buttonSize: 32
+                iconSize: 16
+                iconName: "event"
+                iconColor: Theme.primary
                 anchors.verticalCenter: parent.verticalCenter
                 anchors.right: parent.right
                 anchors.rightMargin: Theme.spacingS
-                radius: Theme.cornerRadius
                 visible: CalendarService && CalendarService.canCreateEvents
-                color: addEventArea.containsMouse ? Theme.primaryHover : Theme.withAlpha(Theme.primaryHover, 0)
-
-                DankIcon {
-                    anchors.centerIn: parent
-                    name: "event"
-                    size: 16
-                    color: Theme.primary
-                }
-
-                MouseArea {
-                    id: addEventArea
-                    anchors.fill: parent
-                    hoverEnabled: true
-                    cursorShape: Qt.PointingHandCursor
-                    onClicked: {
-                        root.editorEvent = null;
-                        root.showEditor = true;
-                    }
+                onClicked: {
+                    root.editorEvent = null;
+                    root.showEditor = true;
                 }
             }
 
@@ -358,31 +328,12 @@ Rectangle {
             height: 28
             visible: !showEventDetails
 
-            Rectangle {
-                width: 28
-                height: 28
-                radius: Theme.cornerRadius
-                color: prevMonthArea.containsMouse ? Theme.primaryHover : Theme.withAlpha(Theme.primaryHover, 0)
-
-                DankIcon {
-                    anchors.centerIn: parent
-                    name: "chevron_left"
-                    size: 14
-                    color: Theme.primary
-                }
-
-                MouseArea {
-                    id: prevMonthArea
-                    anchors.fill: parent
-                    hoverEnabled: true
-                    cursorShape: Qt.PointingHandCursor
-                    onClicked: {
-                        let newDate = new Date(calendarGrid.displayDate);
-                        newDate.setMonth(newDate.getMonth() - 1);
-                        calendarGrid.displayDate = newDate;
-                        loadEventsForMonth();
-                    }
-                }
+            DankActionButton {
+                buttonSize: 28
+                iconSize: 14
+                iconName: "chevron_left"
+                iconColor: Theme.primary
+                onClicked: root.shiftMonth(-1)
             }
 
             StyledText {
@@ -396,53 +347,20 @@ Rectangle {
                 verticalAlignment: Text.AlignVCenter
             }
 
-            Rectangle {
-                width: 28
-                height: 28
-                radius: Theme.cornerRadius
-                color: todayArea.containsMouse ? Theme.primaryHover : Theme.withAlpha(Theme.primaryHover, 0)
-
-                DankIcon {
-                    anchors.centerIn: parent
-                    name: "today"
-                    size: 14
-                    color: Theme.primary
-                }
-
-                MouseArea {
-                    id: todayArea
-                    anchors.fill: parent
-                    hoverEnabled: true
-                    cursorShape: Qt.PointingHandCursor
-                    onClicked: root.goToToday()
-                }
+            DankActionButton {
+                buttonSize: 28
+                iconSize: 14
+                iconName: "today"
+                iconColor: Theme.primary
+                onClicked: root.goToToday()
             }
 
-            Rectangle {
-                width: 28
-                height: 28
-                radius: Theme.cornerRadius
-                color: nextMonthArea.containsMouse ? Theme.primaryHover : Theme.withAlpha(Theme.primaryHover, 0)
-
-                DankIcon {
-                    anchors.centerIn: parent
-                    name: "chevron_right"
-                    size: 14
-                    color: Theme.primary
-                }
-
-                MouseArea {
-                    id: nextMonthArea
-                    anchors.fill: parent
-                    hoverEnabled: true
-                    cursorShape: Qt.PointingHandCursor
-                    onClicked: {
-                        let newDate = new Date(calendarGrid.displayDate);
-                        newDate.setMonth(newDate.getMonth() + 1);
-                        calendarGrid.displayDate = newDate;
-                        loadEventsForMonth();
-                    }
-                }
+            DankActionButton {
+                buttonSize: 28
+                iconSize: 14
+                iconName: "chevron_right"
+                iconColor: Theme.primary
+                onClicked: root.shiftMonth(1)
             }
         }
 
@@ -814,12 +732,16 @@ Rectangle {
                             }
                         }
 
-                        readonly property bool isTask: modelData && modelData.id && modelData.id.startsWith("task_")
-                        readonly property color accentColor: {
-                            if (isTask)
-                                return modelData.completed ? Theme.withAlpha(Theme.primary, 0.4) : Theme.primary;
-                            return (modelData && modelData.color && modelData.color.length) ? modelData.color : Theme.primary;
+                        readonly property bool isLocalTask: taskId.startsWith("task_")
+                        readonly property bool isDankTask: taskId.startsWith("vtodo_")
+                        readonly property bool isTask: isLocalTask || isDankTask
+                        readonly property bool canModify: isLocalTask || (isDankTask && modelData && !modelData.readOnly)
+                        readonly property color baseAccent: {
+                            if (isLocalTask || !modelData || !modelData.color || !modelData.color.length)
+                                return Theme.primary;
+                            return modelData.color;
                         }
+                        readonly property color accentColor: (isTask && modelData && modelData.completed) ? Theme.withAlpha(baseAccent, 0.4) : baseAccent
                         readonly property color surfaceColor: isDragging ? Theme.primaryPressed : (eventMouseArea.containsMouse ? Theme.primaryBackground : Theme.nestedSurface)
 
                         color: surfaceColor
@@ -888,13 +810,13 @@ Rectangle {
                             anchors.verticalCenter: parent.verticalCenter
                             radius: Theme.cornerRadius
                             color: "transparent"
-                            visible: modelData && modelData.id && modelData.id.startsWith("task_") && !taskItem.isEditing
+                            visible: taskItem.isLocalTask && !taskItem.isEditing
 
                             DankIcon {
                                 anchors.centerIn: parent
                                 name: "drag_indicator"
                                 size: 14
-                                color: dragMouseArea.containsMouse ? Theme.primary : Theme.surfaceTextAlpha
+                                color: dragMouseArea.containsMouse ? Theme.primary : Theme.surfaceTextMedium
                             }
 
                             MouseArea {
@@ -937,34 +859,14 @@ Rectangle {
                             }
                         }
 
-                        // Checkbox status icon
-                        Rectangle {
-                            id: checkboxContainer
-                            width: 24
-                            height: 24
-                            anchors.left: parent.left
-                            anchors.leftMargin: (modelData && modelData.id && modelData.id.startsWith("task_")) ? (taskItem.isEditing ? 8 : 32) : 8
-                            anchors.verticalCenter: parent.verticalCenter
-                            radius: Theme.cornerRadius
-                            color: "transparent"
-                            visible: modelData && modelData.id && modelData.id.startsWith("task_")
-
-                            DankIcon {
-                                anchors.centerIn: parent
-                                name: (modelData && modelData.completed) ? "check_box" : "check_box_outline_blank"
-                                size: 16
-                                color: (modelData && modelData.completed) ? Theme.primary : Theme.onSurface_38
-                            }
-                        }
-
                         Column {
                             id: eventContent
 
                             anchors.left: parent.left
                             anchors.right: parent.right
                             anchors.verticalCenter: parent.verticalCenter
-                            anchors.leftMargin: (modelData && modelData.id && modelData.id.startsWith("task_")) ? 60 : (Theme.spacingS + 6)
-                            anchors.rightMargin: (modelData && modelData.id && modelData.id.startsWith("task_")) ? 64 : Theme.spacingXS
+                            anchors.leftMargin: taskItem.isLocalTask ? 60 : taskItem.isDankTask ? 36 : (Theme.spacingS + 6)
+                            anchors.rightMargin: taskItem.canModify ? 64 : Theme.spacingXS
                             spacing: Theme.spacingXXS
                             visible: !taskItem.isEditing
 
@@ -972,7 +874,7 @@ Rectangle {
                                 width: parent.width
                                 text: modelData ? modelData.title : ""
                                 font.pixelSize: Theme.fontSizeSmall
-                                color: (modelData && modelData.id && modelData.id.startsWith("task_") && modelData.completed) ? Theme.surfaceTextSecondary : Theme.surfaceText
+                                color: (taskItem.isTask && modelData && modelData.completed) ? Theme.surfaceTextSecondary : Theme.surfaceText
                                 font.weight: Font.Medium
                                 horizontalAlignment: Text.AlignLeft
                                 elide: Text.ElideRight
@@ -1000,7 +902,7 @@ Rectangle {
                                 color: Theme.surfaceTextMedium
                                 font.weight: Font.Normal
                                 horizontalAlignment: Text.AlignLeft
-                                visible: text !== "" && modelData && modelData.id && !modelData.id.startsWith("task_")
+                                visible: text !== "" && !taskItem.isLocalTask
                             }
                         }
 
@@ -1047,90 +949,73 @@ Rectangle {
                             id: eventMouseArea
 
                             anchors.fill: parent
-                            anchors.leftMargin: (modelData && modelData.id && modelData.id.startsWith("task_")) ? 32 : 6
-                            anchors.rightMargin: (modelData && modelData.id && modelData.id.startsWith("task_")) ? 64 : 0
+                            anchors.leftMargin: taskItem.isLocalTask ? 32 : 6
+                            anchors.rightMargin: taskItem.canModify ? 64 : 0
                             hoverEnabled: true
                             cursorShape: modelData ? Qt.PointingHandCursor : Qt.ArrowCursor
                             enabled: modelData && !taskItem.isEditing
                             onClicked: {
-                                if (modelData && modelData.id && modelData.id.startsWith("task_")) {
+                                if (!modelData)
+                                    return;
+                                if (taskItem.isTask && taskItem.canModify) {
                                     CalendarService.toggleTask(modelData.id);
                                     return;
                                 }
-                                if (modelData)
-                                    root.detailEvent = modelData;
+                                root.detailEvent = modelData;
                             }
                         }
 
-                        // Delete / Cancel Button
-                        Rectangle {
+                        DankActionButton {
+                            buttonSize: 24
+                            iconSize: 16
+                            iconName: (modelData && modelData.completed) ? "check_box" : "check_box_outline_blank"
+                            iconColor: (modelData && modelData.completed) ? Theme.primary : Theme.surfaceText
+                            anchors.left: parent.left
+                            anchors.leftMargin: taskItem.isLocalTask ? (taskItem.isEditing ? 8 : 32) : 8
+                            anchors.verticalCenter: parent.verticalCenter
+                            visible: taskItem.isTask
+                            enabled: taskItem.canModify && !taskItem.isEditing
+                            onClicked: CalendarService.toggleTask(modelData.id)
+                        }
+
+                        DankActionButton {
                             id: deleteButton
-                            width: 24
-                            height: 24
+                            buttonSize: 24
+                            iconSize: 14
+                            iconName: taskItem.isEditing ? "close" : "delete"
+                            iconColor: taskItem.isEditing ? Theme.surfaceText : Theme.error
                             anchors.right: parent.right
                             anchors.rightMargin: Theme.spacingS
                             anchors.verticalCenter: parent.verticalCenter
-                            radius: Theme.cornerRadius
-                            color: deleteMouseArea.containsMouse ? (taskItem.isEditing ? Theme.primaryHover : Qt.rgba(0.9, 0.2, 0.2, 0.15)) : Theme.withAlpha(Qt.rgba(0.9, 0.2, 0.2, 0.15), 0)
-                            visible: modelData && modelData.id && modelData.id.startsWith("task_")
-
-                            DankIcon {
-                                anchors.centerIn: parent
-                                name: taskItem.isEditing ? "close" : "delete"
-                                size: 14
-                                color: deleteMouseArea.containsMouse ? (taskItem.isEditing ? Theme.primary : Qt.rgba(0.9, 0.2, 0.2, 1.0)) : Theme.onSurface_38
-                            }
-
-                            MouseArea {
-                                id: deleteMouseArea
-                                anchors.fill: parent
-                                hoverEnabled: true
-                                cursorShape: Qt.PointingHandCursor
-                                onClicked: {
-                                    if (taskItem.isEditing) {
-                                        taskItem.isEditing = false;
-                                    } else if (modelData && modelData.id) {
-                                        CalendarService.removeTask(modelData.id);
-                                    }
+                            visible: taskItem.canModify
+                            onClicked: {
+                                if (taskItem.isEditing) {
+                                    taskItem.isEditing = false;
+                                    return;
                                 }
+                                if (modelData && modelData.id)
+                                    CalendarService.removeTask(modelData.id);
                             }
                         }
 
-                        // Edit / Save Button
-                        Rectangle {
-                            id: editButton
-                            width: 24
-                            height: 24
+                        DankActionButton {
+                            buttonSize: 24
+                            iconSize: 14
+                            iconName: taskItem.isEditing ? "check" : "edit"
+                            iconColor: taskItem.isEditing ? Theme.primary : Theme.surfaceText
                             anchors.right: deleteButton.left
                             anchors.rightMargin: Theme.spacingXS
                             anchors.verticalCenter: parent.verticalCenter
-                            radius: Theme.cornerRadius
-                            color: editMouseArea.containsMouse ? Theme.primaryHover : Theme.withAlpha(Theme.primaryHover, 0)
-                            visible: modelData && modelData.id && modelData.id.startsWith("task_")
-
-                            DankIcon {
-                                anchors.centerIn: parent
-                                name: taskItem.isEditing ? "check" : "edit"
-                                size: 14
-                                color: editMouseArea.containsMouse ? Theme.primary : Theme.onSurface_38
-                            }
-
-                            MouseArea {
-                                id: editMouseArea
-                                anchors.fill: parent
-                                hoverEnabled: true
-                                cursorShape: Qt.PointingHandCursor
-                                onClicked: {
-                                    if (taskItem.isEditing) {
-                                        let txt = editInput.text.trim();
-                                        if (txt !== "" && modelData && modelData.id) {
-                                            CalendarService.editTask(modelData.id, txt);
-                                        }
-                                        taskItem.isEditing = false;
-                                    } else {
-                                        taskItem.isEditing = true;
-                                    }
+                            visible: taskItem.canModify
+                            onClicked: {
+                                if (!taskItem.isEditing) {
+                                    taskItem.isEditing = true;
+                                    return;
                                 }
+                                let txt = editInput.text.trim();
+                                if (txt !== "" && modelData && modelData.id)
+                                    CalendarService.editTask(modelData.id, txt);
+                                taskItem.isEditing = false;
                             }
                         }
                     }

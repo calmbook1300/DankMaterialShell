@@ -12,9 +12,22 @@ Popup {
     property int selectedIndex: -1
     property bool keyboardNavigation: false
     property var parentFocusItem: null
+    property var transientSurfaceTracker: null
 
     signal menuClosed
     signal processKilled
+
+    onVisibleChanged: transientSurfaceTracker?.setActive(root, visible, null)
+    Component.onDestruction: transientSurfaceTracker?.unregister(root)
+
+    Connections {
+        target: processContextMenu.transientSurfaceTracker
+        ignoreUnknownSignals: true
+
+        function onCloseRequested() {
+            processContextMenu.close();
+        }
+    }
 
     readonly property var menuItems: [
         {

@@ -608,7 +608,7 @@ Item {
     function closeHoverSurfaces() {
         _closeHoverNotepad();
         activeHoverTrigger = "";
-        PopoutManager.closePopoutForScreen(barWindow?.screen);
+        PopoutManager.dismissHoverPopoutForScreen(barWindow?.screen);
         TrayMenuManager.closeAllMenus();
     }
 
@@ -736,7 +736,7 @@ Item {
         case "music":
         case "weather":
             {
-                const tabIndex = widgetId === "clock" ? 0 : (widgetId === "music" ? 1 : 3);
+                const tabIndex = SettingsData.dashTabIndexForId(widgetId === "clock" ? "overview" : (widgetId === "music" ? "media" : "weather"));
                 return barContent.openWidgetPopout(Object.assign({}, base, {
                     loader,
                     tabIndex,

@@ -373,7 +373,7 @@ Item {
         }
 
         function open(): string {
-            if (SettingsData.notepadDefaultMode === "popout") {
+            if (PopoutService.notepadResolvedMode === "popout") {
                 PopoutService.openNotepadPopout();
                 return "NOTEPAD_OPEN_SUCCESS";
             }
@@ -385,8 +385,24 @@ Item {
             return "NOTEPAD_OPEN_FAILED";
         }
 
+        function openFile(path: string): string {
+            if (!path)
+                return open();
+            if (PopoutService.notepadResolvedMode === "popout") {
+                PopoutService.openNotepadPopoutWithFile(path);
+                return "NOTEPAD_OPEN_FILE_SUCCESS";
+            }
+            var instance = getActiveNotepadInstance();
+            if (instance) {
+                instance.show();
+                instance.loadedItem?.openExternalFile(path);
+                return "NOTEPAD_OPEN_FILE_SUCCESS";
+            }
+            return "NOTEPAD_OPEN_FILE_FAILED";
+        }
+
         function close(): string {
-            if (SettingsData.notepadDefaultMode === "popout") {
+            if (PopoutService.notepadResolvedMode === "popout") {
                 PopoutService.notepadPopout?.hide();
                 return "NOTEPAD_CLOSE_SUCCESS";
             }
@@ -399,7 +415,7 @@ Item {
         }
 
         function toggle(): string {
-            if (SettingsData.notepadDefaultMode === "popout") {
+            if (PopoutService.notepadResolvedMode === "popout") {
                 PopoutService.toggleNotepadPopout();
                 return "NOTEPAD_TOGGLE_SUCCESS";
             }
@@ -696,12 +712,13 @@ Item {
         target: "hypr"
     }
 
+    // ! TODO - remove for v1.6
     IpcHandler {
         function wallpaper(): string {
             const bar = root.getPreferredBar("clockButtonRef") || root.getPreferredBar();
             if (bar) {
                 bar.triggerWallpaperBrowser();
-                return "SUCCESS: Toggled wallpaper browser";
+                return "WARN; deprecated, use dms ipc call dash toggle wallpaper instead";
             }
             return "ERROR: Failed to toggle wallpaper browser";
         }

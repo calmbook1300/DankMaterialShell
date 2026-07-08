@@ -107,6 +107,14 @@ Item {
         }
     }
 
+    Connections {
+        target: CompositorService
+        function onCompositorChanged() {
+            root._placeholderPool = [];
+            root._hyprSlotPool = {};
+        }
+    }
+
     property var currentWorkspace: {
         if (useExtWorkspace)
             return getExtWorkspaceActiveWorkspace();
@@ -145,8 +153,7 @@ Item {
             baseList = getNiriWorkspaces();
             break;
         case "hyprland":
-            baseList = getHyprlandWorkspaces();
-            break;
+            return hyprlandSlotList(getHyprlandWorkspaces());
         case "mango":
             if (root.mangoOverviewActive)
                 return [];
@@ -175,7 +182,7 @@ Item {
         function mapWorkspace(ws) {
             return {
                 "num": ws.number,
-                "name": ws.name,
+                "name": stripSwayWorkspaceNumber(ws.number, ws.name),
                 "focused": ws.focused,
                 "active": ws.active,
                 "urgent": ws.urgent,
@@ -193,6 +200,18 @@ Item {
                 "num": 1
             }
         ];
+    }
+
+    // sway/scroll fold `<num>:<name>` into the name field (num 1 → name "1:test"); drop the redundant prefix so the index option controls it
+    function stripSwayWorkspaceNumber(num, name) {
+        if (num === undefined || num === -1)
+            return name;
+        if (typeof name !== "string")
+            return name;
+        const prefix = num + ":";
+        if (!name.startsWith(prefix))
+            return name;
+        return name.slice(prefix.length);
     }
 
     // Numbered workspaces first in ascending order; purely-named workspaces (sway reports num -1) after, by name
@@ -426,41 +445,84 @@ Item {
         return Object.values(byApp);
     }
 
-    function padWorkspaces(list) {
-        const padded = list.slice();
-        let placeholder;
-        if (useExtWorkspace) {
-            placeholder = {
+    function _makePlaceholder() {
+        if (useExtWorkspace)
+            return {
                 "id": "",
                 "name": "",
                 "active": false,
                 "_placeholder": true
             };
-        } else if (CompositorService.isNiri) {
-            placeholder = {
+        if (CompositorService.isNiri)
+            return {
                 "id": -1,
                 "idx": -1,
                 "name": ""
             };
-        } else if (CompositorService.isHyprland) {
-            placeholder = {
+        if (CompositorService.isHyprland)
+            return {
                 "id": -1,
                 "name": ""
             };
-        } else if (root.isMango) {
-            placeholder = {
+        if (root.isMango)
+            return {
                 "tag": -1
             };
-        } else if (CompositorService.isSway || CompositorService.isScroll || CompositorService.isMiracle) {
-            placeholder = {
+        if (CompositorService.isSway || CompositorService.isScroll || CompositorService.isMiracle)
+            return {
                 "num": -1,
                 "_placeholder": true
             };
-        } else {
-            placeholder = -1;
+        return -1;
+    }
+
+    // Hyprland creates/destroys workspaces on empty enter/leave; slots keyed by id keep delegate identity so pills animate instead of popping
+    property var _hyprSlotPool: ({})
+
+    Component {
+        id: hyprSlotComponent
+
+        QtObject {
+            property var ws: null
+            readonly property var id: ws ? ws.id : -1
+            readonly property string name: ws?.name ?? ""
+            readonly property bool urgent: ws?.urgent ?? false
         }
+    }
+
+    function _hyprSlot(key, ws) {
+        let slot = _hyprSlotPool[key];
+        if (!slot) {
+            slot = hyprSlotComponent.createObject(root);
+            _hyprSlotPool[key] = slot;
+        }
+        if (slot.ws !== ws)
+            slot.ws = ws;
+        return slot;
+    }
+
+    function hyprlandSlotList(raw) {
+        const slots = raw.map(ws => _hyprSlot(ws.id > 0 ? ws.id : "name:" + (ws.name ?? ""), ws));
+        if (!SettingsData.showWorkspacePadding)
+            return slots;
+        // pad past the highest real id so a placeholder becomes that workspace's slot once created
+        let nextId = raw.reduce((max, ws) => Math.max(max, ws.id ?? 0), 0);
+        while (slots.length < 3)
+            slots.push(_hyprSlot(++nextId, null));
+        return slots;
+    }
+
+    // Stable placeholder instances so ScriptModel (identity-diffed) reuses padding delegates instead of recreating them on workspace churn
+    property var _placeholderPool: []
+
+    function padWorkspaces(list) {
+        const padded = list.slice();
+        let slot = 0;
         while (padded.length < 3) {
-            padded.push(placeholder);
+            if (root._placeholderPool.length <= slot)
+                root._placeholderPool.push(root._makePlaceholder());
+            padded.push(root._placeholderPool[slot]);
+            slot++;
         }
         return padded;
     }
@@ -646,7 +708,7 @@ Item {
                 NiriService.switchToWorkspace(data.id);
             break;
         case "hyprland":
-            if (data.id) {
+            if (data.id && data.id !== -1) {
                 HyprlandService.focusWorkspace(hyprlandWorkspaceSelector(data));
             }
             break;
@@ -671,7 +733,7 @@ Item {
 
         for (let i = 0; i < workspaceRepeater.count; i++) {
             const item = workspaceRepeater.itemAt(i);
-            if (!item)
+            if (!item || item.isPlaceholder)
                 continue;
             const center = item.mapToItem(root, item.width / 2, item.height / 2);
             const dist = isVertical ? Math.abs(localY - center.y) : Math.abs(localX - center.x);

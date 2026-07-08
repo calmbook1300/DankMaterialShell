@@ -79,12 +79,6 @@ Singleton {
 
     function _closePopout(popout) {
         try {
-            if (popout?.hoverDismissEnabled) {
-                if (typeof popout.closeFromHoverDismiss === "function") {
-                    popout.closeFromHoverDismiss();
-                    return;
-                }
-            }
             if (popout.hoverDismissEnabled !== undefined)
                 popout.hoverDismissEnabled = false;
             switch (true) {
@@ -99,6 +93,20 @@ Singleton {
                     return;
                 popout.close();
             }
+        } catch (e) {
+            return;
+        }
+    }
+
+    function _dismissPopoutFromHover(popout) {
+        try {
+            if (!popout || popout.hoverDismissEnabled !== true)
+                return;
+            if (typeof popout.closeFromHoverDismiss === "function") {
+                popout.closeFromHoverDismiss();
+                return;
+            }
+            _closePopout(popout);
         } catch (e) {
             return;
         }
@@ -174,6 +182,19 @@ Singleton {
         _closePopout(popout);
     }
 
+    function dismissHoverPopoutForScreen(screen) {
+        if (!screen)
+            return;
+        const screenName = screen.name;
+        const popout = currentPopoutsByScreen[screenName];
+        if (!popout || _isStale(popout)) {
+            currentPopoutsByScreen[screenName] = null;
+            currentPopoutTriggers[screenName] = null;
+            return;
+        }
+        _dismissPopoutFromHover(popout);
+    }
+
     function cancelHoverDismiss(screen) {
         const popout = getActivePopout(screen);
         if (popout?.cancelHoverDismiss)
@@ -191,7 +212,8 @@ Singleton {
         const p = getActivePopout(screen);
         if (!p || !_isPopoutPresented(p))
             return false;
-        return p.hoverDismissEnabled === false || p.hoverDismissSuspended === true;
+        const dismissSuspended = p.effectiveHoverDismissSuspended ?? p.hoverDismissSuspended;
+        return p.hoverDismissEnabled === false || dismissSuspended === true;
     }
 
     function isCurrentPopout(popout, screenName) {

@@ -1,6 +1,6 @@
 import QtQuick
-import QtQuick.Effects
 import Quickshell
+import Quickshell.Widgets
 import qs.Common
 import qs.Modals.FileBrowser
 import qs.Services
@@ -75,28 +75,27 @@ Item {
                         radius: Theme.cornerRadius
                         color: Theme.surfaceVariant
 
-                        Image {
+                        ClippingRectangle {
                             anchors.fill: parent
                             anchors.margins: 1
-                            source: {
-                                var wp = root.currentWallpaper;
-                                if (wp === "" || wp.startsWith("#"))
-                                    return "";
-                                if (wp.startsWith("file://"))
-                                    wp = wp.substring(7);
-                                return "file://" + wp.split('/').map(s => encodeURIComponent(s)).join('/');
-                            }
-                            fillMode: Image.PreserveAspectCrop
-                            visible: root.currentWallpaper !== "" && !root.currentWallpaper.startsWith("#")
-                            sourceSize.width: 160
-                            sourceSize.height: 160
-                            asynchronous: true
-                            layer.enabled: true
-                            layer.effect: MultiEffect {
-                                maskEnabled: true
-                                maskSource: wallpaperMask
-                                maskThresholdMin: 0.5
-                                maskSpreadAtMin: 1
+                            radius: Theme.cornerRadius - 1
+                            color: "transparent"
+
+                            Image {
+                                anchors.fill: parent
+                                source: {
+                                    var wp = root.currentWallpaper;
+                                    if (wp === "" || wp.startsWith("#"))
+                                        return "";
+                                    if (wp.startsWith("file://"))
+                                        wp = wp.substring(7);
+                                    return "file://" + wp.split('/').map(s => encodeURIComponent(s)).join('/');
+                                }
+                                fillMode: Image.PreserveAspectCrop
+                                visible: root.currentWallpaper !== "" && !root.currentWallpaper.startsWith("#")
+                                sourceSize.width: 160
+                                sourceSize.height: 160
+                                asynchronous: true
                             }
                         }
 
@@ -106,16 +105,6 @@ Item {
                             radius: Theme.cornerRadius - 1
                             color: root.currentWallpaper.startsWith("#") ? root.currentWallpaper : "transparent"
                             visible: root.currentWallpaper !== "" && root.currentWallpaper.startsWith("#")
-                        }
-
-                        Rectangle {
-                            id: wallpaperMask
-                            anchors.fill: parent
-                            anchors.margins: 1
-                            radius: Theme.cornerRadius - 1
-                            color: "black"
-                            visible: false
-                            layer.enabled: true
                         }
 
                         DankIcon {
@@ -300,111 +289,39 @@ Item {
                     }
                 }
 
-                Item {
-                    width: parent.width
-                    height: fillModeColumn.height
+                SettingsDropdownRow {
+                    id: fillModeRow
+
+                    readonly property var fillModes: ["Stretch", "Fit", "Fill", "Scrolling", "Tile", "TileVertically", "TileHorizontally", "Pad"]
+                    readonly property var fillModeLabels: [I18n.tr("Stretch", "wallpaper fill mode"), I18n.tr("Fit", "wallpaper fill mode"), I18n.tr("Fill", "wallpaper fill mode"), I18n.tr("Scroll", "wallpaper fill mode"), I18n.tr("Tile", "wallpaper fill mode"), I18n.tr("Tile Vertically", "wallpaper fill mode"), I18n.tr("Tile Horizontally", "wallpaper fill mode"), I18n.tr("Pad", "wallpaper fill mode")]
+
+                    tab: "wallpaper"
+                    tags: ["background", "fill", "fit", "stretch", "tile", "scale"]
+                    settingKey: "wallpaperFillMode"
+                    text: I18n.tr("Fill Mode", "wallpaper fill mode setting")
+                    description: I18n.tr("How the wallpaper is scaled to fit the screen")
                     visible: root.currentWallpaper !== "" && !root.currentWallpaper.startsWith("#")
-
-                    Column {
-                        id: fillModeColumn
-                        anchors.horizontalCenter: parent.horizontalCenter
-                        spacing: Theme.spacingS
-
-                        property var firstRowModes: ["Stretch", "Fit", "Fill", "Scrolling"]
-                        property var secondRowModes: ["Tile", "TileVertically", "TileHorizontally", "Pad"]
-
-                        function currentMode() {
-                            return SessionData.perMonitorWallpaper ? SessionData.getMonitorWallpaperFillMode(selectedMonitorName) : SettingsData.wallpaperFillMode;
-                        }
-
-                        function selectMode(mode) {
-                            if (SessionData.perMonitorWallpaper) {
-                                SessionData.setMonitorWallpaperFillMode(selectedMonitorName, mode);
-                            } else {
-                                SettingsData.set("wallpaperFillMode", mode);
-                            }
-                        }
-
-                        DankButtonGroup {
-                            id: fillModeGroupFirstRow
-                            property var internalModes: fillModeColumn.firstRowModes
-                            anchors.horizontalCenter: parent.horizontalCenter
-                            model: [I18n.tr("Stretch", "wallpaper fill mode"), I18n.tr("Fit", "wallpaper fill mode"), I18n.tr("Fill", "wallpaper fill mode"), I18n.tr("Scroll", "wallpaper fill mode")]
-                            selectionMode: "single"
-                            buttonHeight: 28
-                            minButtonWidth: 48
-                            buttonPadding: Theme.spacingS
-                            checkIconSize: 0
-                            textSize: Theme.fontSizeSmall
-                            checkEnabled: false
-                            currentIndex: {
-                                var mode = fillModeColumn.currentMode();
-                                var idx = internalModes.indexOf(mode);
-                                return idx >= 0 ? idx : -1;
-                            }
-                            onSelectionChanged: (index, selected) => {
-                                if (!selected)
-                                    return;
-                                fillModeColumn.selectMode(internalModes[index]);
-                            }
-                        }
-
-                        DankButtonGroup {
-                            id: fillModeGroupSecondRow
-                            property var internalModes: fillModeColumn.secondRowModes
-                            anchors.horizontalCenter: parent.horizontalCenter
-                            model: [I18n.tr("Tile", "wallpaper fill mode"), I18n.tr("Tile V", "wallpaper fill mode"), I18n.tr("Tile H", "wallpaper fill mode"), I18n.tr("Pad", "wallpaper fill mode")]
-                            selectionMode: "single"
-                            buttonHeight: 28
-                            minButtonWidth: 48
-                            buttonPadding: Theme.spacingS
-                            checkIconSize: 0
-                            textSize: Theme.fontSizeSmall
-                            checkEnabled: false
-                            currentIndex: {
-                                var mode = fillModeColumn.currentMode();
-                                var idx = internalModes.indexOf(mode);
-                                return idx >= 0 ? idx : -1;
-                            }
-                            onSelectionChanged: (index, selected) => {
-                                if (!selected)
-                                    return;
-                                fillModeColumn.selectMode(internalModes[index]);
-                            }
+                    dropdownWidth: 190
+                    options: fillModeLabels
+                    optionIcons: ["aspect_ratio", "fit_screen", "zoom_out_map", "swipe", "grid_view", "view_agenda", "view_column", "padding"]
+                    onValueChanged: value => {
+                        const idx = fillModeLabels.indexOf(value);
+                        if (idx < 0)
+                            return;
+                        if (SessionData.perMonitorWallpaper) {
+                            SessionData.setMonitorWallpaperFillMode(root.selectedMonitorName, fillModes[idx]);
+                        } else {
+                            SettingsData.set("wallpaperFillMode", fillModes[idx]);
                         }
                     }
 
-                    Connections {
-                        target: SettingsData
-                        function onWallpaperFillModeChanged() {
-                            if (SessionData.perMonitorWallpaper)
-                                return;
-                            fillModeGroupFirstRow.currentIndex = Qt.binding(() => {
-                                var idx = fillModeGroupFirstRow.internalModes.indexOf(SettingsData.wallpaperFillMode);
-                                return idx >= 0 ? idx : -1;
-                            });
-                            fillModeGroupSecondRow.currentIndex = Qt.binding(() => {
-                                var idx = fillModeGroupSecondRow.internalModes.indexOf(SettingsData.wallpaperFillMode);
-                                return idx >= 0 ? idx : -1;
-                            });
-                        }
-                    }
-
-                    Connections {
-                        target: root
-                        function onSelectedMonitorNameChanged() {
-                            if (!SessionData.perMonitorWallpaper)
-                                return;
-                            fillModeGroupFirstRow.currentIndex = Qt.binding(() => {
-                                var mode = SessionData.getMonitorWallpaperFillMode(selectedMonitorName);
-                                var idx = fillModeGroupFirstRow.internalModes.indexOf(mode);
-                                return idx >= 0 ? idx : -1;
-                            });
-                            fillModeGroupSecondRow.currentIndex = Qt.binding(() => {
-                                var mode = SessionData.getMonitorWallpaperFillMode(selectedMonitorName);
-                                var idx = fillModeGroupSecondRow.internalModes.indexOf(mode);
-                                return idx >= 0 ? idx : -1;
-                            });
+                    Binding {
+                        target: fillModeRow
+                        property: "currentValue"
+                        value: {
+                            const mode = SessionData.perMonitorWallpaper ? SessionData.getMonitorWallpaperFillMode(root.selectedMonitorName) : SettingsData.wallpaperFillMode;
+                            const idx = fillModeRow.fillModes.indexOf(mode);
+                            return idx >= 0 ? fillModeRow.fillModeLabels[idx] : "";
                         }
                     }
                 }
@@ -493,31 +410,30 @@ Item {
                                 radius: Theme.cornerRadius
                                 color: Theme.surfaceVariant
 
-                                Image {
+                                ClippingRectangle {
                                     anchors.fill: parent
                                     anchors.margins: 1
-                                    source: {
-                                        var wp = SessionData.wallpaperPathLight;
-                                        if (wp === "" || wp.startsWith("#"))
-                                            return "";
-                                        if (wp.startsWith("file://"))
-                                            wp = wp.substring(7);
-                                        return "file://" + wp.split('/').map(s => encodeURIComponent(s)).join('/');
-                                    }
-                                    fillMode: Image.PreserveAspectCrop
-                                    visible: {
-                                        var lightWallpaper = SessionData.wallpaperPathLight;
-                                        return lightWallpaper !== "" && !lightWallpaper.startsWith("#");
-                                    }
-                                    sourceSize.width: 160
-                                    sourceSize.height: 160
-                                    asynchronous: true
-                                    layer.enabled: true
-                                    layer.effect: MultiEffect {
-                                        maskEnabled: true
-                                        maskSource: lightMask
-                                        maskThresholdMin: 0.5
-                                        maskSpreadAtMin: 1
+                                    radius: Theme.cornerRadius - 1
+                                    color: "transparent"
+
+                                    Image {
+                                        anchors.fill: parent
+                                        source: {
+                                            var wp = SessionData.wallpaperPathLight;
+                                            if (wp === "" || wp.startsWith("#"))
+                                                return "";
+                                            if (wp.startsWith("file://"))
+                                                wp = wp.substring(7);
+                                            return "file://" + wp.split('/').map(s => encodeURIComponent(s)).join('/');
+                                        }
+                                        fillMode: Image.PreserveAspectCrop
+                                        visible: {
+                                            var lightWallpaper = SessionData.wallpaperPathLight;
+                                            return lightWallpaper !== "" && !lightWallpaper.startsWith("#");
+                                        }
+                                        sourceSize.width: 160
+                                        sourceSize.height: 160
+                                        asynchronous: true
                                     }
                                 }
 
@@ -533,16 +449,6 @@ Item {
                                         var lightWallpaper = SessionData.wallpaperPathLight;
                                         return lightWallpaper !== "" && lightWallpaper.startsWith("#");
                                     }
-                                }
-
-                                Rectangle {
-                                    id: lightMask
-                                    anchors.fill: parent
-                                    anchors.margins: 1
-                                    radius: Theme.cornerRadius - 1
-                                    color: "black"
-                                    visible: false
-                                    layer.enabled: true
                                 }
 
                                 DankIcon {
@@ -683,31 +589,30 @@ Item {
                                 radius: Theme.cornerRadius
                                 color: Theme.surfaceVariant
 
-                                Image {
+                                ClippingRectangle {
                                     anchors.fill: parent
                                     anchors.margins: 1
-                                    source: {
-                                        var wp = SessionData.wallpaperPathDark;
-                                        if (wp === "" || wp.startsWith("#"))
-                                            return "";
-                                        if (wp.startsWith("file://"))
-                                            wp = wp.substring(7);
-                                        return "file://" + wp.split('/').map(s => encodeURIComponent(s)).join('/');
-                                    }
-                                    fillMode: Image.PreserveAspectCrop
-                                    visible: {
-                                        var darkWallpaper = SessionData.wallpaperPathDark;
-                                        return darkWallpaper !== "" && !darkWallpaper.startsWith("#");
-                                    }
-                                    sourceSize.width: 160
-                                    sourceSize.height: 160
-                                    asynchronous: true
-                                    layer.enabled: true
-                                    layer.effect: MultiEffect {
-                                        maskEnabled: true
-                                        maskSource: darkMask
-                                        maskThresholdMin: 0.5
-                                        maskSpreadAtMin: 1
+                                    radius: Theme.cornerRadius - 1
+                                    color: "transparent"
+
+                                    Image {
+                                        anchors.fill: parent
+                                        source: {
+                                            var wp = SessionData.wallpaperPathDark;
+                                            if (wp === "" || wp.startsWith("#"))
+                                                return "";
+                                            if (wp.startsWith("file://"))
+                                                wp = wp.substring(7);
+                                            return "file://" + wp.split('/').map(s => encodeURIComponent(s)).join('/');
+                                        }
+                                        fillMode: Image.PreserveAspectCrop
+                                        visible: {
+                                            var darkWallpaper = SessionData.wallpaperPathDark;
+                                            return darkWallpaper !== "" && !darkWallpaper.startsWith("#");
+                                        }
+                                        sourceSize.width: 160
+                                        sourceSize.height: 160
+                                        asynchronous: true
                                     }
                                 }
 
@@ -723,16 +628,6 @@ Item {
                                         var darkWallpaper = SessionData.wallpaperPathDark;
                                         return darkWallpaper !== "" && darkWallpaper.startsWith("#");
                                     }
-                                }
-
-                                Rectangle {
-                                    id: darkMask
-                                    anchors.fill: parent
-                                    anchors.margins: 1
-                                    radius: Theme.cornerRadius - 1
-                                    color: "black"
-                                    visible: false
-                                    layer.enabled: true
                                 }
 
                                 DankIcon {

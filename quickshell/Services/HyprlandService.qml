@@ -105,8 +105,10 @@ Singleton {
     }
 
     function getOutputIdentifier(output, outputName) {
+        if (output.explicitIdentifier)
+            return outputName;
         if (SettingsData.displayNameMode === "model" && output.make && output.model)
-            return ("desc:" + output.make + " " + output.model + " " + (output.serial || "Unknown")).replace(/,/g, "");
+            return ("desc:" + [output.make, output.model, output.serial].filter(p => p).join(" ")).replace(/,/g, "");
         return outputName;
     }
 
@@ -194,8 +196,8 @@ Singleton {
                 continue;
             }
 
-            let resolution = "preferred";
-            if (output.modes && output.current_mode !== undefined) {
+            let resolution = output.configured_mode || "preferred";
+            if (!output.configured_mode && output.modes && output.current_mode !== undefined) {
                 const mode = output.modes[output.current_mode];
                 if (mode)
                     resolution = mode.width + "x" + mode.height + "@" + (mode.refresh_rate / 1000).toFixed(3);
@@ -339,10 +341,11 @@ Singleton {
         const borderSize = (typeof SettingsData !== "undefined" && SettingsData.hyprlandLayoutBorderSize >= 0) ? SettingsData.hyprlandLayoutBorderSize : defaultBorderSize;
         const resizeOnBorder = (typeof SettingsData !== "undefined" && SettingsData.hyprlandResizeOnBorder) ? true : false;
         const frameEnabled = typeof SettingsData !== "undefined" && SettingsData.frameEnabled;
-        const frameConnectedMode = frameEnabled && SettingsData.frameMode === "connected";
         // Hyprland `xray = false` is still early-development; unset already samples real content, so only force xray=true
-        // Connected frame mode has no separate bar/frame surface to target
-        const barFrameTargetNamespace = !frameEnabled ? (SettingsData.standaloneBarXrayAvailable ? "dms:bar" : null) : (frameConnectedMode ? null : "dms:frame");
+        // dms:frame only in separate mode — connected-mode frame blur overlaps windows via popouts/arcs
+        const xrayNamespaces = ["dms:bar"];
+        if (frameEnabled && SettingsData.frameMode !== "connected")
+            xrayNamespaces.push("dms:frame");
 
         const generalLines = [];
         if (manageGaps)
@@ -369,13 +372,15 @@ hl.layer_rule({
 })
 `;
         }
-        if (layoutBarXrayEnabled && barFrameTargetNamespace) {
-            content += `
+        if (layoutBarXrayEnabled) {
+            for (const ns of xrayNamespaces) {
+                content += `
 hl.layer_rule({
-	match = { namespace = "^${barFrameTargetNamespace}$" },
+	match = { namespace = "^${ns}$" },
 	xray = true,
 })
 `;
+            }
         }
         // Marker persists the preference even while the rule has no target
         if (!layoutBarXrayEnabled) {

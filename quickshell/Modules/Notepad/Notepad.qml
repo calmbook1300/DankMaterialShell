@@ -212,6 +212,25 @@ Item {
         });
     }
 
+    function openExternalFile(path) {
+        if (!path)
+            return;
+
+        for (var i = 0; i < NotepadStorageService.tabs.length; i++) {
+            var tab = NotepadStorageService.tabs[i];
+            if (tab && !tab.isTemporary && tab.filePath === path) {
+                textEditor.autoSaveToSession();
+                switchToTab(i);
+                return;
+            }
+        }
+
+        textEditor.autoSaveToSession();
+        NotepadStorageService.createTabForFile(path);
+        root.currentFileName = path.split('/').pop();
+        root.currentFileUrl = "file://" + path;
+    }
+
     function loadFromFile(fileUrl) {
         if (hasUnsavedChanges()) {
             root.pendingFileUrl = fileUrl;

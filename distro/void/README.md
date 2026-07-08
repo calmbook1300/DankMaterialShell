@@ -52,8 +52,8 @@ checkout at `srcpkgs/<pkg>/template` to build or submit it.
 ## Dependencies
 
 Installing `dms` automatically pulls in `quickshell`, `accountsservice`, `dgop`,
-and `matugen` (which drives the Material You theming). The rest are optional —
-install whichever features you want:
+`matugen` (which drives the Material You theming), `dbus`, and `elogind`.
+The rest are optional, install whichever features you want:
 
 | Package | Enables |
 | --- | --- |
@@ -61,7 +61,6 @@ install whichever features you want:
 | `cava` | audio visualiser widget |
 | `qt6-multimedia` | system sound feedback |
 | `qt6ct` | Qt app theming |
-| `wtype` | virtual keyboard input |
 | `power-profiles-daemon` | power profile control |
 | `cups-pk-helper` | printer management |
 | `NetworkManager` | network control |
@@ -98,6 +97,27 @@ spawn-at-startup "dms" "run"
 ```
 
 or Hyprland: `exec-once = dms run`.
+
+From a TTY on Void without a greeter, start your compositor through a D-Bus
+session:
+
+```sh
+dbus-run-session niri
+dbus-run-session Hyprland
+dbus-run-session mango
+```
+
+The `mangowc` package provides the `mango` command.
+
+For power menu actions to work on runit systems, make sure the system D-Bus and
+elogind services are enabled:
+
+```sh
+sudo ln -sf /etc/sv/dbus /var/service/dbus
+sudo ln -sf /etc/sv/elogind /var/service/elogind
+```
+
+The `dankinstall` Void path does this automatically after installing packages.
 
 ## Greeter (optional)
 

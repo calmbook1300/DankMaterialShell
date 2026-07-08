@@ -1860,7 +1860,7 @@ Column {
                         height: 20
                         checked: focusedWindowContextMenu.currentWidgetData?.focusedWindowCompactMode ?? SettingsData.focusedWindowCompactMode
                         onToggled: {
-                            root.overflowSettingChanged(focusedWindowContextMenu.sectionId, focusedWindowContextMenu.widgetIndex, "focuswedWindowCompactMode", toggled);
+                            root.overflowSettingChanged(focusedWindowContextMenu.sectionId, focusedWindowContextMenu.widgetIndex, "focusedWindowCompactMode", toggled);
                         }
                     }
 
@@ -1872,6 +1872,65 @@ Column {
                         onPressed: {
                             fwCompactToggle.checked = !fwCompactToggle.checked;
                             root.overflowSettingChanged(focusedWindowContextMenu.sectionId, focusedWindowContextMenu.widgetIndex, "focusedWindowCompactMode", fwCompactToggle.checked);
+                        }
+                    }
+                }
+
+                Rectangle {
+                    width: parent.width
+                    height: 32
+                    radius: Theme.cornerRadius
+                    color: fwShowIconArea.containsMouse ? Theme.primaryHover : Theme.withAlpha(Theme.primaryHover, 0)
+
+                    Row {
+                        anchors.left: parent.left
+                        anchors.leftMargin: Theme.spacingS
+                        anchors.right: fwShowIconToggle.left
+                        anchors.rightMargin: Theme.spacingS
+                        anchors.verticalCenter: parent.verticalCenter
+                        spacing: Theme.spacingS
+                        clip: true
+
+                        DankIcon {
+                            name: "visibility"
+                            size: 16
+                            color: Theme.surfaceText
+                            anchors.verticalCenter: parent.verticalCenter
+                        }
+
+                        StyledText {
+                            text: I18n.tr("Show Icon")
+                            font.pixelSize: Theme.fontSizeSmall
+                            color: Theme.surfaceText
+                            font.weight: Font.Normal
+                            anchors.verticalCenter: parent.verticalCenter
+                            elide: Text.ElideRight
+                            maximumLineCount: 1
+                            width: parent.width - 16 - Theme.spacingS
+                        }
+                    }
+
+                    DankToggle {
+                        id: fwShowIconToggle
+                        anchors.right: parent.right
+                        anchors.rightMargin: Theme.spacingS
+                        anchors.verticalCenter: parent.verticalCenter
+                        width: 40
+                        height: 20
+                        checked: focusedWindowContextMenu.currentWidgetData?.focusedWindowShowIcon ?? SettingsData.focusedWindowShowIcon
+                        onToggled: {
+                            root.overflowSettingChanged(focusedWindowContextMenu.sectionId, focusedWindowContextMenu.widgetIndex, "focusedWindowShowIcon", toggled);
+                        }
+                    }
+
+                    MouseArea {
+                        id: fwShowIconArea
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onPressed: {
+                            fwShowIconToggle.checked = !fwShowIconToggle.checked;
+                            root.overflowSettingChanged(focusedWindowContextMenu.sectionId, focusedWindowContextMenu.widgetIndex, "focusedWindowShowIcon", fwShowIconToggle.checked);
                         }
                     }
                 }
@@ -3272,6 +3331,127 @@ Column {
                         onPressed: {
                             batteryTimeOnlyOnBatteryToggle.checked = !batteryTimeOnlyOnBatteryToggle.checked;
                             root.overflowSettingChanged(batteryContextMenu.sectionId, batteryContextMenu.widgetIndex, "showBatteryTimeOnlyOnBattery", batteryTimeOnlyOnBatteryToggle.checked);
+                        }
+                    }
+                }
+
+                Rectangle {
+                    width: parent.width
+                    height: Math.max(18, Theme.fontSizeSmall) + Theme.spacingM * 2
+                    radius: Theme.cornerRadius
+                    color: batteryPillArea.containsMouse ? Theme.primaryHover : Theme.withAlpha(Theme.primaryHover, 0)
+
+                    Row {
+                        anchors.left: parent.left
+                        anchors.leftMargin: Theme.spacingS
+                        anchors.right: batteryPillToggle.left
+                        anchors.rightMargin: Theme.spacingS
+                        anchors.verticalCenter: parent.verticalCenter
+                        spacing: Theme.spacingS
+                        clip: true
+
+                        DankIcon {
+                            name: "battery_horiz_075"
+                            size: 18
+                            color: Theme.outline
+                            anchors.verticalCenter: parent.verticalCenter
+                        }
+
+                        StyledText {
+                            text: I18n.tr("Material Battery Style")
+                            font.pixelSize: Theme.fontSizeSmall
+                            color: Theme.surfaceText
+                            font.weight: Font.Normal
+                            anchors.verticalCenter: parent.verticalCenter
+                            elide: Text.ElideRight
+                            maximumLineCount: 1
+                            width: parent.width - 18 - Theme.spacingS
+                        }
+                    }
+
+                    DankToggle {
+                        id: batteryPillToggle
+                        anchors.right: parent.right
+                        anchors.rightMargin: Theme.spacingS
+                        anchors.verticalCenter: parent.verticalCenter
+                        width: 40
+                        height: 20
+                        checked: batteryContextMenu.currentWidgetData?.batteryPillStyle ?? SettingsData.batteryPillStyle
+                        onToggled: {
+                            root.overflowSettingChanged(batteryContextMenu.sectionId, batteryContextMenu.widgetIndex, "batteryPillStyle", toggled);
+                        }
+                    }
+
+                    MouseArea {
+                        id: batteryPillArea
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onPressed: {
+                            batteryPillToggle.checked = !batteryPillToggle.checked;
+                            root.overflowSettingChanged(batteryContextMenu.sectionId, batteryContextMenu.widgetIndex, "batteryPillStyle", batteryPillToggle.checked);
+                        }
+                    }
+                }
+
+                Rectangle {
+                    width: parent.width
+                    height: Math.max(18, Theme.fontSizeSmall) + Theme.spacingM * 2
+                    radius: Theme.cornerRadius
+                    color: batteryPillPercentArea.containsMouse && batteryPillToggle.checked ? Theme.primaryHover : Theme.withAlpha(Theme.primaryHover, 0)
+                    opacity: batteryPillToggle.checked ? 1.0 : 0.5
+
+                    Row {
+                        anchors.left: parent.left
+                        anchors.leftMargin: Theme.spacingS + 18
+                        anchors.right: batteryPillPercentToggle.left
+                        anchors.rightMargin: Theme.spacingS
+                        anchors.verticalCenter: parent.verticalCenter
+                        spacing: Theme.spacingS
+                        clip: true
+
+                        DankIcon {
+                            name: "percent"
+                            size: 18
+                            color: Theme.outline
+                            anchors.verticalCenter: parent.verticalCenter
+                        }
+
+                        StyledText {
+                            text: I18n.tr("Show Percentage")
+                            font.pixelSize: Theme.fontSizeSmall
+                            color: Theme.surfaceText
+                            font.weight: Font.Normal
+                            anchors.verticalCenter: parent.verticalCenter
+                            elide: Text.ElideRight
+                            maximumLineCount: 1
+                            width: parent.width - 18 - Theme.spacingS
+                        }
+                    }
+
+                    DankToggle {
+                        id: batteryPillPercentToggle
+                        anchors.right: parent.right
+                        anchors.rightMargin: Theme.spacingS
+                        anchors.verticalCenter: parent.verticalCenter
+                        width: 40
+                        height: 20
+                        enabled: batteryPillToggle.checked
+                        checked: batteryContextMenu.currentWidgetData?.batteryPillPercentSign ?? SettingsData.batteryPillPercentSign
+                        onToggled: {
+                            root.overflowSettingChanged(batteryContextMenu.sectionId, batteryContextMenu.widgetIndex, "batteryPillPercentSign", toggled);
+                        }
+                    }
+
+                    MouseArea {
+                        id: batteryPillPercentArea
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        enabled: batteryPillToggle.checked
+                        cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
+                        onPressed: {
+                            batteryPillPercentToggle.checked = !batteryPillPercentToggle.checked;
+                            root.overflowSettingChanged(batteryContextMenu.sectionId, batteryContextMenu.widgetIndex, "batteryPillPercentSign", batteryPillPercentToggle.checked);
                         }
                     }
                 }

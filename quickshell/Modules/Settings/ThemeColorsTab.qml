@@ -1,7 +1,7 @@
 import QtCore
 import QtQuick
-import QtQuick.Effects
 import Quickshell
+import Quickshell.Widgets
 import qs.Common
 import qs.Modals.FileBrowser
 import qs.Services
@@ -520,28 +520,27 @@ Item {
                                 radius: Theme.cornerRadius
                                 color: Theme.surfaceVariant
 
-                                Image {
+                                ClippingRectangle {
                                     anchors.fill: parent
                                     anchors.margins: 1
-                                    source: {
-                                        var wp = Theme.wallpaperPath;
-                                        if (!wp || wp === "" || wp.startsWith("#"))
-                                            return "";
-                                        if (wp.startsWith("file://"))
-                                            wp = wp.substring(7);
-                                        return "file://" + wp.split('/').map(s => encodeURIComponent(s)).join('/');
-                                    }
-                                    fillMode: Image.PreserveAspectCrop
-                                    visible: Theme.wallpaperPath && !Theme.wallpaperPath.startsWith("#")
-                                    sourceSize.width: 120
-                                    sourceSize.height: 120
-                                    asynchronous: true
-                                    layer.enabled: true
-                                    layer.effect: MultiEffect {
-                                        maskEnabled: true
-                                        maskSource: autoWallpaperMask
-                                        maskThresholdMin: 0.5
-                                        maskSpreadAtMin: 1
+                                    radius: Theme.cornerRadius - 1
+                                    color: "transparent"
+
+                                    Image {
+                                        anchors.fill: parent
+                                        source: {
+                                            var wp = Theme.wallpaperPath;
+                                            if (!wp || wp === "" || wp.startsWith("#"))
+                                                return "";
+                                            if (wp.startsWith("file://"))
+                                                wp = wp.substring(7);
+                                            return "file://" + wp.split('/').map(s => encodeURIComponent(s)).join('/');
+                                        }
+                                        fillMode: Image.PreserveAspectCrop
+                                        visible: Theme.wallpaperPath && !Theme.wallpaperPath.startsWith("#")
+                                        sourceSize.width: 120
+                                        sourceSize.height: 120
+                                        asynchronous: true
                                     }
                                 }
 
@@ -551,16 +550,6 @@ Item {
                                     radius: Theme.cornerRadius - 1
                                     color: Theme.wallpaperPath && Theme.wallpaperPath.startsWith("#") ? Theme.wallpaperPath : Theme.withAlpha(Theme.wallpaperPath, 0)
                                     visible: Theme.wallpaperPath && Theme.wallpaperPath.startsWith("#")
-                                }
-
-                                Rectangle {
-                                    id: autoWallpaperMask
-                                    anchors.fill: parent
-                                    anchors.margins: 1
-                                    radius: Theme.cornerRadius - 1
-                                    color: "black"
-                                    visible: false
-                                    layer.enabled: true
                                 }
 
                                 DankIcon {

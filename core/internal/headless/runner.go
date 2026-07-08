@@ -236,13 +236,18 @@ func (r *Runner) Run() error {
 	r.log("Starting configuration deployment")
 
 	deployer := config.NewConfigDeployer(r.logChan)
-	results, err := deployer.DeployConfigurationsSelectiveWithReinstalls(
+	useSystemd := true
+	if distroConfig, exists := distros.Registry[osInfo.Distribution.ID]; exists && distroConfig.Family == distros.FamilyVoid {
+		useSystemd = false
+	}
+	results, err := deployer.DeployConfigurationsSelectiveWithReinstallsAndSystemd(
 		context.Background(),
 		wm,
 		terminal,
 		dependencies,
 		replaceConfigs,
 		reinstallItems,
+		useSystemd,
 	)
 	if err != nil {
 		return fmt.Errorf("configuration deployment failed: %w", err)

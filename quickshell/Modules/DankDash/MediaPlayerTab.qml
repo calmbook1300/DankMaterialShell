@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Effects
 import QtQuick.Layouts
 import Quickshell.Services.Mpris
+import Quickshell.Widgets
 import qs.Common
 import qs.Services
 import qs.Widgets
@@ -23,6 +24,11 @@ Item {
     property real contentOffsetY: 0
     property string section: ""
     property int barPosition: SettingsData.Position.Top
+
+    readonly property color accent: MediaAccentService.accent
+    readonly property color onAccent: MediaAccentService.onAccent
+    readonly property color accentHover: MediaAccentService.accentHover
+    readonly property color accentPressed: MediaAccentService.accentPressed
 
     signal showVolumeDropdown(point pos, var screen, bool rightEdge, var player, var players)
     signal showAudioDevicesDropdown(point pos, var screen, bool rightEdge)
@@ -70,7 +76,7 @@ Item {
     property bool _switchHold: false
     Timer {
         id: _switchHoldTimer
-        interval: 650
+        interval: 1500
         repeat: false
         onTriggered: _switchHold = false
     }
@@ -78,7 +84,8 @@ Item {
     onActivePlayerChanged: {
         if (!activePlayer) {
             isSwitching = false;
-            _switchHold = false;
+            _switchHold = true;
+            _switchHoldTimer.restart();
             return;
         }
         isSwitching = true;
@@ -117,14 +124,10 @@ Item {
     Connections {
         target: MprisController
         function onAvailablePlayersChanged() {
-            const count = (MprisController.availablePlayers?.length || 0);
-            if (count === 0) {
+            if ((MprisController.availablePlayers?.length || 0) === 0)
                 isSwitching = false;
-                _switchHold = false;
-            } else {
-                _switchHold = true;
-                _switchHoldTimer.restart();
-            }
+            _switchHold = true;
+            _switchHoldTimer.restart();
         }
     }
 
@@ -290,34 +293,72 @@ Item {
     Item {
         id: bgContainer
         anchors.fill: parent
-        visible: TrackArtService.resolvedArtUrl !== ""
 
-        Image {
-            id: bgImage
-            anchors.centerIn: parent
-            width: Math.max(parent.width, parent.height) * 1.1
-            height: width
-            source: TrackArtService.resolvedArtUrl
-            fillMode: Image.PreserveAspectCrop
-            asynchronous: true
-            cache: true
-            visible: false
-            onStatusChanged: {
-                if (status === Image.Ready)
-                    maybeFinishSwitch();
+        readonly property string curArt: TrackArtService.resolvedArtUrl
+        // Two layers crossfade: new art loads into the hidden one and fades in once decoded.
+        property bool _showA: true
+        visible: layerA.ready || layerB.ready
+
+        onCurArtChanged: syncArt()
+        Component.onCompleted: syncArt()
+
+        function syncArt() {
+            if (curArt === "")
+                return;
+            const frontArt = _showA ? layerA.art : layerB.art;
+            const backArt = _showA ? layerB.art : layerA.art;
+            if (frontArt == curArt)
+                return;
+            if (backArt == curArt) {
+                _showA = !_showA;
+                return;
             }
+            if (_showA)
+                layerB.art = curArt;
+            else
+                layerA.art = curArt;
         }
 
-        Item {
-            id: blurredBg
+        component BgBlurLayer: ClippingRectangle {
+            id: layer
+            property alias art: layerImg.source
+            readonly property bool ready: layerImg.status === Image.Ready && layerImg.source != ""
+            property bool front: false
+            signal loaded
+
             anchors.fill: parent
-            visible: false
+            radius: Theme.cornerRadius
+            color: "transparent"
+            antialiasing: true
+            opacity: front ? 0.7 : 0
+
+            Behavior on opacity {
+                NumberAnimation {
+                    duration: 350
+                    easing.type: Easing.InOutQuad
+                }
+            }
+
+            Image {
+                id: layerImg
+                anchors.centerIn: parent
+                width: Math.max(parent.width, parent.height) * 1.1
+                height: width
+                fillMode: Image.PreserveAspectCrop
+                asynchronous: true
+                cache: true
+                visible: false
+                onStatusChanged: {
+                    if (status === Image.Ready && source != "")
+                        layer.loaded();
+                }
+            }
 
             MultiEffect {
                 anchors.centerIn: parent
-                width: bgImage.width
-                height: bgImage.height
-                source: bgImage
+                width: layerImg.width
+                height: layerImg.height
+                source: layerImg
                 blurEnabled: true
                 blurMax: 64
                 blur: 0.8
@@ -326,22 +367,26 @@ Item {
             }
         }
 
-        Rectangle {
-            id: bgMask
-            anchors.fill: parent
-            radius: Theme.cornerRadius
-            visible: false
-            layer.enabled: true
+        BgBlurLayer {
+            id: layerA
+            front: bgContainer._showA
+            onLoaded: {
+                if (!bgContainer._showA) {
+                    bgContainer._showA = true;
+                    root.maybeFinishSwitch();
+                }
+            }
         }
 
-        MultiEffect {
-            anchors.fill: parent
-            source: blurredBg
-            maskEnabled: true
-            maskSource: bgMask
-            maskThresholdMin: 0.5
-            maskSpreadAtMin: 1.0
-            opacity: 0.7
+        BgBlurLayer {
+            id: layerB
+            front: !bgContainer._showA
+            onLoaded: {
+                if (bgContainer._showA) {
+                    bgContainer._showA = false;
+                    root.maybeFinishSwitch();
+                }
+            }
         }
 
         Rectangle {
@@ -442,7 +487,8 @@ Item {
                         elide: Text.ElideRight
                         wrapMode: Text.WordWrap
                         maximumLineCount: 1
-                        visible: text.length > 0
+                        // Reserve the line so late album metadata doesn't shift the seekbar.
+                        height: Math.max(implicitHeight, Theme.fontSizeSmall * 1.4)
                     }
                 }
 
@@ -531,13 +577,13 @@ Item {
                                 height: 40
                                 radius: 20
                                 anchors.centerIn: parent
-                                color: shuffleArea.containsMouse ? Theme.primaryHover : Theme.withAlpha(Theme.primaryHover, 0)
+                                color: shuffleArea.containsMouse ? root.accentHover : Theme.withAlpha(root.accent, 0)
 
                                 DankIcon {
                                     anchors.centerIn: parent
                                     name: "shuffle"
                                     size: 20
-                                    color: activePlayer && activePlayer.shuffle ? Theme.primary : Theme.surfaceText
+                                    color: activePlayer && activePlayer.shuffle ? root.accent : Theme.surfaceText
                                 }
 
                                 MouseArea {
@@ -593,13 +639,13 @@ Item {
                                 height: 50
                                 radius: 25
                                 anchors.centerIn: parent
-                                color: Theme.primary
+                                color: root.accent
 
                                 DankIcon {
                                     anchors.centerIn: parent
                                     name: activePlayer && activePlayer.playbackState === MprisPlaybackState.Playing ? "pause" : "play_arrow"
                                     size: 28
-                                    color: Theme.background
+                                    color: root.onAccent
                                     weight: 500
                                 }
 
@@ -663,7 +709,7 @@ Item {
                                 height: 40
                                 radius: 20
                                 anchors.centerIn: parent
-                                color: repeatArea.containsMouse ? Theme.primaryHover : Theme.withAlpha(Theme.primaryHover, 0)
+                                color: repeatArea.containsMouse ? root.accentHover : Theme.withAlpha(root.accent, 0)
 
                                 DankIcon {
                                     anchors.centerIn: parent
@@ -680,7 +726,7 @@ Item {
                                         }
                                     }
                                     size: 20
-                                    color: activePlayer && activePlayer.loopState !== MprisLoopState.None ? Theme.primary : Theme.surfaceText
+                                    color: activePlayer && activePlayer.loopState !== MprisLoopState.None ? root.accent : Theme.surfaceText
                                 }
 
                                 MouseArea {
@@ -719,7 +765,7 @@ Item {
         radius: 20
         x: isRightEdge ? Theme.spacingM : parent.width - 40 - Theme.spacingM
         y: 185
-        color: playerSelectorArea.containsMouse || playersExpanded ? Theme.primaryPressed : Theme.withAlpha(Theme.primaryPressed, 0)
+        color: playerSelectorArea.containsMouse || playersExpanded ? root.accentPressed : Theme.withAlpha(root.accentPressed, 0)
         border.color: Theme.outlineStrong
         border.width: 1
         z: 100
@@ -786,7 +832,7 @@ Item {
         radius: 20
         x: isRightEdge ? Theme.spacingM : parent.width - 40 - Theme.spacingM
         y: 130
-        color: volumeButtonArea.containsMouse && volumeAvailable || volumeExpanded ? Theme.primaryPressed : Theme.withAlpha(Theme.primaryPressed, 0)
+        color: volumeButtonArea.containsMouse && volumeAvailable || volumeExpanded ? root.accentPressed : Theme.withAlpha(root.accentPressed, 0)
         border.color: volumeAvailable ? Theme.outlineStrong : Theme.outlineMedium
         border.width: 1
         z: 101
@@ -798,7 +844,7 @@ Item {
             anchors.centerIn: parent
             name: getVolumeIcon()
             size: 18
-            color: volumeAvailable && currentVolume > 0 ? Theme.primary : Theme.withAlpha(Theme.surfaceText, volumeAvailable ? 1.0 : 0.5)
+            color: volumeAvailable && currentVolume > 0 ? root.accent : Theme.withAlpha(Theme.surfaceText, volumeAvailable ? 1.0 : 0.5)
         }
 
         MouseArea {
@@ -849,7 +895,7 @@ Item {
         radius: 20
         x: isRightEdge ? Theme.spacingM : parent.width - 40 - Theme.spacingM
         y: 240
-        color: audioDevicesArea.containsMouse || devicesExpanded ? Theme.primaryPressed : Theme.withAlpha(Theme.primaryPressed, 0)
+        color: audioDevicesArea.containsMouse || devicesExpanded ? root.accentPressed : Theme.withAlpha(root.accentPressed, 0)
         border.color: Theme.outlineStrong
         border.width: 1
         z: 100

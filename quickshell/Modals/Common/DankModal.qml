@@ -1,7 +1,7 @@
 import QtQuick
-import Quickshell.Hyprland
 import qs.Common
 import qs.Services
+import qs.Widgets
 
 Item {
     id: root
@@ -38,6 +38,7 @@ Item {
     property bool keepContentLoaded: false
     property bool keepPopoutsOpen: false
     property var customKeyboardFocus: null
+    readonly property alias transientSurfaceTracker: _transientSurfaceTracker
     property bool useOverlayLayer: false
 
     signal opened
@@ -47,6 +48,10 @@ Item {
     readonly property var contentLoader: impl.item ? impl.item.contentLoader : null
     readonly property alias modalFocusScope: _modalFocusScope
 
+    TransientSurfaceTracker {
+        id: _transientSurfaceTracker
+    }
+
     FocusScope {
         id: _modalFocusScope
         objectName: "modalFocusScope"
@@ -55,12 +60,9 @@ Item {
     }
 
     // Hyprland OnDemand grab delivers keyboard focus to the modal content surface.
-    HyprlandFocusGrab {
-        windows: root.contentWindow ? [root.contentWindow] : []
-        active: KeyboardFocus.wantsGrab(root.shouldHaveFocus, root.customKeyboardFocus)
-
-        property var restoreToplevel: null
-        onActiveChanged: restoreToplevel = active ? KeyboardFocus.captureActiveToplevel() : KeyboardFocus.restoreToplevel(restoreToplevel)
+    DankFocusGrab {
+        windows: (root.contentWindow ? [root.contentWindow] : []).concat(root.transientSurfaceTracker?.focusWindows ?? [])
+        wanted: KeyboardFocus.wantsGrab(root.shouldHaveFocus, root.customKeyboardFocus)
     }
     readonly property var contentWindow: impl.item ? impl.item.contentWindow : null
     readonly property var effectiveScreen: impl.item ? impl.item.effectiveScreen : null
@@ -79,11 +81,13 @@ Item {
     }
 
     function close() {
+        transientSurfaceTracker?.closeAll?.();
         if (impl.item)
             impl.item.close();
     }
 
     function instantClose() {
+        transientSurfaceTracker?.closeAll?.();
         if (impl.item && typeof impl.item.instantClose === "function")
             impl.item.instantClose();
     }
@@ -175,6 +179,8 @@ Item {
     Connections {
         target: root
         function onShouldBeVisibleChanged() {
+            if (!root.shouldBeVisible)
+                root.transientSurfaceTracker?.closeAll?.();
             if (impl.item && impl.item.shouldBeVisible !== root.shouldBeVisible)
                 impl.item.shouldBeVisible = root.shouldBeVisible;
         }

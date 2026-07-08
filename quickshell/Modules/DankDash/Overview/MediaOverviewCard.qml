@@ -154,13 +154,13 @@ Card {
                     width: 32
                     height: 32
                     radius: 16
-                    color: Theme.primary
+                    color: MediaAccentService.accent
 
                     DankIcon {
                         anchors.centerIn: parent
                         name: activePlayer?.playbackState === MprisPlaybackState.Playing ? "pause" : "play_arrow"
                         size: 16
-                        color: Theme.background
+                        color: MediaAccentService.onAccent
                     }
 
                     MouseArea {

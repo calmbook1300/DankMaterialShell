@@ -17,8 +17,20 @@ Rectangle {
     property bool isSticky: false
     property bool popupAbove: false
     property Item popupAboveItem: null
+    property var transientSurfaceTracker: null
 
     signal viewModeToggled
+
+    Component.onDestruction: transientSurfaceTracker?.unregister(root)
+
+    Connections {
+        target: root.transientSurfaceTracker
+        ignoreUnknownSignals: true
+
+        function onCloseRequested() {
+            categoryPopup.close();
+        }
+    }
 
     width: parent?.width ?? 200
     height: 32
@@ -141,6 +153,8 @@ Rectangle {
                 modal: true
                 dim: false
                 closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
+
+                onVisibleChanged: root.transientSurfaceTracker?.setActive(root, visible, null)
 
                 background: Rectangle {
                     color: "transparent"

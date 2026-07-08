@@ -17,6 +17,7 @@ import (
 
 	"github.com/AvengeMedia/DankMaterialShell/core/internal/geolocation"
 	"github.com/AvengeMedia/DankMaterialShell/core/internal/log"
+	"github.com/AvengeMedia/DankMaterialShell/core/internal/matugen"
 	"github.com/AvengeMedia/DankMaterialShell/core/internal/server/apppicker"
 	"github.com/AvengeMedia/DankMaterialShell/core/internal/server/bluez"
 	"github.com/AvengeMedia/DankMaterialShell/core/internal/server/brightness"
@@ -190,6 +191,7 @@ func InitializeFreedeskManager() error {
 	}
 
 	freedesktopManager = manager
+	matugen.SetColorSchemeEchoHook(manager.ExpectColorSchemeEcho)
 
 	log.Info("Freedesktop manager initialized")
 	return nil

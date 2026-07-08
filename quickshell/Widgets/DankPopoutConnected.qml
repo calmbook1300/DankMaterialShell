@@ -39,6 +39,8 @@ Item {
     property bool fullHeightSurface: false
     property bool _primeContent: false
     property bool _contentWarm: false
+    // Keyboard focus grabbed one tick after emerge starts, to avoid stalling first frames.
+    property bool _keyboardReady: false
     property bool _resizeActive: false
     property real _chromeAnimTravelX: 1
     property real _chromeAnimTravelY: 1
@@ -241,7 +243,8 @@ Item {
     }
 
     function _connectedChromeState(visibleOverride) {
-        const visible = visibleOverride !== undefined ? !!visibleOverride : contentWindow.visible;
+        // Track intent rather than the transient wl_surface state during remap.
+        const visible = visibleOverride !== undefined ? !!visibleOverride : (contentWindow.visible || root.shouldBeVisible);
         const presented = contentWindow.visible || root.shouldBeVisible;
         const phase = root.isClosing ? "closing" : (!presented ? "hidden" : (!contentWindow.visible && root.shouldBeVisible ? "opening" : "open"));
         const bodyX = Theme.snap(root.pubBodyX, root.dpr);
@@ -353,48 +356,26 @@ Item {
         _publishedBodyValid = false;
     }
 
-    property bool _animSyncQueued: false
-    property bool _bodySyncQueued: false
-
     function _queueFullSync() {
         _fullSyncQueued = true;
         if (!_syncTimer.running)
             _syncTimer.restart();
     }
-    function _queueAnimSync() {
-        _animSyncQueued = true;
-        if (!_syncTimer.running)
-            _syncTimer.restart();
-    }
-    function _queueBodySync() {
-        _bodySyncQueued = true;
-        if (!_syncTimer.running)
-            _syncTimer.restart();
-    }
     function _flushSync() {
-        const fullDirty = _fullSyncQueued;
-        const animDirty = _animSyncQueued;
-        const bodyDirty = _bodySyncQueued;
+        if (!_fullSyncQueued)
+            return;
         _fullSyncQueued = false;
-        _animSyncQueued = false;
-        _bodySyncQueued = false;
-        if (fullDirty)
-            _syncPopoutChromeState();
-        if (animDirty) {
-            _syncPopoutAnim("x");
-            _syncPopoutAnim("y");
-        }
-        if (bodyDirty)
-            _syncPopoutBody();
+        _syncPopoutChromeState();
     }
 
     onAlignedXChanged: _queueFullSync()
     onAlignedYChanged: _queueFullSync()
     onAlignedWidthChanged: _queueFullSync()
-    onContentAnimXChanged: _queueAnimSync()
-    onContentAnimYChanged: _queueAnimSync()
-    onRenderedAlignedYChanged: _queueBodySync()
-    onRenderedAlignedHeightChanged: _queueBodySync()
+    // Cheap deduped scalar writes: publish synchronously to stay in the same frame.
+    onContentAnimXChanged: _syncPopoutAnim("x")
+    onContentAnimYChanged: _syncPopoutAnim("y")
+    onRenderedAlignedYChanged: _syncPopoutBody()
+    onRenderedAlignedHeightChanged: _syncPopoutBody()
     onScreenChanged: {
         _resetPublishedBody();
         _queueFullSync();
@@ -517,6 +498,10 @@ Item {
 
         animationsEnabled = true;
         shouldBeVisible = true;
+        Qt.callLater(() => {
+            if (root.shouldBeVisible)
+                root._keyboardReady = true;
+        });
         if (shouldBeVisible && screen) {
             opened();
         }
@@ -530,6 +515,7 @@ Item {
         _resetPublishedBody();
         isClosing = true;
         shouldBeVisible = false;
+        _keyboardReady = false;
         _primeContent = false;
         PopoutManager.popoutChanged();
         closeTimer.restart();
@@ -743,9 +729,9 @@ Item {
     readonly property real pubBodyW: morphSeedW + (alignedWidth - morphSeedW) * morphProgress
     readonly property real pubBodyH: morphSeedH + (renderedAlignedHeight - morphSeedH) * morphProgress
 
-    // One animation drives all four coordinates, so queue one coalesced state update
-    // per progress tick instead of reacting independently to each derived property.
-    onMorphProgressChanged: _queueBodySync()
+    // One animation drives all four coordinates, so publish once per progress
+    // tick instead of reacting independently to each derived property.
+    onMorphProgressChanged: _syncPopoutBody()
 
     function _beginMorphTravel() {
         morphTravelEnabled = false;
@@ -967,7 +953,7 @@ Item {
         WlrLayershell.namespace: root.layerNamespace
         WlrLayershell.layer: root.effectivePopoutLayer
         WlrLayershell.exclusiveZone: -1
-        WlrLayershell.keyboardFocus: KeyboardFocus.keyboardFocus(shouldBeVisible, customKeyboardFocus)
+        WlrLayershell.keyboardFocus: KeyboardFocus.keyboardFocus(shouldBeVisible && root._keyboardReady, customKeyboardFocus)
 
         readonly property bool _fullHeight: root.fullHeightSurface
         anchors {
@@ -1263,14 +1249,14 @@ Item {
                         // Fast fade duration for superseded close.
                         readonly property bool _supersededFade: root._supersededClose && !root.shouldBeVisible
                         readonly property real _targetOpacity: root._supersededClose ? (root.shouldBeVisible ? 1 : 0) : (Theme.isDirectionalEffect ? 1 : (root.shouldBeVisible ? 1 : 0))
-                        property real publishedOpacity: _targetOpacity
+                        readonly property real publishedOpacity: opacity
 
                         opacity: _targetOpacity
                         visible: _renderActive
 
                         scale: contentContainer.scaleValue
-                        x: Theme.snap(contentContainer.animX + (rollOutAdjuster.baseWidth - width) * (1 - scale) * 0.5, root.dpr)
-                        y: Theme.snap(contentContainer.animY + (rollOutAdjuster.baseHeight - height) * (1 - scale) * 0.5, root.dpr)
+                        x: Theme.snap(contentContainer.animX, root.dpr)
+                        y: Theme.snap(contentContainer.animY, root.dpr)
 
                         layer.enabled: _animating || (_fadeWithOpacity && publishedOpacity < 1)
                         layer.smooth: false
@@ -1287,15 +1273,6 @@ Item {
                                     if (!running && !root.shouldBeVisible)
                                         contentWrapper._renderActive = false;
                                 }
-                            }
-                        }
-
-                        Behavior on publishedOpacity {
-                            enabled: contentWrapper._fadeWithOpacity
-                            NumberAnimation {
-                                duration: contentWrapper._supersededFade ? Theme.shorterDuration : Math.round(Theme.variantDuration(animationDuration, shouldBeVisible) * Theme.variantOpacityDurationScale)
-                                easing.type: Easing.BezierSpline
-                                easing.bezierCurve: root.shouldBeVisible ? root.animationEnterCurve : root.animationExitCurve
                             }
                         }
 

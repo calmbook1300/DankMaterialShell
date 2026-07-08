@@ -23,6 +23,8 @@ Item {
     property real anchorY: 0
     property bool openState: false
     property bool renderActive: false
+    property var transientSurfaceTracker: null
+    readonly property alias contextWindow: menuWindow
     readonly property bool blurActive: renderActive && openState && BlurService.enabled && Theme.connectedSurfaceBlurEnabled
 
     readonly property bool hasPinnedDuplicate: !!entry && !entry.pinned && ClipboardService.getPinnedEntryByHash(entry.hash) !== null
@@ -89,6 +91,18 @@ Item {
     readonly property real naturalMenuHeight: menuItemsHeight() + Theme.spacingS * 2
     readonly property real effectiveMenuHeight: Math.min(maxMenuHeight, naturalMenuHeight)
     readonly property bool menuScrolls: naturalMenuHeight > effectiveMenuHeight + 0.5
+
+    onRenderActiveChanged: transientSurfaceTracker?.setActive(root, renderActive, contextWindow)
+    Component.onDestruction: transientSurfaceTracker?.unregister(root)
+
+    Connections {
+        target: root.transientSurfaceTracker
+        ignoreUnknownSignals: true
+
+        function onCloseRequested() {
+            root.hide();
+        }
+    }
 
     TextMetrics {
         id: menuTextMetrics

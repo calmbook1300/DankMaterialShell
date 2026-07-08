@@ -50,15 +50,15 @@ Item {
     }
 
     onActiveChanged: {
-        if (!active) {
-            SessionData.addLauncherHistory(searchQuery);
+        ClipboardService.invalidateLauncherSearchCache();
+        if (active)
+            return;
 
-            sections = [];
-            flatModel = [];
-            selectedItem = null;
-            _clearModeCache();
-            ClipboardService.invalidateLauncherSearchCache();
-        }
+        SessionData.addLauncherHistory(searchQuery);
+        sections = [];
+        flatModel = [];
+        selectedItem = null;
+        _clearModeCache();
     }
 
     onSearchModeChanged: {
@@ -110,7 +110,7 @@ Item {
             if (query !== effectiveQuery)
                 return;
 
-            searchDebounce.restart();
+            root.requestSearch();
         }
     }
 
@@ -146,12 +146,6 @@ Item {
     }
 
     Process {
-        id: wtypeProcess
-        command: ["wtype", "-M", "ctrl", "-P", "v", "-p", "v", "-m", "ctrl"]
-        running: false
-    }
-
-    Process {
         id: copyProcess
         running: false
         onExited: pasteTimer.start()
@@ -161,7 +155,7 @@ Item {
         id: pasteTimer
         interval: 200
         repeat: false
-        onTriggered: wtypeProcess.running = true
+        onTriggered: ClipboardService.sendPasteKeystroke()
     }
 
     function pasteSelected() {
@@ -177,10 +171,6 @@ Item {
                     root.itemExecuted();
                 });
             }
-            return;
-        }
-        if (!SessionService.wtypeAvailable) {
-            ToastService.showError(I18n.tr("wtype not available - install wtype for paste support"));
             return;
         }
 
@@ -286,9 +276,23 @@ Item {
     property string appCategory: ""
     property var appCategories: []
 
+    function builtInSectionViewPref(sectionId) {
+        switch (sectionId) {
+        case "clipboard":
+            return getPluginViewPref("dms_clipboard_search");
+        case "settings":
+            return getPluginViewPref("dms_settings_search");
+        default:
+            return null;
+        }
+    }
+
     function getSectionViewMode(sectionId) {
         if (sectionId === "browse_plugins")
             return "list";
+        var builtInPref = builtInSectionViewPref(sectionId);
+        if (builtInPref?.enforced)
+            return builtInPref.mode;
         if (pluginViewPreferences[sectionId]?.enforced)
             return pluginViewPreferences[sectionId].mode;
         if (sectionViewModes[sectionId])
@@ -312,6 +316,8 @@ Item {
     function setSectionViewMode(sectionId, mode) {
         if (sectionId === "browse_plugins")
             return;
+        if (builtInSectionViewPref(sectionId)?.enforced)
+            return;
         if (pluginViewPreferences[sectionId]?.enforced)
             return;
         sectionViewModes = Object.assign({}, sectionViewModes, {
@@ -334,6 +340,8 @@ Item {
 
     function canChangeSectionViewMode(sectionId) {
         if (sectionId === "browse_plugins")
+            return false;
+        if (builtInSectionViewPref(sectionId)?.enforced)
             return false;
         return !pluginViewPreferences[sectionId]?.enforced;
     }
@@ -390,10 +398,29 @@ Item {
     property bool _pluginPhaseForceFirst: false
     property var _phase1Items: []
 
+    property bool _searchPending: false
+
+    // Leading-edge debounce: search immediately when idle, coalesce bursts
+    function requestSearch() {
+        if (searchDebounce.running) {
+            _searchPending = true;
+            searchDebounce.restart();
+            return;
+        }
+        _searchPending = false;
+        performSearch();
+        searchDebounce.restart();
+    }
+
     Timer {
         id: searchDebounce
         interval: 60
-        onTriggered: root.performSearch()
+        onTriggered: {
+            if (!root._searchPending)
+                return;
+            root._searchPending = false;
+            root.performSearch();
+        }
     }
 
     Timer {
@@ -419,7 +446,7 @@ Item {
         _phase1Items = [];
         pluginPhaseTimer.stop();
         searchQuery = query;
-        searchDebounce.restart();
+        requestSearch();
 
         if (searchMode !== "plugins" && query.startsWith("/")) {
             var prefix = Utils.parseFileSearchPrefix(query);
@@ -704,6 +731,7 @@ Item {
             if (triggerMatch.isBuiltIn) {
                 var builtInItems = AppSearchService.getBuiltInLauncherItems(triggerMatch.pluginId, triggerMatch.query);
                 for (var j = 0; j < builtInItems.length; j++) {
+                    builtInItems[j]._preScored = 1000 - j;
                     allItems.push(transformBuiltInSearchItem(builtInItems[j], triggerMatch.pluginId));
                 }
             }
@@ -1208,8 +1236,12 @@ Item {
     }
 
     function transformBuiltInSearchItem(item, pluginId) {
-        if (pluginId === "dms_clipboard_search" || item.type === "clipboard")
-            return transformClipboardEntry(item.data || item);
+        if (pluginId === "dms_clipboard_search" || item.type === "clipboard") {
+            var transformed = transformClipboardEntry(item.data || item);
+            if (item._preScored !== undefined)
+                transformed._preScored = item._preScored;
+            return transformed;
+        }
         return transformBuiltInLauncherItem(item, pluginId);
     }
 
@@ -1881,7 +1913,8 @@ Item {
     }
 
     function executeSelected() {
-        if (searchDebounce.running) {
+        if (_searchPending) {
+            _searchPending = false;
             searchDebounce.stop();
             performSearch();
         }

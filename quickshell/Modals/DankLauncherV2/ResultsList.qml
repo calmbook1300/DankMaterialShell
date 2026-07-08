@@ -15,6 +15,7 @@ Item {
     property var _visualRows: []
     property var _flatIndexToRowMap: ({})
     property var _cumulativeHeights: []
+    property var transientSurfaceTracker: null
     readonly property bool _bottomSectionHeaderActive: leadingSectionHeaderAtBottom && (controller?.sections?.length ?? 0) > 0
 
     signal itemRightClicked(int index, var item, real mouseX, real mouseY)
@@ -259,6 +260,7 @@ Item {
                         return root.controller?.canChangeSectionViewMode(delegateRoot.modelData?.sectionId ?? "") ?? false;
                     }
                     canCollapse: root.controller?.canCollapseSection(delegateRoot.modelData?.sectionId ?? "") ?? false
+                    transientSurfaceTracker: root.transientSurfaceTracker
                 }
 
                 ResultItem {
@@ -447,6 +449,7 @@ Item {
                 return root.controller?.canCollapseSection(stickyHeader.stickyHeaderSection?.id) ?? false;
             }
             isSticky: true
+            transientSurfaceTracker: root.transientSurfaceTracker
         }
     }
 
@@ -472,6 +475,7 @@ Item {
         canCollapse: root.controller?.canCollapseSection(section?.id ?? "") ?? false
         isSticky: true
         popupAbove: true
+        transientSurfaceTracker: root.transientSurfaceTracker
     }
 
     Item {

@@ -1,5 +1,4 @@
 import QtQuick
-import Quickshell.Hyprland
 import qs.Common
 import qs.Services
 
@@ -27,6 +26,8 @@ Item {
     property bool hoverDismissEnabled: false
     property bool hoverDismissSuspended: false
     property var customKeyboardFocus: null
+    readonly property alias transientSurfaceTracker: _transientSurfaceTracker
+    readonly property bool effectiveHoverDismissSuspended: hoverDismissSuspended || (transientSurfaceTracker?.active ?? false)
     property bool backgroundInteractive: true
     property bool contentHandlesKeys: false
     property bool fullHeightSurface: false
@@ -55,20 +56,22 @@ Item {
     readonly property var backgroundWindow: impl.item ? impl.item.backgroundWindow : null
     readonly property var contentWindow: impl.item ? impl.item.contentWindow : null
 
+    TransientSurfaceTracker {
+        id: _transientSurfaceTracker
+    }
+
     // Hyprland OnDemand grab: whitelist popout surfaces and bars so dismiss clicks still land.
-    HyprlandFocusGrab {
+    DankFocusGrab {
         windows: {
             const list = [];
             if (root.contentWindow)
                 list.push(root.contentWindow);
             if (root.backgroundWindow && root.backgroundWindow !== root.contentWindow)
                 list.push(root.backgroundWindow);
-            return list.concat(KeyboardFocus.barWindows);
+            const transientWindows = root.transientSurfaceTracker?.focusWindows ?? [];
+            return list.concat(transientWindows).concat(KeyboardFocus.barWindows);
         }
-        active: KeyboardFocus.wantsGrab(root.shouldBeVisible, root.customKeyboardFocus)
-
-        property var restoreToplevel: null
-        onActiveChanged: restoreToplevel = active ? KeyboardFocus.captureActiveToplevel() : KeyboardFocus.restoreToplevel(restoreToplevel)
+        wanted: KeyboardFocus.wantsGrab(root.shouldBeVisible, root.customKeyboardFocus)
     }
 
     Loader {
@@ -170,6 +173,7 @@ Item {
     function close() {
         _pendingOpen = false;
         _pendingOpenTimer.stop();
+        transientSurfaceTracker?.closeAll?.();
         if (impl.item)
             impl.item.close();
     }
@@ -186,8 +190,9 @@ Item {
     }
 
     function closeFromHoverDismiss() {
-        if (hoverDismissSuspended)
+        if (effectiveHoverDismissSuspended)
             return;
+        transientSurfaceTracker?.closeAll?.();
         hoverDismissEnabled = false;
         // Enable animations using standard Theme-bound popout motion to preserve bindings.
         if (impl.item)
@@ -308,7 +313,7 @@ Item {
         it.effectiveBarPosition = Qt.binding(() => root.effectiveBarPosition);
         it.effectiveBarBottomGap = Qt.binding(() => root.effectiveBarBottomGap);
         it.hoverDismissEnabled = Qt.binding(() => root.hoverDismissEnabled);
-        it.hoverDismissSuspended = Qt.binding(() => root.hoverDismissSuspended);
+        it.hoverDismissSuspended = Qt.binding(() => root.effectiveHoverDismissSuspended);
 
         it.shouldBeVisible = root.shouldBeVisible;
         if (root._primeContent && typeof it.primeContent === "function")
@@ -332,6 +337,8 @@ Item {
     Connections {
         target: root
         function onShouldBeVisibleChanged() {
+            if (!root.shouldBeVisible)
+                root.transientSurfaceTracker?.closeAll?.();
             if (impl.item && impl.item.shouldBeVisible !== root.shouldBeVisible)
                 impl.item.shouldBeVisible = root.shouldBeVisible;
         }

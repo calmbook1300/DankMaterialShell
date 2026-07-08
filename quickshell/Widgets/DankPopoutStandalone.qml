@@ -220,6 +220,31 @@ Item {
         onTriggered: root._bgCommitWindow = false
     }
 
+    // An idle layer surface won't commit the cleared blur region on auto-close, so the
+    // blur sticks; pulse updatesEnabled false->true to force a re-commit.
+    property bool _blurCommitSuppress: false
+
+    Timer {
+        id: blurCommitPulseTimer
+        interval: 16
+        onTriggered: root._blurCommitSuppress = false
+    }
+
+    function _pulseBlurCommit() {
+        if (!backgroundWindow.visible)
+            return;
+        _blurCommitSuppress = true;
+        blurCommitPulseTimer.restart();
+    }
+
+    Connections {
+        target: overlayLoader.item
+        ignoreUnknownSignals: true
+        function onOverlayBlurActiveChanged() {
+            root._pulseBlurCommit();
+        }
+    }
+
     function _setSurfaceGeometry(bodyX, bodyY, bodyW, bodyH) {
         const newX = Theme.snap(bodyX, dpr);
         const newY = Theme.snap(bodyY, dpr);
@@ -540,7 +565,7 @@ Item {
         // Skip buffer updates when there's nothing to render. Briefly flipped
         // true via _bgCommitWindow when _surfaceBodyW/H changes so the
         // contentHoleRect mask carve-out actually commits to the compositor.
-        updatesEnabled: root.overlayContent !== null || root._bgCommitWindow
+        updatesEnabled: !root._blurCommitSuppress && (root.overlayContent !== null || root._bgCommitWindow)
 
         WlrLayershell.namespace: root.layerNamespace + ":background"
         WlrLayershell.layer: root.effectivePopoutLayer
@@ -621,12 +646,14 @@ Item {
             targetWindow: contentWindow
             readonly property real s: Math.min(1, contentContainer.scaleValue)
             readonly property real op: Math.max(0, Math.min(1, (morph.openProgress - 0.08) * 1.6))
+            readonly property real visibleScale: s * op
             readonly property bool revealClipActive: root.fluidStandaloneActive
 
-            blurX: revealClipActive ? contentContainer.x : contentContainer.x + contentContainer.width * (1 - s * op) * 0.5 + Theme.snap(contentContainer.animX, root.dpr)
-            blurY: revealClipActive ? contentContainer.y : contentContainer.y + contentContainer.height * (1 - s * op) * 0.5 + Theme.snap(contentContainer.animY, root.dpr)
-            blurWidth: root.shouldBeVisible ? (revealClipActive ? contentContainer.width : contentContainer.width * s * op) : 0
-            blurHeight: root.shouldBeVisible ? (revealClipActive ? contentContainer.height : contentContainer.height * s * op) : 0
+            // Blur tracks the surface's scaled rect, matching the connected backend
+            blurX: revealClipActive ? contentContainer.x : contentContainer.x + contentContainer.width * (1 - visibleScale) * 0.5 + Theme.snap(contentContainer.animX, root.dpr)
+            blurY: revealClipActive ? contentContainer.y : contentContainer.y + contentContainer.height * (1 - visibleScale) * 0.5 + Theme.snap(contentContainer.animY, root.dpr)
+            blurWidth: root.shouldBeVisible ? (revealClipActive ? contentContainer.width : contentContainer.width * visibleScale) : 0
+            blurHeight: root.shouldBeVisible ? (revealClipActive ? contentContainer.height : contentContainer.height * visibleScale) : 0
             blurRadius: Theme.cornerRadius
             clipEnabled: revealClipActive
             clipX: contentContainer.x + contentContainer.revealX
@@ -742,8 +769,7 @@ Item {
             QtObject {
                 id: morph
                 property real openProgress: 0
-                onOpenProgressChanged: if (root.fluidStandaloneActive)
-                    root._kickBlurCommit()
+                onOpenProgressChanged: root._kickBlurCommit()
                 Behavior on openProgress {
                     enabled: root.animationsEnabled
                     NumberAnimation {
@@ -846,7 +872,7 @@ Item {
                         x: Theme.snap(contentContainer.animX + (rollOutAdjuster.baseWidth - width) * (1 - contentContainer.scaleValue) * 0.5, root.dpr)
                         y: Theme.snap(contentContainer.animY + (rollOutAdjuster.baseHeight - height) * (1 - contentContainer.scaleValue) * 0.5, root.dpr)
 
-                        layer.enabled: !Theme.isDirectionalEffect && publishedOpacity < 1
+                        layer.enabled: !Theme.isDirectionalEffect && _renderActive
                         layer.smooth: false
                         layer.textureSize: Qt.size(0, 0)
 

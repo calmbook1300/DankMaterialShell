@@ -15,7 +15,7 @@ Singleton {
     id: root
     readonly property var log: Log.scoped("SettingsData")
 
-    readonly property int settingsConfigVersion: 11
+    readonly property int settingsConfigVersion: 12
 
     readonly property bool isGreeterMode: Quickshell.env("DMS_RUN_GREETER") === "1" || Quickshell.env("DMS_RUN_GREETER") === "true"
 
@@ -464,6 +464,7 @@ Singleton {
     property bool clockCompactMode: false
     property int focusedWindowSize: 1
     property bool focusedWindowCompactMode: false
+    property bool focusedWindowShowIcon: true
     property bool runningAppsCompactMode: true
     property int barMaxVisibleApps: 0
     property int barMaxVisibleRunningApps: 0
@@ -754,12 +755,16 @@ Singleton {
     property bool batteryNotifyCritical: true
     property int batteryLowThreshold: 20
     property bool batteryNotifyLow: false
-    property int batteryNotificationType: 0
+    property int batteryChargeLimitNotificationType: 0
+    property int batteryLowNotificationType: 0
+    property int batteryCriticalNotificationType: 1
     property bool batteryAutoPowerSaver: false
     property bool showBatteryPercent: true
     property bool showBatteryPercentOnlyOnBattery: false
     property bool showBatteryTime: false
     property bool showBatteryTimeOnlyOnBattery: false
+    property bool batteryPillStyle: false
+    property bool batteryPillPercentSign: false
     property bool lockBeforeSuspend: false
     property bool loginctlLockIntegration: true
     property bool fadeToLockEnabled: true
@@ -891,7 +896,6 @@ Singleton {
     readonly property bool greeterU2fReady: Processes.greeterU2fReady
     readonly property string greeterU2fReason: Processes.greeterU2fReason
     readonly property string greeterU2fSource: Processes.greeterU2fSource
-    property string lockScreenActiveMonitor: "all"
     property string lockScreenInactiveColor: "#000000"
     property int lockScreenNotificationMode: 0
     property bool lockScreenVideoEnabled: false
@@ -1024,17 +1028,6 @@ Singleton {
             "hoverPopoutDelay": 150
         }
     ]
-
-    // Standalone bar xray is unsafe when windows can render beneath its surface
-    function _standaloneBarXrayAvailable(configs) {
-        const list = configs || [];
-        const activeBars = list.filter(c => c && c.enabled && (c.visible ?? true));
-        const gapsOverride = (typeof CompositorService !== "undefined" && CompositorService.isHyprland) ? hyprlandLayoutGapsOverride : niriLayoutGapsOverride;
-        const layoutGaps = gapsOverride >= 0 ? gapsOverride : Math.max(4, (list[0]?.spacing ?? 4));
-        return activeBars.every(c => !c.autoHide && !(c.useOverlayLayer ?? false) && (c.spacing ?? 4) + (c.bottomGap ?? 0) + layoutGaps >= 0);
-    }
-
-    readonly property bool standaloneBarXrayAvailable: _standaloneBarXrayAvailable(barConfigs)
 
     property bool desktopClockEnabled: false
     property string desktopClockStyle: "analog"
@@ -1745,6 +1738,18 @@ Singleton {
                     _pendingMigration = migrated;
                     obj = migrated;
                 }
+            }
+
+            if (obj?.lockScreenActiveMonitor !== undefined) {
+                var oldVal = obj.lockScreenActiveMonitor;
+                if (oldVal && oldVal !== "all") {
+                    if (!obj.screenPreferences)
+                        obj.screenPreferences = {};
+                    if (obj.screenPreferences.lockScreen === undefined) {
+                        obj.screenPreferences.lockScreen = [oldVal];
+                    }
+                }
+                delete obj.lockScreenActiveMonitor;
             }
 
             Store.parse(root, obj);
@@ -2465,17 +2470,13 @@ Singleton {
         if (index === -1)
             return;
         const positionChanged = updates.position !== undefined && configs[index].position !== updates.position;
-        const barXrayTargetWasAvailable = _standaloneBarXrayAvailable(configs);
         if (updates.autoHide === false || updates.visible === false)
             setBarIpcReveal(barId, false);
 
         Object.assign(configs[index], updates);
-        const sanitizedConfigs = _sanitizeBarConfigsForConnectedFrame(configs).configs;
-        barConfigs = sanitizedConfigs;
+        barConfigs = _sanitizeBarConfigsForConnectedFrame(configs).configs;
         updateBarConfigs();
 
-        if (!frameEnabled && _standaloneBarXrayAvailable(sanitizedConfigs) !== barXrayTargetWasAvailable)
-            updateCompositorLayout();
         if (positionChanged) {
             NotificationService.dismissAllPopups();
         }

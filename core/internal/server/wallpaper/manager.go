@@ -16,6 +16,10 @@ type activeSchedule struct {
 	nextFire time.Time
 }
 
+// Grace period before a missed-while-off schedule fires, so a freshly
+// connected frontend has its cycle-seq baseline before the bump arrives.
+var catchUpDelay = 3 * time.Second
+
 type Manager struct {
 	config      Config
 	configMutex sync.RWMutex
@@ -29,9 +33,20 @@ type Manager struct {
 	updateTrigger chan struct{}
 	resetReq      chan string
 	wg            sync.WaitGroup
+
+	// Owned by schedulerLoop after start; keyed like schedules ("" = global).
+	lastFires    map[string]time.Time
+	persistFires func(map[string]time.Time)
 }
 
 func NewManager() *Manager {
+	return newManager(loadLastFires(), saveLastFires)
+}
+
+func newManager(lastFires map[string]time.Time, persistFires func(map[string]time.Time)) *Manager {
+	if lastFires == nil {
+		lastFires = map[string]time.Time{}
+	}
 	m := &Manager{
 		config: Config{
 			Global:   ScheduleConfig{Mode: "interval", IntervalSec: 300, Time: "06:00"},
@@ -40,6 +55,8 @@ func NewManager() *Manager {
 		stopChan:      make(chan struct{}),
 		updateTrigger: make(chan struct{}, 1),
 		resetReq:      make(chan string, 8),
+		lastFires:     lastFires,
+		persistFires:  persistFires,
 	}
 	m.state = &State{Config: m.getConfig()}
 
@@ -115,9 +132,7 @@ func (m *Manager) Close() {
 
 func (m *Manager) WatchLoginctl(lm *loginctl.Manager) {
 	ch := lm.Subscribe("wallpaper")
-	m.wg.Add(1)
-	go func() {
-		defer m.wg.Done()
+	m.wg.Go(func() {
 		defer lm.Unsubscribe("wallpaper")
 		for {
 			select {
@@ -133,7 +148,7 @@ func (m *Manager) WatchLoginctl(lm *loginctl.Manager) {
 				m.TriggerUpdate()
 			}
 		}
-	}()
+	})
 }
 
 func (m *Manager) schedulerLoop() {
@@ -154,11 +169,26 @@ func (m *Manager) schedulerLoop() {
 				delete(schedules, key)
 			}
 		}
+		firesDirty := false
 		for key, cfg := range active {
 			s, ok := schedules[key]
 			switch {
 			case !ok:
-				schedules[key] = &activeSchedule{cfg: cfg, nextFire: computeNext(now, cfg)}
+				s = &activeSchedule{cfg: cfg, nextFire: computeNext(now, cfg)}
+				schedules[key] = s
+				if cfg.Mode == "time" {
+					last := m.lastFires[key]
+					prev, valid := prevDailyTime(now, cfg.Time)
+					switch {
+					case last.IsZero():
+						// First enable (or no history): seed instead of firing.
+						m.lastFires[key] = now
+						firesDirty = true
+					case valid && last.Before(prev):
+						// Scheduled time passed while dms wasn't running.
+						s.nextFire = now.Add(catchUpDelay)
+					}
+				}
 			case s.cfg != cfg || resets[key]:
 				s.cfg = cfg
 				s.nextFire = computeNext(now, cfg)
@@ -171,7 +201,20 @@ func (m *Manager) schedulerLoop() {
 			if !s.nextFire.After(now) {
 				dueKeys = append(dueKeys, key)
 				s.nextFire = computeNext(now, s.cfg)
+				if s.cfg.Mode == "time" {
+					m.lastFires[key] = now
+					firesDirty = true
+				}
 			}
+		}
+
+		if firesDirty {
+			for key := range m.lastFires {
+				if _, ok := schedules[key]; !ok {
+					delete(m.lastFires, key)
+				}
+			}
+			m.persistFires(m.lastFires)
 		}
 
 		next, hasNext := soonest(schedules)
@@ -185,10 +228,7 @@ func (m *Manager) schedulerLoop() {
 
 		waitDur := 24 * time.Hour
 		if hasNext {
-			waitDur = time.Until(next)
-			if waitDur < time.Second {
-				waitDur = time.Second
-			}
+			waitDur = max(time.Until(next), time.Second)
 		}
 
 		if timer != nil {
@@ -262,10 +302,7 @@ func computeNext(now time.Time, cfg ScheduleConfig) time.Time {
 	case "time":
 		return nextDailyTime(now, cfg.Time)
 	default:
-		sec := cfg.IntervalSec
-		if sec < 1 {
-			sec = 1
-		}
+		sec := max(cfg.IntervalSec, 1)
 		return now.Add(time.Duration(sec) * time.Second)
 	}
 }
@@ -280,6 +317,18 @@ func nextDailyTime(now time.Time, hhmm string) time.Time {
 		next = next.Add(24 * time.Hour)
 	}
 	return next
+}
+
+func prevDailyTime(now time.Time, hhmm string) (time.Time, bool) {
+	hour, minute, ok := parseHHMM(hhmm)
+	if !ok {
+		return time.Time{}, false
+	}
+	prev := time.Date(now.Year(), now.Month(), now.Day(), hour, minute, 0, 0, now.Location())
+	if prev.After(now) {
+		prev = prev.Add(-24 * time.Hour)
+	}
+	return prev, true
 }
 
 func parseHHMM(hhmm string) (int, int, bool) {

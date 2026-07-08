@@ -26,6 +26,10 @@ Item {
     property string _pendingMode: ""
 
     readonly property bool useHyprlandFocusGrab: CompositorService.useHyprlandFocusGrab
+
+    TransientSurfaceTracker {
+        id: transientSurfaces
+    }
     readonly property var effectiveScreen: launcherWindow.screen
     readonly property real screenWidth: effectiveScreen?.width ?? 1920
     readonly property real screenHeight: effectiveScreen?.height ?? 1080
@@ -115,6 +119,18 @@ Item {
     }
     readonly property int borderWidth: SettingsData.dankLauncherV2BorderEnabled ? SettingsData.dankLauncherV2BorderThickness : 0
     readonly property bool useSingleWindow: CompositorService.isHyprland || useBackgroundDarken
+
+    // Blur region isn't auto-committed on geometry changes; kick twice to catch resize settling.
+    function _kickBlurCommit() {
+        launcherBlur.kick();
+        Qt.callLater(launcherBlur.kick);
+    }
+
+    onAlignedXChanged: _kickBlurCommit()
+    onAlignedYChanged: _kickBlurCommit()
+    onAlignedWidthChanged: _kickBlurCommit()
+    on_ContentImplicitHChanged: _kickBlurCommit()
+    onContentVisibleChanged: _kickBlurCommit()
 
     signal dialogClosed
 
@@ -228,9 +244,7 @@ Item {
 
     HyprlandFocusGrab {
         id: focusGrab
-        readonly property var contextMenuWindow: root.spotlightContent?.activeContextMenu?.contextWindow ?? null
-        readonly property bool contextMenuActive: root.spotlightContent?.activeContextMenu?.renderActive ?? false
-        windows: contextMenuActive && contextMenuWindow ? [launcherWindow, contextMenuWindow] : [launcherWindow]
+        windows: [launcherWindow].concat(transientSurfaces.focusWindows)
         active: root.useHyprlandFocusGrab && root.keyboardActive
         onCleared: {
             if (spotlightOpen)
@@ -326,6 +340,7 @@ Item {
         exclusionMode: ExclusionMode.Ignore
 
         WindowBlur {
+            id: launcherBlur
             targetWindow: launcherWindow
             readonly property real op: Math.max(0, Math.min(1, (modalContainer.opacity - 0.06) * 2))
             blurX: modalContainer.x
@@ -334,6 +349,9 @@ Item {
             blurHeight: contentVisible ? root._contentImplicitH * op : 0
             blurRadius: root.cornerRadius
         }
+
+        onWidthChanged: root._kickBlurCommit()
+        onHeightChanged: root._kickBlurCommit()
 
         WlrLayershell.namespace: "dms:spotlight"
         WlrLayershell.layer: root.effectiveLauncherLayer
@@ -419,6 +437,9 @@ Item {
 
             opacity: contentVisible ? 1 : 0
 
+            onOpacityChanged: root._kickBlurCommit()
+            onSlideOffsetChanged: root._kickBlurCommit()
+
             Behavior on opacity {
                 NumberAnimation {
                     duration: contentVisible ? root._openDuration : root._closeDuration
@@ -482,6 +503,7 @@ Item {
                         sourceComponent: SpotlightLauncherContent {
                             focus: true
                             parentModal: root
+                            transientSurfaceTracker: transientSurfaces
                         }
 
                         onLoaded: {

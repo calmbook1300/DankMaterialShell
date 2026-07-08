@@ -1,7 +1,7 @@
 pragma ComponentBehavior: Bound
 
 import QtQuick
-import QtQuick.Effects
+import Quickshell.Widgets
 import qs.Common
 import qs.Services
 import qs.Widgets
@@ -567,24 +567,11 @@ Rectangle {
                             border.color: isSelected ? Theme.primary : Theme.withAlpha(Theme.primary, 0)
                             border.width: isSelected ? 2 : 0
 
-                            Rectangle {
-                                id: gridProgressMask
+                            ClippingRectangle {
                                 anchors.fill: parent
                                 radius: parent.radius
-                                visible: false
-                                layer.enabled: true
-                            }
-
-                            Item {
-                                anchors.fill: parent
+                                color: "transparent"
                                 visible: gridButtonRect.isHolding
-                                layer.enabled: gridButtonRect.isHolding
-                                layer.effect: MultiEffect {
-                                    maskEnabled: true
-                                    maskSource: gridProgressMask
-                                    maskSpreadAtMin: 1
-                                    maskThresholdMin: 0.5
-                                }
 
                                 Rectangle {
                                     anchors.left: parent.left
@@ -700,24 +687,11 @@ Rectangle {
                             border.color: isSelected ? Theme.primary : Theme.withAlpha(Theme.primary, 0)
                             border.width: isSelected ? 2 : 0
 
-                            Rectangle {
-                                id: listProgressMask
+                            ClippingRectangle {
                                 anchors.fill: parent
                                 radius: parent.radius
-                                visible: false
-                                layer.enabled: true
-                            }
-
-                            Item {
-                                anchors.fill: parent
+                                color: "transparent"
                                 visible: listButtonRect.isHolding
-                                layer.enabled: listButtonRect.isHolding
-                                layer.effect: MultiEffect {
-                                    maskEnabled: true
-                                    maskSource: listProgressMask
-                                    maskSpreadAtMin: 1
-                                    maskThresholdMin: 0.5
-                                }
 
                                 Rectangle {
                                     anchors.left: parent.left

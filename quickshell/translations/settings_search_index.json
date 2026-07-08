@@ -178,6 +178,34 @@
     "description": "Use an external wallpaper manager like swww, hyprpaper, or swaybg."
   },
   {
+    "section": "wallpaperFillMode",
+    "label": "Fill Mode",
+    "tabIndex": 0,
+    "category": "Personalization",
+    "keywords": [
+      "appearance",
+      "background",
+      "bg",
+      "custom",
+      "customize",
+      "desktop",
+      "fill",
+      "fit",
+      "image",
+      "mode",
+      "personal",
+      "personalization",
+      "picture",
+      "scale",
+      "scaled",
+      "screen",
+      "stretch",
+      "tile",
+      "wallpaper"
+    ],
+    "description": "How the wallpaper is scaled to fit the screen"
+  },
+  {
     "section": "wallpaperCyclingInterval",
     "label": "Interval",
     "tabIndex": 0,
@@ -343,26 +371,21 @@
     "category": "Personalization",
     "keywords": [
       "appearance",
-      "areas",
       "background",
       "bg",
-      "color",
-      "colour",
-      "covered",
       "custom",
       "customize",
       "desktop",
-      "hue",
       "image",
       "personal",
       "personalization",
       "picture",
-      "shown",
-      "tint",
+      "scaled",
+      "screen",
       "wallpaper"
     ],
     "icon": "wallpaper",
-    "description": "Color shown for areas not covered by wallpaper"
+    "description": "How the wallpaper is scaled to fit the screen"
   },
   {
     "section": "selectedMonitor",
@@ -4586,23 +4609,6 @@
     ]
   },
   {
-    "section": "lockScreenActiveMonitor",
-    "label": "Active Lock Screen Monitor",
-    "tabIndex": 11,
-    "category": "Lock Screen",
-    "keywords": [
-      "active",
-      "display",
-      "lock",
-      "lockscreen",
-      "login",
-      "monitor",
-      "password",
-      "screen",
-      "security"
-    ]
-  },
-  {
     "section": "lockScreenVideoCycling",
     "label": "Automatic Cycling",
     "tabIndex": 11,
@@ -4753,7 +4759,6 @@
     "tabIndex": 11,
     "category": "Lock Screen",
     "keywords": [
-      "active",
       "display",
       "lock",
       "lockscreen",
