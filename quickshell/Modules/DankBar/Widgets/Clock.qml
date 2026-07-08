@@ -201,8 +201,6 @@ BasePill {
                 visible: !root.isVerticalOrientation
                 anchors.centerIn: parent
                 spacing: Theme.spacingS
-                leftPadding: 5
-                rightPadding: 5
 
                 property real fontSize: Theme.barTextSize(root.barThickness, root.barConfig?.fontScale, root.barConfig?.maximizeWidgetText)
                 property real digitWidth: fontSize * 0.6
