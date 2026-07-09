@@ -847,6 +847,34 @@ Item {
                             cursorPosition = pos;
                         }
 
+                        function deleteToLineStart() {
+                            clampCursorPosition();
+                            if (cursorPosition === 0)
+                                return;
+                            root.passwordEdited(text.slice(cursorPosition));
+                            cursorPosition = 0;
+                        }
+
+                        function deleteToLineEnd() {
+                            clampCursorPosition();
+                            if (cursorPosition === text.length)
+                                return;
+                            root.passwordEdited(text.slice(0, cursorPosition));
+                        }
+
+                        function deleteWordBackward() {
+                            clampCursorPosition();
+                            if (cursorPosition === 0)
+                                return;
+                            let pos = cursorPosition;
+                            while (pos > 0 && text.charAt(pos - 1) === " ")
+                                pos--;
+                            while (pos > 0 && text.charAt(pos - 1) !== " ")
+                                pos--;
+                            root.passwordEdited(text.slice(0, pos) + text.slice(cursorPosition));
+                            cursorPosition = pos;
+                        }
+
                         function isPrintableText(value) {
                             if (value.length === 0)
                                 return false;
@@ -910,6 +938,49 @@ Item {
                                 log.debug("PAM is active, ignoring input");
                                 event.accepted = true;
                                 return;
+                            }
+
+                            if ((event.modifiers & Qt.ControlModifier) && !(event.modifiers & (Qt.AltModifier | Qt.MetaModifier))) {
+                                switch (event.key) {
+                                case Qt.Key_A:
+                                    cursorPosition = 0;
+                                    event.accepted = true;
+                                    return;
+                                case Qt.Key_E:
+                                    cursorPosition = text.length;
+                                    event.accepted = true;
+                                    return;
+                                case Qt.Key_B:
+                                    clampCursorPosition();
+                                    cursorPosition = Math.max(0, cursorPosition - 1);
+                                    event.accepted = true;
+                                    return;
+                                case Qt.Key_F:
+                                    clampCursorPosition();
+                                    cursorPosition = Math.min(text.length, cursorPosition + 1);
+                                    event.accepted = true;
+                                    return;
+                                case Qt.Key_U:
+                                    deleteToLineStart();
+                                    event.accepted = true;
+                                    return;
+                                case Qt.Key_K:
+                                    deleteToLineEnd();
+                                    event.accepted = true;
+                                    return;
+                                case Qt.Key_W:
+                                    deleteWordBackward();
+                                    event.accepted = true;
+                                    return;
+                                case Qt.Key_H:
+                                    backspace();
+                                    event.accepted = true;
+                                    return;
+                                case Qt.Key_D:
+                                    deleteForward();
+                                    event.accepted = true;
+                                    return;
+                                }
                             }
 
                             switch (event.key) {

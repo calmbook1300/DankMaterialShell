@@ -807,22 +807,23 @@ PanelWindow {
 
     function _notifBodyScene() {
         const isHoriz = SurfaceGeometry.isHorizontal(win._notifDescriptor.barSide);
+        const body = win._notifBodyGeometry;
         const start = win._notifStartUnderlapValue;
         const end = win._notifEndUnderlapValue;
         const side = win._notifSideUnderlapValue;
         if (isHoriz) {
             return {
-                "x": _notifBodyBlurAnchor.x - start,
-                "y": _notifBodyBlurAnchor.y,
-                "width": _notifBodyBlurAnchor.width + start + end,
-                "height": _notifBodyBlurAnchor.height
+                "x": body.x - start,
+                "y": body.y,
+                "width": body.width + start + end,
+                "height": body.height
             };
         }
         return {
-            "x": _notifBodyBlurAnchor.x - (win._notifDescriptor.barSide === "left" ? side : 0),
-            "y": _notifBodyBlurAnchor.y - start,
-            "width": _notifBodyBlurAnchor.width + side,
-            "height": _notifBodyBlurAnchor.height + start + end
+            "x": body.x - (win._notifDescriptor.barSide === "left" ? side : 0),
+            "y": body.y - start,
+            "width": body.width + side,
+            "height": body.height + start + end
         };
     }
 
@@ -866,8 +867,9 @@ PanelWindow {
                     "surfaceRadius": win._surfaceRadius
                 }
             });
-        const n = win._notifBodyGeometry;
-        if (win._frameActive && win._notifDescriptor.visible && n.width > 0 && n.height > 0)
+        const n = win._notifBodyScene();
+        const nb = win._notifBodyGeometry;
+        if (win._frameActive && win._notifDescriptor.visible && nb.width > 0 && nb.height > 0)
             arr.push({
                 "side": win._notifDescriptor.barSide,
                 "body": {"x": n.x, "y": n.y, "width": n.width, "height": n.height},
