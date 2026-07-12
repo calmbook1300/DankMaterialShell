@@ -184,11 +184,18 @@ Singleton {
         const p = activePlayer;
         if (!p)
             return "";
-        // Prefer the stable track id; title/artist/album fill in progressively (Chrome).
+        // Combine trackid with the text identity. trackid alone dedups Chrome's multi-size art
+        // re-publish, but some players (e.g. KDEconnect) expose a constant trackid across every
+        // track, so keying on it alone wedged the dedup and new-song art never loaded. Folding
+        // in title/artist/album busts the lock on a real track change while same-track art
+        // churn (stable text) stays deduped.
         const tid = p.metadata && p.metadata["mpris:trackid"] ? p.metadata["mpris:trackid"].toString() : "";
-        if (tid !== "")
-            return tid;
-        return (p.trackTitle || "") + "" + (p.trackArtist || "") + "" + (p.trackAlbum || "");
+        return tid + " " + (p.trackTitle || "") + " " + (p.trackArtist || "") + " " + (p.trackAlbum || "");
+    }
+
+    function artReadyFor(player) {
+        const url = getArtworkUrl(player);
+        return url !== "" && url === _lastArtUrl && !loading && resolvedArtUrl !== "";
     }
 
     function _updateArtUrl() {

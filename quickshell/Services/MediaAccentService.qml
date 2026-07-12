@@ -11,14 +11,13 @@ import qs.Services
 Singleton {
     id: root
 
-    readonly property bool hasAccent: _accent !== null
-    readonly property color accent: _accent !== null ? _accent : Theme.primary
+    readonly property bool hasAccent: SettingsData.mediaUseAlbumArtAccent ? _accent !== null : true
+    readonly property color accent: SettingsData.mediaUseAlbumArtAccent && _accent !== null ? _accent : Theme.primary
 
-    readonly property color onAccent: {
-        const c = accent;
-        const lum = 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b;
+    readonly property color onAccent: SettingsData.mediaUseAlbumArtAccent && _accent !== null ? (() => {
+        const lum = 0.2126 * _accent.r + 0.7152 * _accent.g + 0.0722 * _accent.b;
         return lum > 0.6 ? Qt.rgba(0, 0, 0, 1) : Qt.rgba(1, 1, 1, 1);
-    }
+    })() : Theme.onPrimary
 
     readonly property color accentHover: Theme.withAlpha(accent, 0.12)
     readonly property color accentPressed: Theme.withAlpha(accent, Theme.transparentBlurLayers ? 0.24 : 0.16)
@@ -26,7 +25,20 @@ Singleton {
     readonly property color accentTrack: Theme.withAlpha(accent, 0.28)
     readonly property color accentSubtle: Theme.withAlpha(accent, 0.55)
 
-    readonly property string artUrl: TrackArtService.resolvedArtUrl
+    // Prefer the validated url, but fall back to the live mpris art so quantization
+    // starts as soon as the cover exists instead of waiting on the commit pipeline.
+    readonly property string artUrl: {
+        const resolved = TrackArtService.resolvedArtUrl;
+        if (resolved !== "")
+            return resolved;
+        const p = MprisController.activePlayer;
+        if (!p)
+            return "";
+        if (p.trackArtUrl)
+            return p.trackArtUrl;
+        const m = p.metadata;
+        return m && m["mpris:artUrl"] ? m["mpris:artUrl"].toString() : "";
+    }
 
     // Hold the last accent across the brief artUrl blank between tracks; never reset to primary.
     property var _accent: null
@@ -37,9 +49,10 @@ Singleton {
         depth: 4
         rescaleSize: 64
         onColorsChanged: {
-            const a = root._pickAccent(colors);
-            if (a !== null)
-                root._accent = a;
+            // Hold last accent only across the blank-art gap; else always recompute.
+            if (!colors || colors.length === 0)
+                return;
+            root._accent = root._pickAccent(colors);
         }
     }
 
@@ -62,9 +75,30 @@ Singleton {
             }
         }
 
-        if (!best)
-            return null;
-        return _normalize(best);
+        if (best)
+            return _normalize(best);
+
+        // Monochrome art: pick a neutral tone instead of keeping the last accent.
+        return _pickNeutral(colors);
+    }
+
+    function _pickNeutral(colors) {
+        let best = null;
+        let bestScore = -1;
+        for (let i = 0; i < colors.length; i++) {
+            const c = colors[i];
+            const v = c.hsvValue;
+            const score = (1 - Math.abs(v - 0.6)) + c.hsvSaturation * 0.5;
+            if (score > bestScore) {
+                bestScore = score;
+                best = c;
+            }
+        }
+
+        const hue = best.hsvHue < 0 ? 0 : best.hsvHue;
+        const s = Math.min(best.hsvSaturation, 0.18);
+        const v = Math.min(Math.max(best.hsvValue, 0.6), 0.82);
+        return Qt.hsva(hue, s, v, 1);
     }
 
     function _normalize(c) {

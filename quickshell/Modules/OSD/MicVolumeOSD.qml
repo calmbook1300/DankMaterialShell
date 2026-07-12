@@ -23,10 +23,9 @@ DankOSD {
     Connections {
         target: AudioService.source?.audio ?? null
 
+        // sync only - app AGC rewrites mic gain constantly, must not surface the OSD
         function onVolumeChanged() {
             root._syncVolume();
-            if (SettingsData.osdMicVolumeEnabled)
-                root.show();
         }
 
         function onMutedChanged() {
@@ -37,6 +36,12 @@ DankOSD {
 
     Connections {
         target: AudioService
+
+        function onMicVolumeChanged() {
+            root._syncVolume();
+            if (SettingsData.osdMicVolumeEnabled)
+                root.show();
+        }
 
         function onSourceChanged() {
             root._syncVolume();

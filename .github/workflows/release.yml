@@ -7,10 +7,16 @@ on:
         description: "Tag to release (e.g., v1.0.1)"
         required: true
         type: string
+      notify_issues:
+        description: "Comment on open related/fixes issues asking reporters to retest"
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: write
   actions: write
+  issues: write
 
 concurrency:
   group: release-${{ inputs.tag }}
@@ -205,13 +211,23 @@ jobs:
 
       - name: Generate Changelog
         id: changelog
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -e
           PREVIOUS_TAG=$(git describe --tags --abbrev=0 "${TAG}^" 2>/dev/null || echo "")
-          if [ -z "$PREVIOUS_TAG" ]; then
-            CHANGELOG=$(git log --oneline --pretty=format:"%an|%s (%h)" | grep -v "^github-actions\[bot\]|" | sed 's/^[^|]*|/- /' | head -50)
-          else
-            CHANGELOG=$(git log --oneline --pretty=format:"%an|%s (%h)" "${PREVIOUS_TAG}..${TAG}" | grep -v "^github-actions\[bot\]|" | sed 's/^[^|]*|/- /')
+          CHANGELOG=""
+          if [ -n "$PREVIOUS_TAG" ]; then
+            # PR-based notes with author credits; falls back to raw git log below
+            CHANGELOG=$(python3 scripts/release-notes.py "${PREVIOUS_TAG}..${TAG}" --format github --bare 2>/dev/null || true)
+          fi
+          if [ -z "$CHANGELOG" ]; then
+            echo "release-notes.py unavailable or empty, using git log fallback"
+            if [ -z "$PREVIOUS_TAG" ]; then
+              CHANGELOG=$(git log --oneline --pretty=format:"%an|%s (%h)" | grep -v "^github-actions\[bot\]|" | sed 's/^[^|]*|/- /' | head -50)
+            else
+              CHANGELOG=$(git log --oneline --pretty=format:"%an|%s (%h)" "${PREVIOUS_TAG}..${TAG}" | grep -v "^github-actions\[bot\]|" | sed 's/^[^|]*|/- /')
+            fi
           fi
 
           cat > RELEASE_BODY.md << 'EOF'
@@ -417,3 +433,19 @@ jobs:
           prerelease: ${{ contains(env.TAG, '-') }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # Ask reporters on still-open "related/fixes #N" issues to retest.
+      # Opt-in via notify_issues (Point release defaults it on). Skipped for
+      # prereleases. Preview: scripts/notify-issues.sh <prev> <tag> --dry-run
+      - name: Notify open issues to retest
+        if: ${{ inputs.notify_issues && !contains(env.TAG, '-') }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          PREVIOUS_TAG=$(git describe --tags --abbrev=0 "${TAG}^" 2>/dev/null || true)
+          if [ -z "$PREVIOUS_TAG" ]; then
+            echo "no previous tag; skipping issue notify"
+            exit 0
+          fi
+          bash scripts/notify-issues.sh "$PREVIOUS_TAG" "$TAG"

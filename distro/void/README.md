@@ -17,15 +17,21 @@ This is a DMS maintained repo for VoidLinux until these packages are officially 
 
 ### Using the Self-Hosted Repositories
 
-We serve both stable release and development packages directly from our repository branches.
+We serve both stable release and development packages from Cloudflare R2 at
+`void.danklinux.com`.
+
+> **Repository migration:** the former GitHub Pages repositories will be
+> frozen for 14 days at cutover. Their retirement date will be announced when
+> the snapshots are frozen. Replace any existing `avengemedia.github.io`
+> entries with the URLs below.
 
 #### 1. Add Repository Configurations
 
 Create configuration files in `/etc/xbps.d/` pointing to our repositories (needed for both stable and git/nightly variants):
 
 ```sh
-echo "repository=https://avengemedia.github.io/DankMaterialShell/current" | sudo tee /etc/xbps.d/dms.conf
-echo "repository=https://avengemedia.github.io/DankLinux/current" | sudo tee /etc/xbps.d/danklinux.conf
+echo "repository=https://void.danklinux.com/dms/current" | sudo tee /etc/xbps.d/dms.conf
+echo "repository=https://void.danklinux.com/danklinux/current" | sudo tee /etc/xbps.d/danklinux.conf
 ```
 
 #### 2. Install DMS
@@ -52,7 +58,8 @@ checkout at `srcpkgs/<pkg>/template` to build or submit it.
 ## Dependencies
 
 Installing `dms` automatically pulls in `quickshell`, `accountsservice`, `dgop`,
-`matugen` (which drives the Material You theming), `dbus`, and `elogind`.
+`matugen` (which drives the Material You theming), `dbus`, `elogind`, and
+`mesa-dri` (GL drivers, required for compositors to render).
 The rest are optional, install whichever features you want:
 
 | Package | Enables |
@@ -117,7 +124,7 @@ sudo ln -sf /etc/sv/dbus /var/service/dbus
 sudo ln -sf /etc/sv/elogind /var/service/elogind
 ```
 
-The `dankinstall` Void path does this automatically after installing packages.
+The `dankinstall` Void path enables both services after installing packages.
 
 ## Greeter (optional)
 
@@ -128,8 +135,16 @@ dms greeter enable      # configures greetd + the Void seat/PAM bits below
 dms greeter sync        # optional: share theming with the shell
 ```
 
-`dms greeter enable` handles what logind does automatically on systemd: it points
-greetd at the greeter, enables `seatd`, adds `_greeter` to the `_seatd`/`video`/
-`input` groups, and adds `pam_rundir` to `/etc/pam.d/greetd` (so the post-login
-session gets an `XDG_RUNTIME_DIR`). A Wayland compositor and a working DRM device
-(`/dev/dri/card*`) are required and not pulled in automatically.
+`dms-greeter` requires D-Bus and elogind. `dms greeter enable` enables the
+`dbus` and `elogind` runit services, configures greetd for elogind
+(`LIBSEAT_BACKEND=logind`), adds `_greeter` to the `video` and `input` groups,
+and adds `pam_rundir` to `/etc/pam.d/greetd` (so the post-login session gets an
+`XDG_RUNTIME_DIR`). It disables seatd if enabled: on Void, seatd is the
+alternative to elogind, and running both fights over the seat. Greeter sessions
+are launched through `dbus-run-session`. A Wayland compositor and a working DRM
+device (`/dev/dri/card*`) are required and not pulled in automatically.
+
+`dms greeter enable` also rewrites `/etc/sv/greetd/run` to wait for the `dbus`
+and `elogind` services, preventing a first-boot race that can leave the greeter
+on a black screen. greetd package updates restore the stock run script; re-run
+`dms greeter enable` afterwards.

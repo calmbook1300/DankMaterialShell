@@ -187,6 +187,7 @@ var SPEC = {
     mediaAdaptiveWidthEnabled: { def: true },
     mediaHideWhenIdleEnabled: { def: false },
     audioVisualizerEnabled: { def: true },
+    mediaUseAlbumArtAccent: { def: false },
     audioScrollMode: { def: "volume" },
     audioWheelScrollAmount: { def: 5 },
     audioDeviceScrollVolumeEnabled: { def: false },
