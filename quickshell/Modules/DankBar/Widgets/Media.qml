@@ -57,11 +57,11 @@ BasePill {
         case 0:
             return 0;
         case 2:
-            return 240;
+            return 300;
         case 3:
-            return 360;
+            return 400;
         default:
-            return 120;
+            return 200;
         }
     }
     readonly property int currentContentWidth: {
@@ -286,21 +286,13 @@ BasePill {
                     anchors.verticalCenter: parent.verticalCenter
 
                     Item {
-                        width: 20
+                        width: 36
                         height: 20
                         anchors.verticalCenter: parent.verticalCenter
+                        visible: CavaService.cavaAvailable && SettingsData.audioVisualizerEnabled
 
                         AudioVisualization {
                             anchors.fill: parent
-                            visible: CavaService.cavaAvailable && SettingsData.audioVisualizerEnabled
-                        }
-
-                        DankIcon {
-                            anchors.fill: parent
-                            name: "music_note"
-                            size: 20
-                            color: Theme.primary
-                            visible: !CavaService.cavaAvailable || !SettingsData.audioVisualizerEnabled
                         }
                     }
 
@@ -463,7 +455,7 @@ BasePill {
                             anchors.centerIn: parent
                             name: "skip_previous"
                             size: 12
-                            color: Theme.widgetTextColor
+                            color: Theme.primary
                         }
 
                         MouseArea {
@@ -488,7 +480,7 @@ BasePill {
                             anchors.centerIn: parent
                             name: root._isPlaying ? "pause" : "play_arrow"
                             size: 14
-                            color: Theme.widgetTextColor
+                            color: Theme.primary
                         }
 
                         MouseArea {
@@ -517,7 +509,7 @@ BasePill {
                             anchors.centerIn: parent
                             name: "skip_next"
                             size: 12
-                            color: Theme.widgetTextColor
+                            color: Theme.primary
                         }
 
                         MouseArea {
