@@ -18,57 +18,40 @@ Item {
     readonly property bool greeterU2fToggleAvailable: SettingsData.greeterU2fCanEnable || SettingsData.greeterEnableU2f
 
     function greeterFingerprintDescription() {
-        const source = SettingsData.greeterFingerprintSource;
-        const reason = SettingsData.greeterFingerprintReason;
+        if (SettingsData.greeterPamExternallyManaged)
+            return "greetd PAM is externally managed";
+        if (SettingsData.greeterFingerprintSource === "pam")
+            return I18n.tr("PAM already provides fingerprint auth. Enable this to show it at login.", "greeter fingerprint login setting");
 
-        if (source === "pam") {
-            switch (reason) {
-            case "configured_externally":
-                return SettingsData.greeterEnableFprint ? I18n.tr("Enabled. PAM already provides fingerprint auth.") : I18n.tr("PAM already provides fingerprint auth. Enable this to show it at login.");
-            case "missing_enrollment":
-                return SettingsData.greeterEnableFprint ? I18n.tr("Enabled. PAM provides fingerprint auth, but no prints are enrolled yet.") : I18n.tr("PAM provides fingerprint auth, but no prints are enrolled yet.");
-            case "missing_reader":
-                return I18n.tr("PAM provides fingerprint auth, but no reader was detected.");
-            default:
-                return I18n.tr("PAM provides fingerprint auth, but availability could not be confirmed.");
-            }
-        }
-
-        switch (reason) {
+        switch (SettingsData.greeterFingerprintReason) {
         case "ready":
-            return SettingsData.greeterEnableFprint ? I18n.tr("Authentication changes apply automatically. Fingerprint-only login may not unlock Keyring.") : I18n.tr("Only affects DMS-managed PAM. If greetd already includes pam_fprintd, fingerprint stays enabled.");
+            return I18n.tr("Authentication changes apply automatically.", "greeter auth setting description");
         case "missing_enrollment":
-            if (SettingsData.greeterEnableFprint)
-                return I18n.tr("Enabled, but no prints are enrolled yet. Enroll fingerprints and run Sync.");
-            return I18n.tr("Fingerprint reader detected, but no prints are enrolled yet. You can enable this now and run Sync later.");
+            return I18n.tr("Fingerprint reader detected, but no prints are enrolled yet. You can enable this now and run Sync later.", "greeter fingerprint login setting");
         case "missing_reader":
-            return SettingsData.greeterEnableFprint ? I18n.tr("Enabled, but no fingerprint reader was detected.") : I18n.tr("No fingerprint reader detected.");
+            return I18n.tr("No fingerprint reader detected.", "fingerprint setting status");
         case "missing_pam_support":
-            return I18n.tr("Not available — install fprintd and pam_fprintd, or configure greetd PAM.");
+            return I18n.tr("Not available — install fprintd and pam_fprintd, or configure greetd PAM.", "greeter fingerprint login setting");
         default:
-            return SettingsData.greeterEnableFprint ? I18n.tr("Enabled, but fingerprint availability could not be confirmed.") : I18n.tr("Fingerprint availability could not be confirmed.");
+            return I18n.tr("Fingerprint availability could not be confirmed.", "fingerprint setting status");
         }
     }
 
     function greeterU2fDescription() {
-        const source = SettingsData.greeterU2fSource;
-        const reason = SettingsData.greeterU2fReason;
+        if (SettingsData.greeterPamExternallyManaged)
+            return "greetd PAM is externally managed";
+        if (SettingsData.greeterU2fSource === "pam")
+            return I18n.tr("PAM already provides security-key auth. Enable this to show it at login.", "greeter security key login setting");
 
-        if (source === "pam") {
-            return SettingsData.greeterEnableU2f ? I18n.tr("Enabled. PAM already provides security-key auth.") : I18n.tr("PAM already provides security-key auth. Enable this to show it at login.");
-        }
-
-        switch (reason) {
+        switch (SettingsData.greeterU2fReason) {
         case "ready":
-            return SettingsData.greeterEnableU2f ? I18n.tr("Authentication changes apply automatically.") : I18n.tr("Available.");
+            return I18n.tr("Authentication changes apply automatically.", "greeter auth setting description");
         case "missing_key_registration":
-            if (SettingsData.greeterEnableU2f)
-                return I18n.tr("Enabled, but no registered security key was found yet. Register a key and run Sync.");
-            return I18n.tr("Security-key support was detected, but no registered key was found yet. You can enable this now and register one later.");
+            return I18n.tr("Security-key support was detected, but no registered key was found yet. You can enable this now and register one later.", "security key setting status");
         case "missing_pam_support":
-            return I18n.tr("Not available — install or configure pam_u2f, or configure greetd PAM.");
+            return I18n.tr("Not available — install or configure pam_u2f, or configure greetd PAM.", "greeter security key login setting");
         default:
-            return SettingsData.greeterEnableU2f ? I18n.tr("Enabled, but security-key availability could not be confirmed.") : I18n.tr("Security-key availability could not be confirmed.");
+            return I18n.tr("Security-key availability could not be confirmed.", "security key setting status");
         }
     }
 
@@ -500,13 +483,22 @@ Item {
                 }
 
                 SettingsToggleRow {
+                    settingKey: "greeterPamExternallyManaged"
+                    tags: ["greeter", "pam", "managed", "external", "greetd", "auth"]
+                    text: "greetd PAM is externally managed"
+                    description: "DMS removes its managed block from /etc/pam.d/greetd and stops writing to it"
+                    checked: SettingsData.greeterPamExternallyManaged
+                    onToggled: checked => SettingsData.set("greeterPamExternallyManaged", checked)
+                }
+
+                SettingsToggleRow {
                     settingKey: "greeterEnableFprint"
                     tags: ["greeter", "fingerprint", "fprintd", "login", "auth"]
                     text: I18n.tr("Enable fingerprint at login")
                     description: root.greeterFingerprintDescription()
                     descriptionColor: (SettingsData.greeterFingerprintReason === "ready" || SettingsData.greeterFingerprintReason === "configured_externally") ? Theme.surfaceVariantText : Theme.warning
                     checked: SettingsData.greeterEnableFprint
-                    enabled: root.greeterFprintToggleAvailable
+                    enabled: root.greeterFprintToggleAvailable && !SettingsData.greeterPamExternallyManaged
                     onToggled: checked => SettingsData.set("greeterEnableFprint", checked)
                 }
 
@@ -517,7 +509,7 @@ Item {
                     description: root.greeterU2fDescription()
                     descriptionColor: (SettingsData.greeterU2fReason === "ready" || SettingsData.greeterU2fReason === "configured_externally") ? Theme.surfaceVariantText : Theme.warning
                     checked: SettingsData.greeterEnableU2f
-                    enabled: root.greeterU2fToggleAvailable
+                    enabled: root.greeterU2fToggleAvailable && !SettingsData.greeterPamExternallyManaged
                     onToggled: checked => SettingsData.set("greeterEnableU2f", checked)
                 }
             }
@@ -718,9 +710,13 @@ Item {
 
         MouseArea {
             anchors.fill: parent
-            cursorShape: Qt.PointingHandCursor
-            enabled: !root.greeterSyncRunning && !root.greeterInstallActionRunning
-            onClicked: root.runGreeterSync()
+            hoverEnabled: true
+            acceptedButtons: Qt.AllButtons
+            cursorShape: !root.greeterSyncRunning && !root.greeterInstallActionRunning ? Qt.PointingHandCursor : Qt.ArrowCursor
+            onClicked: mouse => {
+                if (mouse.button === Qt.LeftButton && !root.greeterSyncRunning && !root.greeterInstallActionRunning)
+                    root.runGreeterSync();
+            }
         }
 
         Row {

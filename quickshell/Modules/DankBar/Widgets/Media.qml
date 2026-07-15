@@ -130,7 +130,7 @@ BasePill {
                 if (deltaY > 0) {
                     MprisController.previousOrRewind();
                 } else {
-                    activePlayer.next();
+                    MprisController.next();
                 }
             } else {
                 scrollAccumulatorY += deltaY;
@@ -138,7 +138,7 @@ BasePill {
                     if (scrollAccumulatorY > 0) {
                         MprisController.previousOrRewind();
                     } else {
-                        activePlayer.next();
+                        MprisController.next();
                     }
                     scrollAccumulatorY = 0;
                 }
@@ -267,7 +267,7 @@ BasePill {
                             } else if (mouse.button === Qt.MiddleButton) {
                                 MprisController.previousOrRewind();
                             } else if (mouse.button === Qt.RightButton) {
-                                activePlayer.next();
+                                MprisController.next();
                             }
                         }
                     }
@@ -351,38 +351,50 @@ BasePill {
                                 onTextChanged: {
                                     scrollOffset = 0;
                                     textShift = 0;
+                                    scrollTimer.reset();
                                     textChangeAnimation.restart();
                                 }
 
-                                SequentialAnimation {
-                                    id: scrollAnimation
+                                // Timer stepping, not NumberAnimation — a running animation commits frames every vsync (#2863)
+                                Timer {
+                                    id: scrollTimer
+                                    readonly property real maxOffset: Math.max(0, mediaText.implicitWidth - textContainer.width + 5)
+                                    property int direction: 1
+                                    property int holdTicks: 33
+
+                                    interval: 60
+                                    repeat: true
                                     running: mediaText.needsScrolling && textContainer.visible && mediaText.onScreen && root._isPlaying
-                                    loops: Animation.Infinite
-                                    onStopped: mediaText.scrollOffset = 0
 
-                                    PauseAnimation {
-                                        duration: 2000
+                                    function reset() {
+                                        mediaText.scrollOffset = 0;
+                                        direction = 1;
+                                        holdTicks = 33;
                                     }
 
-                                    NumberAnimation {
-                                        target: mediaText
-                                        property: "scrollOffset"
-                                        from: 0
-                                        to: mediaText.implicitWidth - textContainer.width + 5
-                                        duration: Math.max(1000, (mediaText.implicitWidth - textContainer.width + 5) * 60)
-                                        easing.type: Easing.Linear
+                                    onRunningChanged: {
+                                        if (!running)
+                                            reset();
                                     }
-
-                                    PauseAnimation {
-                                        duration: 2000
-                                    }
-
-                                    NumberAnimation {
-                                        target: mediaText
-                                        property: "scrollOffset"
-                                        to: 0
-                                        duration: Math.max(1000, (mediaText.implicitWidth - textContainer.width + 5) * 60)
-                                        easing.type: Easing.Linear
+                                    onTriggered: {
+                                        if (holdTicks > 0) {
+                                            holdTicks--;
+                                            return;
+                                        }
+                                        const next = mediaText.scrollOffset + direction;
+                                        if (next >= maxOffset) {
+                                            mediaText.scrollOffset = maxOffset;
+                                            direction = -1;
+                                            holdTicks = 33;
+                                            return;
+                                        }
+                                        if (next <= 0) {
+                                            mediaText.scrollOffset = 0;
+                                            direction = 1;
+                                            holdTicks = 33;
+                                            return;
+                                        }
+                                        mediaText.scrollOffset = next;
                                     }
                                 }
 
@@ -519,7 +531,7 @@ BasePill {
                             cursorShape: Qt.PointingHandCursor
                             onClicked: {
                                 if (activePlayer) {
-                                    activePlayer.next();
+                                    MprisController.next();
                                 }
                             }
                         }

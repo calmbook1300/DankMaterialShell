@@ -4664,6 +4664,41 @@
     ]
   },
   {
+    "section": "lockAuthSource",
+    "label": "Authentication Source",
+    "tabIndex": 11,
+    "category": "Lock Screen",
+    "keywords": [
+      "authentication",
+      "lock",
+      "login",
+      "pam",
+      "password",
+      "screen",
+      "security",
+      "service",
+      "source"
+    ],
+    "icon": "key"
+  },
+  {
+    "section": "lockPamPath",
+    "label": "Authentication Source",
+    "tabIndex": 11,
+    "category": "Lock Screen",
+    "keywords": [
+      "authentication",
+      "lock",
+      "login",
+      "pam",
+      "password",
+      "screen",
+      "security",
+      "service",
+      "source"
+    ]
+  },
+  {
     "section": "lockScreenVideoCycling",
     "label": "Automatic Cycling",
     "tabIndex": 11,
@@ -7983,14 +8018,20 @@
     "keywords": [
       "auth",
       "authentication",
+      "block",
       "display manager",
-      "fingerprint",
-      "fprintd",
+      "external",
       "greetd",
       "greeter",
-      "login"
+      "login",
+      "managed",
+      "pam",
+      "removes",
+      "stops",
+      "writing"
     ],
-    "icon": "fingerprint"
+    "icon": "fingerprint",
+    "description": "DMS removes its managed block from /etc/pam.d/greetd and stops writing to it"
   },
   {
     "section": "greeterRememberLastSession",
@@ -8027,6 +8068,28 @@
       "username"
     ],
     "description": "Pre-fill the last successful username on the greeter"
+  },
+  {
+    "section": "greeterPamExternallyManaged",
+    "label": "greetd PAM is externally managed",
+    "tabIndex": 31,
+    "category": "Greeter",
+    "keywords": [
+      "auth",
+      "block",
+      "display manager",
+      "external",
+      "externally",
+      "greetd",
+      "greeter",
+      "login",
+      "managed",
+      "pam",
+      "removes",
+      "stops",
+      "writing"
+    ],
+    "description": "DMS removes its managed block from /etc/pam.d/greetd and stops writing to it"
   },
   {
     "section": "muxType",

@@ -1528,7 +1528,7 @@
   {
     "term": "Apply Changes",
     "translation": "",
-    "context": "",
+    "context": "validate and apply custom PAM authentication source",
     "reference": "",
     "comment": ""
   },
@@ -1799,6 +1799,13 @@
     "comment": ""
   },
   {
+    "term": "Authenticated!",
+    "translation": "",
+    "context": "",
+    "reference": "",
+    "comment": ""
+  },
+  {
     "term": "Authenticating...",
     "translation": "",
     "context": "",
@@ -1829,14 +1836,7 @@
   {
     "term": "Authentication changes apply automatically.",
     "translation": "",
-    "context": "",
-    "reference": "",
-    "comment": ""
-  },
-  {
-    "term": "Authentication changes apply automatically. Fingerprint-only login may not unlock Keyring.",
-    "translation": "",
-    "context": "",
+    "context": "greeter auth setting description",
     "reference": "",
     "comment": ""
   },
@@ -1849,6 +1849,27 @@
   },
   {
     "term": "Authentication error - try again",
+    "translation": "",
+    "context": "",
+    "reference": "",
+    "comment": ""
+  },
+  {
+    "term": "Authentication failed - attempt %1 of %2",
+    "translation": "",
+    "context": "",
+    "reference": "",
+    "comment": ""
+  },
+  {
+    "term": "Authentication failed - lockout can occur",
+    "translation": "",
+    "context": "",
+    "reference": "",
+    "comment": ""
+  },
+  {
+    "term": "Authentication failed - try again",
     "translation": "",
     "context": "",
     "reference": "",
@@ -1885,7 +1906,7 @@
   {
     "term": "Auto",
     "translation": "",
-    "context": "calendar backend option | theme category option",
+    "context": "automatic PAM authentication source option | calendar backend option | theme category option",
     "reference": "",
     "comment": ""
   },
@@ -2254,7 +2275,21 @@
     "comment": ""
   },
   {
-    "term": "Available.",
+    "term": "Awaiting fingerprint authentication",
+    "translation": "",
+    "context": "",
+    "reference": "",
+    "comment": ""
+  },
+  {
+    "term": "Awaiting fingerprint or security key authentication",
+    "translation": "",
+    "context": "",
+    "reference": "",
+    "comment": ""
+  },
+  {
+    "term": "Awaiting security key authentication",
     "translation": "",
     "context": "",
     "reference": "",
@@ -2283,13 +2318,6 @@
   },
   {
     "term": "Backend",
-    "translation": "",
-    "context": "",
-    "reference": "",
-    "comment": ""
-  },
-  {
-    "term": "Backends: %1",
     "translation": "",
     "context": "",
     "reference": "",
@@ -3089,7 +3117,7 @@
   {
     "term": "Capabilities",
     "translation": "",
-    "context": "",
+    "context": "plugin detail section",
     "reference": "",
     "comment": ""
   },
@@ -4914,6 +4942,13 @@
     "comment": ""
   },
   {
+    "term": "Custom interval in minutes (minimum 5)",
+    "translation": "",
+    "context": "",
+    "reference": "",
+    "comment": ""
+  },
+  {
     "term": "Custom open-trash command",
     "translation": "",
     "context": "",
@@ -4944,7 +4979,7 @@
   {
     "term": "Custom...",
     "translation": "",
-    "context": "date format option",
+    "context": "custom PAM authentication source option | date format option",
     "reference": "",
     "comment": ""
   },
@@ -6503,76 +6538,6 @@
     "comment": ""
   },
   {
-    "term": "Enabled, but fingerprint availability could not be confirmed.",
-    "translation": "",
-    "context": "",
-    "reference": "",
-    "comment": ""
-  },
-  {
-    "term": "Enabled, but no fingerprint reader was detected.",
-    "translation": "",
-    "context": "",
-    "reference": "",
-    "comment": ""
-  },
-  {
-    "term": "Enabled, but no prints are enrolled yet. Authentication changes apply automatically once you enroll fingerprints.",
-    "translation": "",
-    "context": "",
-    "reference": "",
-    "comment": ""
-  },
-  {
-    "term": "Enabled, but no prints are enrolled yet. Enroll fingerprints and run Sync.",
-    "translation": "",
-    "context": "",
-    "reference": "",
-    "comment": ""
-  },
-  {
-    "term": "Enabled, but no registered security key was found yet. Authentication changes apply automatically once your key is registered or your U2F config is updated.",
-    "translation": "",
-    "context": "",
-    "reference": "",
-    "comment": ""
-  },
-  {
-    "term": "Enabled, but no registered security key was found yet. Register a key and run Sync.",
-    "translation": "",
-    "context": "",
-    "reference": "",
-    "comment": ""
-  },
-  {
-    "term": "Enabled, but security-key availability could not be confirmed.",
-    "translation": "",
-    "context": "",
-    "reference": "",
-    "comment": ""
-  },
-  {
-    "term": "Enabled. PAM already provides fingerprint auth.",
-    "translation": "",
-    "context": "",
-    "reference": "",
-    "comment": ""
-  },
-  {
-    "term": "Enabled. PAM already provides security-key auth.",
-    "translation": "",
-    "context": "",
-    "reference": "",
-    "comment": ""
-  },
-  {
-    "term": "Enabled. PAM provides fingerprint auth, but no prints are enrolled yet.",
-    "translation": "",
-    "context": "",
-    "reference": "",
-    "comment": ""
-  },
-  {
     "term": "Enabling WiFi...",
     "translation": "",
     "context": "network status",
@@ -7751,7 +7716,7 @@
   {
     "term": "Fingerprint availability could not be confirmed.",
     "translation": "",
-    "context": "",
+    "context": "fingerprint setting status",
     "reference": "",
     "comment": ""
   },
@@ -7772,14 +7737,14 @@
   {
     "term": "Fingerprint reader detected, but no prints are enrolled yet. You can enable this now and enroll later.",
     "translation": "",
-    "context": "",
+    "context": "lock screen fingerprint setting",
     "reference": "",
     "comment": ""
   },
   {
     "term": "Fingerprint reader detected, but no prints are enrolled yet. You can enable this now and run Sync later.",
     "translation": "",
-    "context": "",
+    "context": "greeter fingerprint login setting",
     "reference": "",
     "comment": ""
   },
@@ -7813,6 +7778,13 @@
   },
   {
     "term": "Flags",
+    "translation": "",
+    "context": "",
+    "reference": "",
+    "comment": ""
+  },
+  {
+    "term": "Flatpak",
     "translation": "",
     "context": "",
     "reference": "",
@@ -8778,6 +8750,13 @@
     "comment": ""
   },
   {
+    "term": "H",
+    "translation": "",
+    "context": "",
+    "reference": "",
+    "comment": ""
+  },
+  {
     "term": "HDR (EDID)",
     "translation": "",
     "context": "",
@@ -9464,6 +9443,48 @@
     "comment": ""
   },
   {
+    "term": "Ignore package",
+    "translation": "",
+    "context": "",
+    "reference": "",
+    "comment": ""
+  },
+  {
+    "term": "Ignore this package",
+    "translation": "",
+    "context": "",
+    "reference": "",
+    "comment": ""
+  },
+  {
+    "term": "Ignored (%1)",
+    "translation": "",
+    "context": "",
+    "reference": "",
+    "comment": ""
+  },
+  {
+    "term": "Ignored Packages",
+    "translation": "",
+    "context": "",
+    "reference": "",
+    "comment": ""
+  },
+  {
+    "term": "Ignored packages are hidden from the updater and skipped by 'Update All'.",
+    "translation": "",
+    "context": "",
+    "reference": "",
+    "comment": ""
+  },
+  {
+    "term": "Ignored packages only apply to the built-in updater. Your custom command controls its own exclusions.",
+    "translation": "",
+    "context": "",
+    "reference": "",
+    "comment": ""
+  },
+  {
     "term": "Image",
     "translation": "",
     "context": "",
@@ -9556,20 +9577,6 @@
   },
   {
     "term": "Incorrect password",
-    "translation": "",
-    "context": "",
-    "reference": "",
-    "comment": ""
-  },
-  {
-    "term": "Incorrect password - attempt %1 of %2 (lockout may follow)",
-    "translation": "",
-    "context": "",
-    "reference": "",
-    "comment": ""
-  },
-  {
-    "term": "Incorrect password - next failures may trigger account lockout",
     "translation": "",
     "context": "",
     "reference": "",
@@ -9878,6 +9885,13 @@
   },
   {
     "term": "Invalid configuration",
+    "translation": "",
+    "context": "",
+    "reference": "",
+    "comment": ""
+  },
+  {
+    "term": "Invalid package name — letters, digits and @._+:- only.",
     "translation": "",
     "context": "",
     "reference": "",
@@ -11543,13 +11557,6 @@
     "comment": ""
   },
   {
-    "term": "Move",
-    "translation": "",
-    "context": "",
-    "reference": "",
-    "comment": ""
-  },
-  {
     "term": "Move Widget",
     "translation": "",
     "context": "",
@@ -12301,7 +12308,7 @@
   {
     "term": "No fingerprint reader detected.",
     "translation": "",
-    "context": "",
+    "context": "fingerprint setting status",
     "reference": "",
     "comment": ""
   },
@@ -12442,6 +12449,13 @@
     "term": "No output devices found",
     "translation": "",
     "context": "Audio settings empty state",
+    "reference": "",
+    "comment": ""
+  },
+  {
+    "term": "No packages ignored. Add one here or hover an update in the popout and click the hide button.",
+    "translation": "",
+    "context": "",
     "reference": "",
     "comment": ""
   },
@@ -12735,28 +12749,28 @@
   {
     "term": "Not available — install fprintd and pam_fprintd, or configure greetd PAM.",
     "translation": "",
-    "context": "",
+    "context": "greeter fingerprint login setting",
     "reference": "",
     "comment": ""
   },
   {
     "term": "Not available — install fprintd and pam_fprintd.",
     "translation": "",
-    "context": "",
+    "context": "lock screen fingerprint setting",
     "reference": "",
     "comment": ""
   },
   {
     "term": "Not available — install or configure pam_u2f, or configure greetd PAM.",
     "translation": "",
-    "context": "",
+    "context": "greeter security key login setting",
     "reference": "",
     "comment": ""
   },
   {
     "term": "Not available — install or configure pam_u2f.",
     "translation": "",
-    "context": "",
+    "context": "lock screen security key setting",
     "reference": "",
     "comment": ""
   },
@@ -13063,13 +13077,6 @@
   },
   {
     "term": "Only adjust gamma based on time or location rules.",
-    "translation": "",
-    "context": "",
-    "reference": "",
-    "comment": ""
-  },
-  {
-    "term": "Only affects DMS-managed PAM. If greetd already includes pam_fprintd, fingerprint stays enabled.",
     "translation": "",
     "context": "",
     "reference": "",
@@ -13505,35 +13512,14 @@
   {
     "term": "PAM already provides fingerprint auth. Enable this to show it at login.",
     "translation": "",
-    "context": "",
+    "context": "greeter fingerprint login setting",
     "reference": "",
     "comment": ""
   },
   {
     "term": "PAM already provides security-key auth. Enable this to show it at login.",
     "translation": "",
-    "context": "",
-    "reference": "",
-    "comment": ""
-  },
-  {
-    "term": "PAM provides fingerprint auth, but availability could not be confirmed.",
-    "translation": "",
-    "context": "",
-    "reference": "",
-    "comment": ""
-  },
-  {
-    "term": "PAM provides fingerprint auth, but no prints are enrolled yet.",
-    "translation": "",
-    "context": "",
-    "reference": "",
-    "comment": ""
-  },
-  {
-    "term": "PAM provides fingerprint auth, but no reader was detected.",
-    "translation": "",
-    "context": "",
+    "context": "greeter security key login setting",
     "reference": "",
     "comment": ""
   },
@@ -13546,6 +13532,13 @@
   },
   {
     "term": "PIN",
+    "translation": "",
+    "context": "",
+    "reference": "",
+    "comment": ""
+  },
+  {
+    "term": "Package name (e.g., docker)",
     "translation": "",
     "context": "",
     "reference": "",
@@ -16123,14 +16116,14 @@
   {
     "term": "Security-key availability could not be confirmed.",
     "translation": "",
-    "context": "",
+    "context": "security key setting status",
     "reference": "",
     "comment": ""
   },
   {
     "term": "Security-key support was detected, but no registered key was found yet. You can enable this now and register one later.",
     "translation": "",
-    "context": "",
+    "context": "security key setting status",
     "reference": "",
     "comment": ""
   },
@@ -17851,6 +17844,13 @@
   },
   {
     "term": "Status",
+    "translation": "",
+    "context": "",
+    "reference": "",
+    "comment": ""
+  },
+  {
+    "term": "Stop ignoring %1",
     "translation": "",
     "context": "",
     "reference": "",
@@ -19875,7 +19875,7 @@
   {
     "term": "Use fingerprint authentication for the lock screen.",
     "translation": "",
-    "context": "",
+    "context": "lock screen fingerprint setting",
     "reference": "",
     "comment": ""
   },
@@ -20359,6 +20359,13 @@
     "term": "Votes",
     "translation": "",
     "context": "plugin browser sort option",
+    "reference": "",
+    "comment": ""
+  },
+  {
+    "term": "W",
+    "translation": "",
+    "context": "",
     "reference": "",
     "comment": ""
   },
@@ -21038,6 +21045,34 @@
     "term": "by %1",
     "translation": "",
     "context": "author attribution",
+    "reference": "",
+    "comment": ""
+  },
+  {
+    "term": "checked %1d ago",
+    "translation": "",
+    "context": "",
+    "reference": "",
+    "comment": ""
+  },
+  {
+    "term": "checked %1h ago",
+    "translation": "",
+    "context": "",
+    "reference": "",
+    "comment": ""
+  },
+  {
+    "term": "checked %1m ago",
+    "translation": "",
+    "context": "",
+    "reference": "",
+    "comment": ""
+  },
+  {
+    "term": "checked just now",
+    "translation": "",
+    "context": "",
     "reference": "",
     "comment": ""
   },
