@@ -57,9 +57,9 @@ BasePill {
         case 0:
             return 0;
         case 2:
-            return 180;
-        case 3:
             return 240;
+        case 3:
+            return 360;
         default:
             return 120;
         }
