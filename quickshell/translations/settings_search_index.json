@@ -413,23 +413,6 @@
     "description": "Select monitor to configure wallpaper"
   },
   {
-    "section": "use24HourClock",
-    "label": "24-Hour Format",
-    "tabIndex": 1,
-    "category": "Time & Weather",
-    "keywords": [
-      "24hour",
-      "clock",
-      "date",
-      "forecast",
-      "format",
-      "hour",
-      "time",
-      "weather"
-    ],
-    "description": "Use 24-hour time format instead of 12-hour AM/PM"
-  },
-  {
     "section": "useAutoLocation",
     "label": "Auto Location",
     "tabIndex": 1,
@@ -635,6 +618,25 @@
     "icon": "schedule"
   },
   {
+    "section": "clockFormat",
+    "label": "Time Format",
+    "tabIndex": 1,
+    "category": "Time & Weather",
+    "keywords": [
+      "12hour",
+      "24hour",
+      "clock",
+      "date",
+      "forecast",
+      "format",
+      "hour",
+      "locale",
+      "time",
+      "weather"
+    ],
+    "description": "Use 24-hour time format instead of 12-hour AM/PM"
+  },
+  {
     "section": "timeFormat",
     "label": "Time Format",
     "tabIndex": 1,
@@ -823,6 +825,26 @@
     "icon": "tune"
   },
   {
+    "section": "barOpenOnOverview",
+    "label": "Show on Overview",
+    "tabIndex": 3,
+    "category": "Dank Bar",
+    "keywords": [
+      "bar",
+      "dank",
+      "during",
+      "frame",
+      "niri",
+      "overview",
+      "panel",
+      "show",
+      "statusbar",
+      "topbar"
+    ],
+    "description": "Show during Niri overview",
+    "conditionKey": "isNiri"
+  },
+  {
     "section": "barUseOverlayLayer",
     "label": "Use Overlay Layer",
     "tabIndex": 3,
@@ -854,12 +876,12 @@
       "away",
       "bar",
       "dank",
-      "fullscreen",
+      "frame",
       "hidden",
       "hide",
-      "layer",
       "moves",
-      "overlay",
+      "niri",
+      "overview",
       "panel",
       "pointer",
       "show",
@@ -2426,6 +2448,26 @@
     ]
   },
   {
+    "section": "niriOverviewLauncherStyle",
+    "label": "Default Opens",
+    "tabIndex": 9,
+    "category": "Launcher",
+    "keywords": [
+      "default",
+      "drawer",
+      "full",
+      "launcher",
+      "menu",
+      "niri",
+      "opens",
+      "overlay",
+      "overview",
+      "spotlight",
+      "start",
+      "style"
+    ]
+  },
+  {
     "section": "niriOverviewOverlayEnabled",
     "label": "Enable Overview Overlay",
     "tabIndex": 9,
@@ -2924,6 +2966,19 @@
     ],
     "icon": "search",
     "description": "Show All, Apps, Files, and Plugins chips beside the Spotlight Bar input."
+  },
+  {
+    "section": "terminalOverride",
+    "label": "Terminal",
+    "tabIndex": 9,
+    "category": "Launcher",
+    "keywords": [
+      "drawer",
+      "launcher",
+      "menu",
+      "start",
+      "terminal"
+    ]
   },
   {
     "section": "dankLauncherV2BorderThickness",
@@ -4863,6 +4918,27 @@
     "description": "Automatically lock the screen when the system prepares to suspend"
   },
   {
+    "section": "lockScreenFontFamily",
+    "label": "Lock screen font",
+    "tabIndex": 11,
+    "category": "Lock Screen",
+    "keywords": [
+      "clock",
+      "date",
+      "font",
+      "lock",
+      "lockscreen",
+      "login",
+      "password",
+      "screen",
+      "security",
+      "time",
+      "typography",
+      "watch"
+    ],
+    "description": "Font used for the clock and date on the lock screen"
+  },
+  {
     "section": "lockScreenNotificationMode",
     "label": "Notification Display",
     "tabIndex": 11,
@@ -6798,6 +6874,23 @@
     "description": "Open a terminal and run a custom command instead of the in-shell upgrade flow."
   },
   {
+    "section": "systemUpdaterIgnoredPackages",
+    "label": "Ignored Packages",
+    "tabIndex": 20,
+    "category": "System Updater",
+    "keywords": [
+      "ignore",
+      "ignored",
+      "package",
+      "packages",
+      "system",
+      "update",
+      "updater",
+      "upgrade"
+    ],
+    "icon": "inventory_2"
+  },
+  {
     "section": "systemUpdater",
     "label": "System Updater",
     "tabIndex": 20,
@@ -7706,27 +7799,6 @@
     "description": "Change the locale used for date and time formatting, independent of the interface language."
   },
   {
-    "section": "greeterUse24Hour",
-    "label": "24-hour clock",
-    "tabIndex": 31,
-    "category": "Greeter",
-    "keywords": [
-      "24hour",
-      "affect",
-      "clock",
-      "display manager",
-      "does",
-      "greetd",
-      "greeter",
-      "hour",
-      "login",
-      "main",
-      "time",
-      "watch"
-    ],
-    "description": "Greeter only — does not affect main clock"
-  },
-  {
     "section": "greeterAutoLogin",
     "label": "Auto-login on startup",
     "tabIndex": 31,
@@ -7888,6 +7960,22 @@
     "icon": "info"
   },
   {
+    "section": "greeterFontFamily",
+    "label": "Greeter font",
+    "tabIndex": 31,
+    "category": "Greeter",
+    "keywords": [
+      "display manager",
+      "font",
+      "greetd",
+      "greeter",
+      "login",
+      "screen",
+      "typography"
+    ],
+    "description": "Font used on the login screen"
+  },
+  {
     "section": "greeterAuth",
     "label": "Login Authentication",
     "tabIndex": 31,
@@ -7903,24 +7991,6 @@
       "login"
     ],
     "icon": "fingerprint"
-  },
-  {
-    "section": "greeterPadHours",
-    "label": "Pad hours (02:00 vs 2:00)",
-    "tabIndex": 31,
-    "category": "Greeter",
-    "keywords": [
-      "(02:00",
-      "12hour",
-      "2:00)",
-      "display manager",
-      "greetd",
-      "greeter",
-      "hours",
-      "login",
-      "pad",
-      "time"
-    ]
   },
   {
     "section": "greeterRememberLastSession",
@@ -7957,21 +8027,6 @@
       "username"
     ],
     "description": "Pre-fill the last successful username on the greeter"
-  },
-  {
-    "section": "greeterShowSeconds",
-    "label": "Show Seconds",
-    "tabIndex": 31,
-    "category": "Greeter",
-    "keywords": [
-      "display manager",
-      "greetd",
-      "greeter",
-      "login",
-      "seconds",
-      "show",
-      "time"
-    ]
   },
   {
     "section": "muxType",

@@ -120,18 +120,6 @@ Item {
     readonly property int borderWidth: SettingsData.dankLauncherV2BorderEnabled ? SettingsData.dankLauncherV2BorderThickness : 0
     readonly property bool useSingleWindow: CompositorService.isHyprland || useBackgroundDarken
 
-    // Blur region isn't auto-committed on geometry changes; kick twice to catch resize settling.
-    function _kickBlurCommit() {
-        launcherBlur.kick();
-        Qt.callLater(launcherBlur.kick);
-    }
-
-    onAlignedXChanged: _kickBlurCommit()
-    onAlignedYChanged: _kickBlurCommit()
-    onAlignedWidthChanged: _kickBlurCommit()
-    on_ContentImplicitHChanged: _kickBlurCommit()
-    onContentVisibleChanged: _kickBlurCommit()
-
     signal dialogClosed
 
     function _ensureContentLoadedAndInitialize(query, mode) {
@@ -161,6 +149,7 @@ Item {
         }
         if (spotlightContent.controller) {
             spotlightContent.controller.reset();
+            spotlightContent.controller.explicitQuerySession = !!query;
             spotlightContent.controller.searchMode = targetMode;
             spotlightContent.controller.historyIndex = -1;
             if (targetQuery.length > 0)
@@ -171,7 +160,10 @@ Item {
         }
         if (spotlightContent.searchField) {
             spotlightContent.searchField.forceActiveFocus();
-            spotlightContent.searchField.selectAll();
+            if (query)
+                spotlightContent.searchField.cursorPosition = targetQuery.length;
+            else
+                spotlightContent.searchField.selectAll();
         }
     }
 
@@ -350,19 +342,17 @@ Item {
             blurRadius: root.cornerRadius
         }
 
-        onWidthChanged: root._kickBlurCommit()
-        onHeightChanged: root._kickBlurCommit()
-
         WlrLayershell.namespace: "dms:spotlight"
         WlrLayershell.layer: root.effectiveLauncherLayer
         WlrLayershell.exclusiveZone: -1
         WlrLayershell.keyboardFocus: KeyboardFocus.keyboardFocus(keyboardActive, null)
 
+        // Anchored top+bottom: dynamic layer-surface resizes misbehave on some compositors
         anchors {
             top: true
             left: true
             right: root.useSingleWindow
-            bottom: root.useSingleWindow
+            bottom: true
         }
 
         WlrLayershell.margins {
@@ -373,7 +363,6 @@ Item {
         }
 
         implicitWidth: root.useSingleWindow ? 0 : root.windowWidth
-        implicitHeight: root.useSingleWindow ? 0 : root.windowHeight
 
         mask: Region {
             item: inputMask
@@ -436,9 +425,6 @@ Item {
             property real slideOffset: contentVisible ? 0 : -root._animHeadroom
 
             opacity: contentVisible ? 1 : 0
-
-            onOpacityChanged: root._kickBlurCommit()
-            onSlideOffsetChanged: root._kickBlurCommit()
 
             Behavior on opacity {
                 NumberAnimation {

@@ -95,15 +95,17 @@ type SearchResult struct {
 }
 
 type Entry struct {
-	ID        uint64    `json:"id"`
-	Data      []byte    `json:"data,omitempty"`
-	MimeType  string    `json:"mimeType"`
-	Preview   string    `json:"preview"`
-	Size      int       `json:"size"`
-	Timestamp time.Time `json:"timestamp"`
-	IsImage   bool      `json:"isImage"`
-	Hash      uint64    `json:"hash,omitempty"`
-	Pinned    bool      `json:"pinned"`
+	ID          uint64    `json:"id"`
+	Data        []byte    `json:"data,omitempty"`
+	MimeType    string    `json:"mimeType"`
+	Preview     string    `json:"preview"`
+	Size        int       `json:"size"`
+	Timestamp   time.Time `json:"timestamp"`
+	IsImage     bool      `json:"isImage"`
+	Hash        uint64    `json:"hash,omitempty"`
+	Pinned      bool      `json:"pinned"`
+	AltData     []byte    `json:"altData,omitempty"`
+	AltMimeType string    `json:"altMimeType,omitempty"`
 }
 
 type State struct {
@@ -153,7 +155,9 @@ type Manager struct {
 	notifierWg  sync.WaitGroup
 	lastState   *State
 
-	dbusConn *dbus.Conn
+	// lazily created by dbusConnForFlatpak under dbusConnMutex
+	dbusConn      *dbus.Conn
+	dbusConnMutex sync.Mutex
 }
 
 func (m *Manager) GetState() State {

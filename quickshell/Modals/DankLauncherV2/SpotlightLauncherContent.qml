@@ -21,10 +21,10 @@ FocusScope {
     readonly property real _rowH: 64
     readonly property real _maxResultsH: Math.min(430, (parentModal?.screenHeight ?? 900) * 0.55)
     readonly property var _resultRows: _buildRows()
-    readonly property real _resultsContentH: _resultRows.length > 0 ? _resultRows.length * _rowH : _statusH
+    readonly property real _resultsContentH: _resultRows.length > 0 ? _resultRows.length * _rowH + resultsList.bottomInset : _statusH
     readonly property real _resultsH: _hasQuery ? Math.min(_resultsContentH, _maxResultsH) : 0
     readonly property int _fastDuration: 90
-    readonly property int _resizeDuration: 110
+    readonly property int _resizeDuration: Theme.expressiveDurations.fast
     readonly property bool _blurActive: Theme.blurForegroundLayers || Theme.transparentBlurLayers
     readonly property real _searchSurfaceAlpha: {
         if (Theme.transparentBlurLayers)
@@ -42,7 +42,17 @@ FocusScope {
         return Theme.surfaceContainer;
     }
 
-    implicitHeight: _searchAreaH + _resultsH
+    implicitHeight: _searchAreaH + resultsContainer.height
+
+    property bool _animateResize: false
+
+    Component.onCompleted: resizeAnimEnableTimer.restart()
+
+    Timer {
+        id: resizeAnimEnableTimer
+        interval: 100
+        onTriggered: root._animateResize = true
+    }
 
     function resetScroll() {
         resultsList.resetScroll();
@@ -57,13 +67,18 @@ FocusScope {
         const flat = searchController.flatModel || [];
         const sections = searchController.sections || [];
         const rows = [];
+        const seen = {};
         for (let i = 0; i < flat.length; i++) {
             const entry = flat[i];
             if (!entry || entry.isHeader || !entry.item)
                 continue;
             const section = sections[entry.sectionIndex] || null;
+            // Plugin item ids embed result content, so key them by slot position instead
+            const base = entry.item.pluginId ? (entry.sectionId + ":" + entry.indexInSection) : (entry.item.id || (entry.sectionId + ":" + (entry.item.name || entry.indexInSection)));
+            const bump = seen[base] || 0;
+            seen[base] = bump + 1;
             rows.push({
-                "_rowId": entry.item.id || (entry.sectionId + ":" + entry.indexInSection + ":" + i),
+                "_rowId": bump ? base + "#" + bump : base,
                 "item": entry.item,
                 "flatIndex": i,
                 "sectionTitle": section?.title || "",
@@ -234,8 +249,12 @@ FocusScope {
         }
 
         function onContentVisibleChanged() {
-            if (!root.parentModal?.contentVisible)
+            if (!root.parentModal?.contentVisible) {
                 root.closeTransientUi();
+                return;
+            }
+            root._animateResize = false;
+            resizeAnimEnableTimer.restart();
         }
     }
 
@@ -415,6 +434,7 @@ FocusScope {
         height: root._resultsH
 
         Behavior on height {
+            enabled: root._animateResize
             NumberAnimation {
                 duration: root._resizeDuration
                 easing.type: Easing.BezierSpline

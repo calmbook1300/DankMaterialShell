@@ -179,8 +179,10 @@ Item {
     IpcHandler {
         function open(): string {
             root.processListModalLoader.active = true;
-            if (root.processListModalLoader.item)
-                root.processListModalLoader.item.show();
+            Qt.callLater(() => {
+                if (root.processListModalLoader.item)
+                    root.processListModalLoader.item.show();
+            });
 
             return "PROCESSLIST_OPEN_SUCCESS";
         }
@@ -194,16 +196,20 @@ Item {
 
         function toggle(): string {
             root.processListModalLoader.active = true;
-            if (root.processListModalLoader.item)
-                root.processListModalLoader.item.toggle();
+            Qt.callLater(() => {
+                if (root.processListModalLoader.item)
+                    root.processListModalLoader.item.toggle();
+            });
 
             return "PROCESSLIST_TOGGLE_SUCCESS";
         }
 
         function focusOrToggle(): string {
             root.processListModalLoader.active = true;
-            if (root.processListModalLoader.item)
-                root.processListModalLoader.item.focusOrToggle();
+            Qt.callLater(() => {
+                if (root.processListModalLoader.item)
+                    root.processListModalLoader.item.focusOrToggle();
+            });
 
             return "PROCESSLIST_FOCUS_OR_TOGGLE_SUCCESS";
         }
@@ -266,17 +272,21 @@ Item {
     }
 
     IpcHandler {
-        function resolveTabIndex(tab: string): int {
+        function _resolveTabId(tab) {
             switch ((tab || "").toLowerCase()) {
             case "media":
-                return SettingsData.dashTabIndexForId("media");
+                return "media";
             case "wallpaper":
-                return SettingsData.dashTabIndexForId("wallpaper");
+                return "wallpaper";
             case "weather":
-                return SettingsData.dashTabIndexForId("weather");
+                return "weather";
             default:
-                return SettingsData.dashTabIndexForId("overview");
+                return "overview";
             }
+        }
+
+        function resolveTabIndex(tab: string): int {
+            return SettingsData.dashTabIndexForId(_resolveTabId(tab));
         }
 
         function open(tab: string): string {
@@ -284,16 +294,16 @@ Item {
             if (!bar)
                 return "DASH_OPEN_FAILED";
 
-            const tabIndex = resolveTabIndex(tab);
+            const tabId = _resolveTabId(tab);
             const dash = root.dankDashPopoutLoader.item;
             if (dash && dash.shouldBeVisible && dash.triggerScreen?.name === bar.screen?.name) {
-                dash.currentTabIndex = tabIndex;
+                dash.requestTab(tabId);
                 if (dash.updateSurfacePosition)
                     dash.updateSurfacePosition();
                 return "DASH_OPEN_SUCCESS";
             }
 
-            if (!bar.triggerDashTab(tabIndex))
+            if (!bar.triggerDashTab(tabId))
                 return "DASH_OPEN_FAILED";
 
             return "DASH_OPEN_SUCCESS";
@@ -315,7 +325,7 @@ Item {
 
             const bar = root.getPreferredBar("clockButtonRef") || root.getPreferredBar();
             if (bar) {
-                if (!bar.triggerDashTab(resolveTabIndex(tab)))
+                if (!bar.triggerDashTab(_resolveTabId(tab)))
                     return "DASH_TOGGLE_FAILED";
                 return "DASH_TOGGLE_SUCCESS";
             }
@@ -997,6 +1007,10 @@ Item {
             return JSON.stringify(SettingsData?.[key]);
         }
 
+        function dump(): string {
+            return SettingsData.getCurrentSettingsJson();
+        }
+
         function set(key: string, value: string): string {
             if (!(key in SettingsData)) {
                 log.warn("Cannot set property, not found:", key);
@@ -1487,6 +1501,30 @@ Item {
         function toggle(): string {
             PopoutService.toggleSpotlightBar();
             return "SPOTLIGHT_BAR_TOGGLE_SUCCESS";
+        }
+
+        function openWith(mode: string): string {
+            if (!mode)
+                return "SPOTLIGHT_BAR_OPEN_FAILED: No mode specified";
+            PopoutService.openSpotlightBarWithMode(mode);
+            return `SPOTLIGHT_BAR_OPEN_SUCCESS: ${mode}`;
+        }
+
+        function toggleWith(mode: string): string {
+            if (!mode)
+                return "SPOTLIGHT_BAR_TOGGLE_FAILED: No mode specified";
+            PopoutService.toggleSpotlightBarWithMode(mode);
+            return `SPOTLIGHT_BAR_TOGGLE_SUCCESS: ${mode}`;
+        }
+
+        function openQuery(query: string): string {
+            PopoutService.openSpotlightBarWithQuery(query);
+            return "SPOTLIGHT_BAR_OPEN_QUERY_SUCCESS";
+        }
+
+        function toggleQuery(query: string): string {
+            PopoutService.toggleSpotlightBarWithQuery(query);
+            return "SPOTLIGHT_BAR_TOGGLE_QUERY_SUCCESS";
         }
 
         target: "spotlight-bar"

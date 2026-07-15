@@ -214,7 +214,7 @@ Singleton {
 
     property bool _dankDashWantsOpen: false
     property bool _dankDashWantsToggle: false
-    property int _dankDashPendingTab: 0
+    property var _dankDashPendingTab: 0
     property real _dankDashPendingX: 0
     property real _dankDashPendingY: 0
     property real _dankDashPendingWidth: 0
@@ -231,12 +231,21 @@ Singleton {
         _dankDashHasPosition = hasPos;
     }
 
-    function openDankDash(tabIndex, x, y, width, section, screen) {
-        _dankDashPendingTab = tabIndex || 0;
+    // `tab` is a view id ("weather"); a numeric index into the visible tabs is
+    // still accepted for plugin compatibility.
+    function _dankDashTabId(tab) {
+        if (typeof tab === "string" && tab !== "")
+            return tab;
+        const ids = SettingsData.visibleDashTabIds();
+        return ids[typeof tab === "number" ? tab : 0] ?? "overview";
+    }
+
+    function openDankDash(tab, x, y, width, section, screen) {
+        _dankDashPendingTab = tab || 0;
         if (dankDashPopout) {
             if (arguments.length >= 6)
                 setPosition(dankDashPopout, x, y, width, section, screen);
-            dankDashPopout.currentTabIndex = _dankDashPendingTab;
+            dankDashPopout.requestTab(_dankDashTabId(_dankDashPendingTab));
             dankDashPopout.dashVisible = true;
             return;
         }
@@ -259,15 +268,15 @@ Singleton {
         // bindings while Qt is still unwinding the signal stack.
     }
 
-    function toggleDankDash(tabIndex, x, y, width, section, screen) {
-        _dankDashPendingTab = tabIndex || 0;
+    function toggleDankDash(tab, x, y, width, section, screen) {
+        _dankDashPendingTab = tab || 0;
         if (dankDashPopout) {
             if (arguments.length >= 6)
                 setPosition(dankDashPopout, x, y, width, section, screen);
             if (dankDashPopout.dashVisible) {
                 dankDashPopout.dashVisible = false;
             } else {
-                dankDashPopout.currentTabIndex = _dankDashPendingTab;
+                dankDashPopout.requestTab(_dankDashTabId(_dankDashPendingTab));
                 dankDashPopout.dashVisible = true;
             }
             return;
@@ -289,7 +298,7 @@ Singleton {
 
         if (_dankDashWantsOpen) {
             _dankDashWantsOpen = false;
-            dankDashPopout.currentTabIndex = _dankDashPendingTab;
+            dankDashPopout.requestTab(_dankDashTabId(_dankDashPendingTab));
             dankDashPopout.dashVisible = true;
             return;
         }
@@ -298,7 +307,7 @@ Singleton {
             if (dankDashPopout.dashVisible) {
                 dankDashPopout.dashVisible = false;
             } else {
-                dankDashPopout.currentTabIndex = _dankDashPendingTab;
+                dankDashPopout.requestTab(_dankDashTabId(_dankDashPendingTab));
                 dankDashPopout.dashVisible = true;
             }
         }
@@ -671,11 +680,35 @@ Singleton {
 
     property bool _spotlightBarWantsOpen: false
     property bool _spotlightBarWantsToggle: false
+    property string _spotlightBarPendingQuery: ""
+    property string _spotlightBarPendingMode: ""
 
     function openSpotlightBar() {
         if (spotlightBarModal) {
             spotlightBarModal.show();
         } else if (spotlightBarModalLoader) {
+            _spotlightBarWantsOpen = true;
+            _spotlightBarWantsToggle = false;
+            spotlightBarModalLoader.active = true;
+        }
+    }
+
+    function openSpotlightBarWithQuery(query: string) {
+        if (spotlightBarModal) {
+            spotlightBarModal.showWithQuery(query);
+        } else if (spotlightBarModalLoader) {
+            _spotlightBarPendingQuery = query;
+            _spotlightBarWantsOpen = true;
+            _spotlightBarWantsToggle = false;
+            spotlightBarModalLoader.active = true;
+        }
+    }
+
+    function openSpotlightBarWithMode(mode: string) {
+        if (spotlightBarModal) {
+            spotlightBarModal.showWithMode(mode);
+        } else if (spotlightBarModalLoader) {
+            _spotlightBarPendingMode = mode;
             _spotlightBarWantsOpen = true;
             _spotlightBarWantsToggle = false;
             spotlightBarModalLoader.active = true;
@@ -696,15 +729,50 @@ Singleton {
         }
     }
 
+    function toggleSpotlightBarWithMode(mode: string) {
+        if (spotlightBarModal) {
+            spotlightBarModal.toggleWithMode(mode);
+        } else if (spotlightBarModalLoader) {
+            _spotlightBarPendingMode = mode;
+            _spotlightBarWantsToggle = true;
+            _spotlightBarWantsOpen = false;
+            spotlightBarModalLoader.active = true;
+        }
+    }
+
+    function toggleSpotlightBarWithQuery(query: string) {
+        if (spotlightBarModal) {
+            spotlightBarModal.toggleWithQuery(query);
+        } else if (spotlightBarModalLoader) {
+            _spotlightBarPendingQuery = query;
+            _spotlightBarWantsOpen = true;
+            _spotlightBarWantsToggle = false;
+            spotlightBarModalLoader.active = true;
+        }
+    }
+
     function _onSpotlightBarModalLoaded() {
         if (_spotlightBarWantsOpen) {
             _spotlightBarWantsOpen = false;
-            spotlightBarModal?.show();
+            if (_spotlightBarPendingQuery) {
+                spotlightBarModal?.showWithQuery(_spotlightBarPendingQuery);
+                _spotlightBarPendingQuery = "";
+            } else if (_spotlightBarPendingMode) {
+                spotlightBarModal?.showWithMode(_spotlightBarPendingMode);
+                _spotlightBarPendingMode = "";
+            } else {
+                spotlightBarModal?.show();
+            }
             return;
         }
         if (_spotlightBarWantsToggle) {
             _spotlightBarWantsToggle = false;
-            spotlightBarModal?.toggle();
+            if (_spotlightBarPendingMode) {
+                spotlightBarModal?.toggleWithMode(_spotlightBarPendingMode);
+                _spotlightBarPendingMode = "";
+            } else {
+                spotlightBarModal?.toggle();
+            }
         }
     }
 
