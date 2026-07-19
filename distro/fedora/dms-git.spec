@@ -3,7 +3,7 @@
 %global debug_package %{nil}
 %global version {{{ git_repo_version }}}
 %global pkg_summary DankMaterialShell - Material 3 inspired shell for Wayland compositors
-%global go_toolchain_version 1.26.1
+%global go_toolchain_version 1.26.4
 
 Name:           dms
 Epoch:          2
@@ -17,6 +17,8 @@ VCS:            {{{ git_repo_vcs }}}
 Source0:        {{{ git_repo_pack }}}
 Source1:        https://go.dev/dl/go%{go_toolchain_version}.linux-amd64.tar.gz
 Source2:        https://go.dev/dl/go%{go_toolchain_version}.linux-arm64.tar.gz
+# git_repo_pack archives skip submodule content, so pack dank-qml-common separately
+Source3:        {{{ git_pack path=$GIT_ROOT/dank-qml-common dir_name=dank-qml-common source_name=dank-qml-common.tar.gz }}}
 
 BuildRequires:  git-core
 BuildRequires:  gzip
@@ -61,6 +63,9 @@ Provides native DBus bindings, NetworkManager integration, and system utilities.
 
 %prep
 {{{ git_repo_setup_macro }}}
+rm -rf dank-qml-common
+tar -xzf %{SOURCE3}
+test -e quickshell/DankCommon/Widgets/DankIcon.qml || { echo "DankCommon missing after submodule unpack"; exit 1; }
 
 %build
 # Build DMS CLI from source (core/subdirectory)
@@ -125,16 +130,6 @@ install -Dm644 assets/com.danklinux.dms.desktop %{buildroot}%{_datadir}/applicat
 install -Dm644 assets/com.danklinux.dms.notepad.desktop %{buildroot}%{_datadir}/applications/com.danklinux.dms.notepad.desktop
 install -Dm644 assets/danklogo.svg %{buildroot}%{_datadir}/icons/hicolor/scalable/apps/danklogo.svg
 
-# Install shell files to shared data location
-install -dm755 %{buildroot}%{_datadir}/quickshell/dms
-cp -r quickshell/* %{buildroot}%{_datadir}/quickshell/dms/
-
-# Remove build files
-rm -rf %{buildroot}%{_datadir}/quickshell/dms/.git*
-rm -f %{buildroot}%{_datadir}/quickshell/dms/.gitignore
-rm -rf %{buildroot}%{_datadir}/quickshell/dms/.github
-rm -rf %{buildroot}%{_datadir}/quickshell/dms/distro
-
 %posttrans
 # Signal running DMS instances to reload
 pkill -USR1 -x dms >/dev/null 2>&1 || :
@@ -143,7 +138,6 @@ pkill -USR1 -x dms >/dev/null 2>&1 || :
 %license LICENSE
 %doc CONTRIBUTING.md
 %doc quickshell/README.md
-%{_datadir}/quickshell/dms/
 %{_userunitdir}/dms.service
 %{_datadir}/applications/dms-open.desktop
 %{_datadir}/applications/com.danklinux.dms.desktop

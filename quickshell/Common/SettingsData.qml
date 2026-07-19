@@ -240,6 +240,8 @@ Singleton {
     onBlurForegroundLayersChanged: saveSettings()
     property real blurLayerOutlineOpacity: 0.12
     onBlurLayerOutlineOpacityChanged: saveSettings()
+    property bool blurBorderEnabled: true
+    onBlurBorderEnabledChanged: saveSettings()
     property string blurBorderColor: "outline"
     onBlurBorderColorChanged: saveSettings()
     property string blurBorderCustomColor: "#ffffff"
@@ -760,6 +762,7 @@ Singleton {
     property int batteryLowNotificationType: 0
     property int batteryCriticalNotificationType: 1
     property bool batteryAutoPowerSaver: false
+    property bool lowerDisplayRefreshRateOnBattery: false
     property bool showBatteryPercent: true
     property bool showBatteryPercentOnlyOnBattery: false
     property bool showBatteryTime: false
@@ -861,6 +864,7 @@ Singleton {
     property bool notificationOverlayEnabled: false
     property bool notificationPopupShadowEnabled: true
     property bool notificationPopupPrivacyMode: false
+    property bool notificationForegroundLayers: true
     property int overviewRows: 2
     property int overviewColumns: 5
     property real overviewScale: 0.16
@@ -900,6 +904,8 @@ Singleton {
     property string lockPamPath: ""
     property bool lockPamInlineFprint: false
     property bool lockPamInlineU2f: false
+    property bool lockPamExternallyManaged: false
+    property string lockU2fPamPath: ""
     property bool greeterPamExternallyManaged: false
     property string lockScreenInactiveColor: "#000000"
     property int lockScreenNotificationMode: 0
@@ -971,6 +977,8 @@ Singleton {
     property var hyprlandOutputSettings: ({})
     property var displayProfiles: ({})
     property var activeDisplayProfile: ({})
+    property var activeDisplayProfileModes: ({})
+    property var displayPreviousRefreshModes: ({})
     property bool displayProfileAutoSelect: false
     property bool displayShowDisconnected: false
     property bool displaySnapToEdge: true
@@ -1793,7 +1801,7 @@ Singleton {
             _parseError = true;
             const msg = e.message;
             log.error("Failed to parse settings.json - file will not be overwritten. Error:", msg);
-            Qt.callLater(() => ToastService.showError(I18n.tr("Failed to parse settings.json"), msg));
+            Qt.callLater(() => ToastService.showError(I18n.tr("Failed to parse %1").arg("settings.json"), msg));
             applyStoredTheme();
         } finally {
             _loading = false;
@@ -1891,7 +1899,7 @@ Singleton {
             _pluginParseError = true;
             const msg = e.message;
             log.error("Failed to parse plugin_settings.json - file will not be overwritten. Error:", msg);
-            Qt.callLater(() => ToastService.showError(I18n.tr("Failed to parse plugin_settings.json"), msg));
+            Qt.callLater(() => ToastService.showError(I18n.tr("Failed to parse %1").arg("plugin_settings.json"), msg));
             pluginSettings = {};
         } finally {
             _pluginSettingsLoading = false;
@@ -3558,6 +3566,27 @@ Singleton {
         saveSettings();
     }
 
+    function setActiveDisplayProfileModes(compositor, modes) {
+        if (JSON.stringify(activeDisplayProfileModes[compositor] || {}) === JSON.stringify(modes || {}))
+            return;
+        const updated = JSON.parse(JSON.stringify(activeDisplayProfileModes));
+        updated[compositor] = modes;
+        activeDisplayProfileModes = updated;
+        saveSettings();
+    }
+
+    function setDisplayPreviousRefreshModes(compositor, modes) {
+        if (JSON.stringify(displayPreviousRefreshModes[compositor] || {}) === JSON.stringify(modes || {}))
+            return;
+        const updated = JSON.parse(JSON.stringify(displayPreviousRefreshModes));
+        if (Object.keys(modes || {}).length > 0)
+            updated[compositor] = modes;
+        else
+            delete updated[compositor];
+        displayPreviousRefreshModes = updated;
+        saveSettings();
+    }
+
     ListModel {
         id: leftWidgetsModel
     }
@@ -3653,7 +3682,7 @@ Singleton {
                 _parseError = true;
                 const msg = e.message;
                 log.error("Failed to reload settings.json - file will not be overwritten. Error:", msg);
-                Qt.callLater(() => ToastService.showError(I18n.tr("Failed to parse settings.json"), msg));
+                Qt.callLater(() => ToastService.showError(I18n.tr("Failed to parse %1").arg("settings.json"), msg));
             } finally {
                 _loading = false;
             }

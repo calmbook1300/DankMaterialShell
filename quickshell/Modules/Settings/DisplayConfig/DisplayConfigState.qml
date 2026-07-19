@@ -264,6 +264,24 @@ Singleton {
             callback(true);
     }
 
+    function publishActiveProfileModes() {
+        const compositor = CompositorService.compositor;
+        const profileId = SettingsData.getActiveDisplayProfile(compositor);
+        const profile = profileId ? validatedProfiles[profileId] : null;
+        const outputs = profile?.outputs || {};
+        const modes = {};
+
+        for (const outputId in outputs) {
+            const mode = outputs[outputId]?.mode;
+            if (mode)
+                modes[outputId] = {
+                    "mode": mode
+                };
+        }
+
+        SettingsData.setActiveDisplayProfileModes(compositor, modes);
+    }
+
     function generateProfileId() {
         return "profile_" + Date.now() + "_" + Math.random().toString(36).slice(2, 9);
     }
@@ -362,6 +380,7 @@ Singleton {
                 };
                 validatedProfiles = updated;
                 matchedProfile = findMatchingProfile();
+                publishActiveProfileModes();
                 profileSaved(profileId, profileName);
             });
         });
@@ -543,6 +562,7 @@ Singleton {
         };
         const onWriteSuccess = () => {
             SettingsData.setActiveDisplayProfile(CompositorService.compositor, configId);
+            publishActiveProfileModes();
             if (isManual) {
                 profilesLoading = false;
                 profileActivated(configId, profileName);
@@ -586,6 +606,7 @@ Singleton {
                 writeMonitorsJson(data, null);
             validatedProfiles = validated;
             matchedProfile = findMatchingProfile();
+            publishActiveProfileModes();
             if (!profilesReady) {
                 profilesReady = true;
                 applyAutoConfig();
@@ -633,6 +654,7 @@ Singleton {
                 currentOutputSet = buildCurrentOutputSet();
                 matchedProfile = findMatchingProfile();
                 SettingsData.setActiveDisplayProfile(CompositorService.compositor, id);
+                publishActiveProfileModes();
                 profileSaved(id, profileName);
             });
         });
@@ -678,6 +700,7 @@ Singleton {
                 delete updated[profileId];
                 validatedProfiles = updated;
                 matchedProfile = findMatchingProfile();
+                publishActiveProfileModes();
                 profileDeleted(profileId);
             });
         });
@@ -890,6 +913,14 @@ Singleton {
         target: CompositorService
         function onCompositorChanged() {
             root.checkIncludeStatus();
+            root.publishActiveProfileModes();
+        }
+    }
+
+    Connections {
+        target: SettingsData
+        function onActiveDisplayProfileChanged() {
+            root.publishActiveProfileModes();
         }
     }
 
@@ -1518,7 +1549,7 @@ Singleton {
     }
 
     function showHyprlandReadOnlyWarning() {
-        ToastService.showWarning(I18n.tr("Hyprland conf mode"), I18n.tr("This install is still using hyprland.conf. Run dms setup to migrate before editing display settings."), "dms setup", "display-config");
+        ToastService.showWarning(I18n.tr("Hyprland conf mode"), I18n.tr("This install is still using hyprland.conf. Run dms setup to migrate before changing these settings."), "dms setup", "display-config");
     }
 
     function buildOutputsMap() {
@@ -2251,7 +2282,16 @@ Singleton {
                 "name": match.entry.name || "",
                 "outputs": outputConfigs
             };
-            writeMonitorsJson(data, null);
+            writeMonitorsJson(data, success => {
+                if (!success || !profileId)
+                    return;
+                const updated = JSON.parse(JSON.stringify(validatedProfiles));
+                if (updated[profileId]) {
+                    updated[profileId].outputs = outputConfigs;
+                    validatedProfiles = updated;
+                    publishActiveProfileModes();
+                }
+            });
         });
 
         clearPendingChanges();
@@ -2639,7 +2679,7 @@ Singleton {
     function getTransformLabel(transform) {
         switch (transform) {
         case "Normal":
-            return I18n.tr("Normal");
+            return I18n.tr("Normal", "display rotation option", true);
         case "90":
             return I18n.tr("90°");
         case "180":
@@ -2655,12 +2695,12 @@ Singleton {
         case "Flipped270":
             return I18n.tr("Flipped 270°");
         default:
-            return I18n.tr("Normal");
+            return I18n.tr("Normal", "display rotation option", true);
         }
     }
 
     function getTransformValue(label) {
-        if (label === I18n.tr("Normal"))
+        if (label === I18n.tr("Normal", "display rotation option", true))
             return "Normal";
         if (label === I18n.tr("90°"))
             return "90";

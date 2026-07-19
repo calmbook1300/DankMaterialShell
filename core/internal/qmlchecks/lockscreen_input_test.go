@@ -23,3 +23,25 @@ func TestLockScreenPasswordFieldBypassesTextInputIME(t *testing.T) {
 		t.Fatalf("passwordField should handle physical key text manually instead of relying on a text input control")
 	}
 }
+
+func TestLockScreenPamSupportsManagedAndSystemPolicies(t *testing.T) {
+	data, err := os.ReadFile("../../../quickshell/Modules/Lock/Pam.qml")
+	if err != nil {
+		t.Fatalf("read lock screen PAM QML: %v", err)
+	}
+
+	content := string(data)
+	for _, required := range []string{
+		"SettingsData.lockPamExternallyManaged",
+		"SettingsData.lockU2fPamPath",
+		"customU2fPamActive",
+		"u2fSuppressedByPrimaryPam",
+	} {
+		if !strings.Contains(content, required) {
+			t.Fatalf("lock screen PAM must contain %q", required)
+		}
+	}
+	if strings.Contains(content, "runningFromNixStore || resolveUserPam.running") {
+		t.Fatalf("DMS-managed policy must generate the sanitized user PAM stack on Nix-store installs")
+	}
+}

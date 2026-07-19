@@ -12,35 +12,9 @@ BasePill {
     readonly property bool playerAvailable: activePlayer !== null
     readonly property bool _hoverPreview: MprisController.isFirefoxYoutubeHoverPreview(activePlayer)
     readonly property bool _isPlaying: !!activePlayer && activePlayer.playbackState === 1 && !_hoverPreview
-
-    property string _stableTitle: ""
-    property string _stableArtist: ""
-
-    Connections {
-        target: root.activePlayer
-        function onTrackTitleChanged() {
-            root._syncMeta();
-        }
-        function onTrackArtistChanged() {
-            root._syncMeta();
-        }
-    }
-
-    onActivePlayerChanged: _syncMeta()
+    
     visible: !SettingsData.mediaHideWhenIdleEnabled || _isPlaying
-
-    function _syncMeta() {
-        if (!activePlayer) {
-            _stableTitle = "";
-            _stableArtist = "";
-            return;
-        }
-        if (MprisController.isFirefoxYoutubeHoverPreview(activePlayer))
-            return;
-        _stableTitle = activePlayer.trackTitle || "";
-        _stableArtist = activePlayer.trackArtist || "";
-    }
-
+    
     readonly property bool __isChromeBrowser: {
         if (!activePlayer?.identity)
             return false;
@@ -303,10 +277,10 @@ BasePill {
                         readonly property bool isWebMedia: lowerIdentity.includes("firefox") || lowerIdentity.includes("chrome") || lowerIdentity.includes("chromium") || lowerIdentity.includes("edge") || lowerIdentity.includes("safari")
 
                         property string displayText: {
-                            if (!activePlayer || !root._stableTitle)
+                            if (!activePlayer || !MprisController.stableTitle)
                                 return "";
-                            const title = isWebMedia ? root._stableTitle : (root._stableTitle || "Unknown Track");
-                            const subtitle = isWebMedia ? (root._stableArtist || cachedIdentity) : (root._stableArtist || "");
+                            const title = MprisController.stableTitle;
+                            const subtitle = isWebMedia ? (MprisController.stableArtist || cachedIdentity) : MprisController.stableArtist;
                             return subtitle.length > 0 ? title + " • " + subtitle : title;
                         }
 
@@ -337,8 +311,44 @@ BasePill {
                                 id: mediaText
                                 readonly property bool onScreen: Window.window?.visible ?? false
                                 property bool needsScrolling: implicitWidth > textContainer.width && SettingsData.scrollTitleEnabled
+                                readonly property bool scrollActive: needsScrolling && textContainer.visible && onScreen && root._isPlaying
+                                readonly property real maxScrollOffset: Math.max(0, implicitWidth - textContainer.width + 5)
                                 property real scrollOffset: 0
+                                property int scrollDirection: 1
+                                property real scrollHoldMs: 2000
                                 property real textShift: 0
+
+                                function resetScroll() {
+                                    scrollOffset = 0;
+                                    scrollDirection = 1;
+                                    scrollHoldMs = 2000;
+                                }
+
+                                function stepScroll(deltaMs) {
+                                    if (scrollHoldMs > 0) {
+                                        scrollHoldMs -= deltaMs;
+                                        return;
+                                    }
+                                    const next = scrollOffset + scrollDirection * deltaMs / 60;
+                                    if (next >= maxScrollOffset) {
+                                        scrollOffset = maxScrollOffset;
+                                        scrollDirection = -1;
+                                        scrollHoldMs = 2000;
+                                        return;
+                                    }
+                                    if (next <= 0) {
+                                        scrollOffset = 0;
+                                        scrollDirection = 1;
+                                        scrollHoldMs = 2000;
+                                        return;
+                                    }
+                                    scrollOffset = next;
+                                }
+
+                                onScrollActiveChanged: {
+                                    if (!scrollActive)
+                                        resetScroll();
+                                }
 
                                 anchors.verticalCenter: parent.verticalCenter
                                 text: textContainer.displayText
@@ -349,52 +359,38 @@ BasePill {
                                 opacity: 1
 
                                 onTextChanged: {
-                                    scrollOffset = 0;
+                                    resetScroll();
                                     textShift = 0;
-                                    scrollTimer.reset();
                                     textChangeAnimation.restart();
                                 }
 
-                                // Timer stepping, not NumberAnimation — a running animation commits frames every vsync (#2863)
+                                // Timer stepping, not NumberAnimation — a running animation commits frames every vsync (#2863).
+                                // When cava frames are already driving renders, scroll steps ride those ticks instead —
+                                // two unsynchronized tick sources nearly double the surface commit rate (#2863).
                                 Timer {
                                     id: scrollTimer
-                                    readonly property real maxOffset: Math.max(0, mediaText.implicitWidth - textContainer.width + 5)
-                                    property int direction: 1
-                                    property int holdTicks: 33
 
                                     interval: 60
                                     repeat: true
-                                    running: mediaText.needsScrolling && textContainer.visible && mediaText.onScreen && root._isPlaying
-
-                                    function reset() {
-                                        mediaText.scrollOffset = 0;
-                                        direction = 1;
-                                        holdTicks = 33;
-                                    }
-
-                                    onRunningChanged: {
-                                        if (!running)
-                                            reset();
-                                    }
+                                    running: mediaText.scrollActive
                                     onTriggered: {
-                                        if (holdTicks > 0) {
-                                            holdTicks--;
+                                        if (cavaTickWatch.running)
                                             return;
-                                        }
-                                        const next = mediaText.scrollOffset + direction;
-                                        if (next >= maxOffset) {
-                                            mediaText.scrollOffset = maxOffset;
-                                            direction = -1;
-                                            holdTicks = 33;
-                                            return;
-                                        }
-                                        if (next <= 0) {
-                                            mediaText.scrollOffset = 0;
-                                            direction = 1;
-                                            holdTicks = 33;
-                                            return;
-                                        }
-                                        mediaText.scrollOffset = next;
+                                        mediaText.stepScroll(60);
+                                    }
+                                }
+
+                                Timer {
+                                    id: cavaTickWatch
+                                    interval: 150
+                                }
+
+                                Connections {
+                                    target: CavaService
+                                    enabled: mediaText.scrollActive && SettingsData.audioVisualizerEnabled && CavaService.cavaAvailable
+                                    function onValuesChanged() {
+                                        cavaTickWatch.restart();
+                                        mediaText.stepScroll(40);
                                     }
                                 }
 

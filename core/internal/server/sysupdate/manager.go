@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/AvengeMedia/DankMaterialShell/core/internal/log"
-	"github.com/AvengeMedia/DankMaterialShell/core/pkg/syncmap"
+	"github.com/AvengeMedia/dankgo/syncmap"
 )
 
 const (
@@ -336,7 +336,7 @@ func (m *Manager) runUpgrade(ctx context.Context, opts UpgradeOptions) {
 	}()
 
 	if opts.CustomCommand != "" {
-		m.runCustomUpgrade(ctx, opts.CustomCommand, opts.Terminal)
+		m.runCustomUpgrade(ctx, opts)
 		return
 	}
 
@@ -344,6 +344,9 @@ func (m *Manager) runUpgrade(ctx context.Context, opts UpgradeOptions) {
 		m.mu.RLock()
 		opts.Targets = append([]Package(nil), m.state.Packages...)
 		m.mu.RUnlock()
+	}
+	if isPacmanFamily(m.selection.System) {
+		opts.Ignored = dropPacmanRepoIgnores(opts.Ignored, opts.Targets)
 	}
 	opts.Targets = dropIgnoredTargets(opts.Targets, opts.Ignored)
 
@@ -389,8 +392,8 @@ func (m *Manager) runUpgrade(ctx context.Context, opts UpgradeOptions) {
 	m.finishSuccessfulUpgrade(true)
 }
 
-func (m *Manager) runCustomUpgrade(ctx context.Context, command, terminalOverride string) {
-	term := findTerminal(terminalOverride)
+func (m *Manager) runCustomUpgrade(ctx context.Context, opts UpgradeOptions) {
+	term := findTerminal(opts.Terminal)
 	if term == "" {
 		m.setError(ErrCodeBackendFailed, "no terminal found (pick one in DMS settings, set $TERMINAL, or install kitty/ghostty/foot/alacritty)")
 		return
@@ -407,7 +410,7 @@ func (m *Manager) runCustomUpgrade(ctx context.Context, command, terminalOverrid
 	m.markDirty()
 
 	onLine := func(line string) { m.appendLog(line) }
-	argv := wrapInTerminal(term, "DMS — System Update (custom)", command)
+	argv := wrapInTerminal(term, "DMS — System Update (custom)", opts.CustomCommand, opts.TerminalArgs)
 	if err := Run(ctx, argv, RunOptions{OnLine: onLine}); err != nil {
 		code := ErrCodeBackendFailed
 		switch {
@@ -425,6 +428,7 @@ func (m *Manager) runCustomUpgrade(ctx context.Context, command, terminalOverrid
 	}
 
 	m.finishSuccessfulUpgrade(false)
+	m.runRefresh(context.Background(), false)
 }
 
 func (m *Manager) finishSuccessfulUpgrade(clearPackages bool) {

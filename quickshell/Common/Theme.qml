@@ -6,6 +6,7 @@ import QtQuick
 import Quickshell
 import Quickshell.Io
 import qs.Common
+import qs.DankCommon.Common as DankCommon
 import qs.Services
 import qs.Modules.Greetd
 import "StockThemes.js" as StockThemes
@@ -580,11 +581,15 @@ Singleton {
     readonly property bool foregroundLayers: typeof SettingsData === "undefined" || (SettingsData.blurForegroundLayers ?? true)
     readonly property bool blurForegroundLayers: BlurService.enabled && foregroundLayers
     readonly property bool transparentBlurLayers: BlurService.enabled && !foregroundLayers
+    readonly property bool notificationForegroundLayers: typeof SettingsData === "undefined" || (SettingsData.notificationForegroundLayers ?? true)
     readonly property color readableSurface: withAlpha(surfaceContainer, popupTransparency)
     readonly property color readableSurfaceHigh: withAlpha(surfaceContainerHigh, popupTransparency)
     readonly property color floatingSurface: foregroundLayers ? readableSurface : withAlpha(readableSurface, 0)
     readonly property color floatingSurfaceHigh: foregroundLayers ? readableSurfaceHigh : withAlpha(readableSurfaceHigh, 0)
     readonly property color nestedSurface: floatingSurfaceHigh
+    readonly property color notificationFloatingSurface: notificationForegroundLayers ? readableSurface : withAlpha(readableSurface, 0)
+    readonly property color notificationFloatingSurfaceHigh: notificationForegroundLayers ? readableSurfaceHigh : withAlpha(readableSurfaceHigh, 0)
+    readonly property color notificationNestedSurface: notificationFloatingSurfaceHigh
     readonly property real blurLayerOutlineOpacity: Math.max(0, Math.min(1, typeof SettingsData === "undefined" ? 0.12 : (SettingsData.blurLayerOutlineOpacity ?? 0.12)))
     readonly property real layerOutlineOpacity: blurLayerOutlineOpacity
     readonly property int layerOutlineWidth: layerOutlineOpacity > 0 ? 1 : 0
@@ -1226,16 +1231,28 @@ Singleton {
 
     property string fontFamily: {
         if (typeof SessionData !== "undefined" && SessionData.isGreeterMode && typeof GreetdSettings !== "undefined") {
-            return GreetdSettings.getEffectiveFontFamily();
+            return resolvedFontFamily(GreetdSettings.getEffectiveFontFamily());
         }
-        return typeof SettingsData !== "undefined" ? SettingsData.fontFamily : "Inter Variable";
+        return typeof SettingsData !== "undefined" ? resolvedFontFamily(SettingsData.fontFamily) : DankCommon.Fonts.sans;
     }
 
     property string monoFontFamily: {
         if (typeof SessionData !== "undefined" && SessionData.isGreeterMode && typeof GreetdSettings !== "undefined") {
-            return GreetdSettings.monoFontFamily;
+            return resolvedMonoFontFamily(GreetdSettings.monoFontFamily);
         }
-        return typeof SettingsData !== "undefined" ? SettingsData.monoFontFamily : "Fira Code";
+        return typeof SettingsData !== "undefined" ? resolvedMonoFontFamily(SettingsData.monoFontFamily) : DankCommon.Fonts.mono;
+    }
+
+    function resolvedFontFamily(family) {
+        if (family === defaultFontFamily)
+            return DankCommon.Fonts.sans;
+        return family;
+    }
+
+    function resolvedMonoFontFamily(family) {
+        if (family === defaultMonoFontFamily)
+            return DankCommon.Fonts.mono;
+        return family;
     }
 
     property int fontWeight: {
@@ -1956,7 +1973,7 @@ Singleton {
     function applyGtkColors() {
         if (!matugenAvailable) {
             if (typeof ToastService !== "undefined") {
-                ToastService.showError(I18n.tr("matugen not available or disabled - cannot apply GTK colors"));
+                ToastService.showError(I18n.tr("matugen not available or disabled - cannot apply %1 colors").arg("GTK"));
             }
             return;
         }
@@ -1969,7 +1986,7 @@ Singleton {
                 }
             } else {
                 if (typeof ToastService !== "undefined") {
-                    ToastService.showError(I18n.tr("Failed to apply GTK colors"));
+                    ToastService.showError(I18n.tr("Failed to apply %1 colors").arg("GTK"));
                 }
             }
         });
@@ -1978,7 +1995,7 @@ Singleton {
     function applyQtColors() {
         if (!matugenAvailable) {
             if (typeof ToastService !== "undefined") {
-                ToastService.showError(I18n.tr("matugen not available or disabled - cannot apply Qt colors"));
+                ToastService.showError(I18n.tr("matugen not available or disabled - cannot apply %1 colors").arg("Qt"));
             }
             return;
         }
@@ -1990,7 +2007,7 @@ Singleton {
                 }
             } else {
                 if (typeof ToastService !== "undefined") {
-                    ToastService.showError(I18n.tr("Failed to apply Qt colors"));
+                    ToastService.showError(I18n.tr("Failed to apply %1 colors").arg("Qt"));
                 }
             }
         });

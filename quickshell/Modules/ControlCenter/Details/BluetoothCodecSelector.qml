@@ -18,6 +18,8 @@ Item {
     property string statusMessage: ""
     property bool statusIsError: false
 
+    readonly property var mediaCodecs: availableCodecs.filter(c => (c.category || "media") !== "call")
+    readonly property var callCodecs: availableCodecs.filter(c => c.category === "call")
     readonly property bool deviceValid: device !== null && device.connected && BluetoothService.isAudioDevice(device)
 
     signal codecSelected(string deviceAddress, string codecName)
@@ -64,8 +66,8 @@ Item {
             availableCodecs = codecs;
             currentCodec = current;
             isLoading = false;
-            if (BluetoothService.pactlChecked && !BluetoothService.pactlAvailable) {
-                statusMessage = I18n.tr("Codec switching is unavailable because pactl was not found");
+            if (BluetoothService.wpexecChecked && !BluetoothService.wpexecAvailable && !BluetoothService.dbusBridgeAvailable) {
+                statusMessage = I18n.tr("Codec switching is unavailable because WirePlumber was not found");
                 statusIsError = true;
             } else if (codecs.length === 0) {
                 statusMessage = I18n.tr("No codecs found");
@@ -98,12 +100,14 @@ Item {
 
             isLoading = false;
             if (success) {
+                BluetoothService.updateDeviceCodec(capturedAddress, selectedCodec.name);
+                codecSelected(capturedAddress, selectedCodec.name);
                 ToastService.showToast(message, ToastService.levelInfo);
                 Qt.callLater(root.hide);
                 return;
             }
             ToastService.showToast(message, ToastService.levelError);
-        });
+        }, selectedCodec.name);
     }
 
     onDeviceValidChanged: {
@@ -254,85 +258,117 @@ Item {
                 spacing: Theme.spacingXS
                 visible: !isLoading && availableCodecs.length > 0
 
+                StyledText {
+                    text: I18n.tr("Media")
+                    font.pixelSize: Theme.fontSizeSmall
+                    font.weight: Font.Medium
+                    color: Theme.surfaceTextMedium
+                    visible: root.mediaCodecs.length > 0 && root.callCodecs.length > 0
+                    width: parent.width
+                }
+
                 Repeater {
-                    model: availableCodecs
+                    model: root.mediaCodecs
+                    delegate: codecRow
+                }
+
+                Item {
+                    width: 1
+                    height: Theme.spacingS
+                    visible: root.mediaCodecs.length > 0 && root.callCodecs.length > 0
+                }
+
+                StyledText {
+                    text: I18n.tr("Calls / Headset")
+                    font.pixelSize: Theme.fontSizeSmall
+                    font.weight: Font.Medium
+                    color: Theme.surfaceTextMedium
+                    visible: root.callCodecs.length > 0
+                    width: parent.width
+                }
+
+                Repeater {
+                    model: root.callCodecs
+                    delegate: codecRow
+                }
+            }
+        }
+
+        Component {
+            id: codecRow
+
+            Rectangle {
+                required property var modelData
+                width: parent ? parent.width : 280
+                height: 48
+                radius: Theme.cornerRadius
+                color: {
+                    if (modelData.name === root.currentCodec)
+                        return Theme.withAlpha(Theme.surfaceContainerHighest, Theme.popupTransparency);
+                    if (codecMouseArea.containsMouse)
+                        return Theme.surfaceHover;
+                    return "transparent";
+                }
+                border.color: "transparent"
+                border.width: 0
+
+                Row {
+                    anchors.left: parent.left
+                    anchors.leftMargin: Theme.spacingM
+                    anchors.verticalCenter: parent.verticalCenter
+                    spacing: Theme.spacingS
 
                     Rectangle {
-                        width: parent.width
-                        height: 48
-                        radius: Theme.cornerRadius
-                        color: {
-                            if (modelData.name === currentCodec)
-                                return Theme.withAlpha(Theme.surfaceContainerHighest, Theme.popupTransparency);
-                            else if (codecMouseArea.containsMouse)
-                                return Theme.surfaceHover;
-                            else
-                                return "transparent";
-                        }
-                        border.color: "transparent"
-                        border.width: 0
+                        width: 6
+                        height: 6
+                        radius: 3
+                        color: modelData.qualityColor
+                        anchors.verticalCenter: parent.verticalCenter
+                    }
 
-                        Row {
-                            anchors.left: parent.left
-                            anchors.leftMargin: Theme.spacingM
-                            anchors.verticalCenter: parent.verticalCenter
-                            spacing: Theme.spacingS
+                    Column {
+                        anchors.verticalCenter: parent.verticalCenter
+                        spacing: Theme.spacingXXS
 
-                            Rectangle {
-                                width: 6
-                                height: 6
-                                radius: 3
-                                color: modelData.qualityColor
-                                anchors.verticalCenter: parent.verticalCenter
-                            }
-
-                            Column {
-                                anchors.verticalCenter: parent.verticalCenter
-                                spacing: Theme.spacingXXS
-
-                                StyledText {
-                                    text: modelData.name
-                                    font.pixelSize: Theme.fontSizeMedium
-                                    color: modelData.name === currentCodec ? Theme.primary : Theme.surfaceText
-                                    font.weight: modelData.name === currentCodec ? Font.Medium : Font.Normal
-                                }
-
-                                StyledText {
-                                    text: modelData.description
-                                    font.pixelSize: Theme.fontSizeSmall
-                                    color: Theme.surfaceTextMedium
-                                }
-                            }
+                        StyledText {
+                            text: modelData.name
+                            font.pixelSize: Theme.fontSizeMedium
+                            color: modelData.name === root.currentCodec ? Theme.primary : Theme.surfaceText
+                            font.weight: modelData.name === root.currentCodec ? Font.Medium : Font.Normal
                         }
 
-                        DankIcon {
-                            name: "check"
-                            size: Theme.iconSize - 4
-                            color: Theme.primary
-                            anchors.right: parent.right
-                            anchors.rightMargin: Theme.spacingM
-                            anchors.verticalCenter: parent.verticalCenter
-                            visible: modelData.name === currentCodec
-                        }
-
-                        DankRipple {
-                            id: codecRipple
-                            cornerRadius: parent.radius
-                        }
-
-                        MouseArea {
-                            id: codecMouseArea
-
-                            anchors.fill: parent
-                            hoverEnabled: true
-                            cursorShape: Qt.PointingHandCursor
-                            enabled: modelData.name !== currentCodec && !isLoading
-                            onPressed: mouse => codecRipple.trigger(mouse.x, mouse.y)
-                            onClicked: {
-                                selectCodec(modelData.profile);
-                            }
+                        StyledText {
+                            text: modelData.description
+                            font.pixelSize: Theme.fontSizeSmall
+                            color: Theme.surfaceTextMedium
                         }
                     }
+                }
+
+                DankIcon {
+                    name: "check"
+                    size: Theme.iconSize - 4
+                    color: Theme.primary
+                    anchors.right: parent.right
+                    anchors.rightMargin: Theme.spacingM
+                    anchors.verticalCenter: parent.verticalCenter
+                    visible: modelData.name === root.currentCodec
+                }
+
+                DankRipple {
+                    id: codecRipple
+                    cornerRadius: parent.radius
+                }
+
+                MouseArea {
+                    id: codecMouseArea
+
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    enabled: modelData.name !== root.currentCodec && !root.isLoading
+                    onPressed: mouse => codecRipple.trigger(mouse.x, mouse.y)
+                    onClicked: root.selectCodec(modelData.profile)
                 }
             }
         }

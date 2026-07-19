@@ -71,7 +71,7 @@ Scope {
     }
 
     function proceedAfterPrimaryAuth(): void {
-        if (SettingsData.enableU2f && SettingsData.u2fMode === "and" && u2f.available) {
+        if (!root.u2fSuppressedByPrimaryPam && SettingsData.enableU2f && SettingsData.u2fMode === "and" && u2f.available) {
             u2f.startForSecondFactor();
         } else {
             completeUnlock();
@@ -91,8 +91,9 @@ Scope {
     }
 
     readonly property bool customPamActive: SettingsData.lockPamPath !== "" && customPamWatcher.loaded
-    readonly property bool fprintSuppressedByCustomPam: customPamActive && SettingsData.lockPamInlineFprint
-    readonly property bool u2fSuppressedByCustomPam: customPamActive && SettingsData.lockPamInlineU2f
+    readonly property bool fprintSuppressedByPrimaryPam: SettingsData.lockPamExternallyManaged || (customPamActive && SettingsData.lockPamInlineFprint)
+    readonly property bool u2fSuppressedByPrimaryPam: SettingsData.lockPamExternallyManaged || (customPamActive && SettingsData.lockPamInlineU2f)
+    readonly property bool customU2fPamActive: SettingsData.lockU2fPamPath !== "" && customU2fPamWatcher.loaded
 
     FileView {
         id: customPamWatcher
@@ -109,16 +110,17 @@ Scope {
     }
 
     FileView {
-        id: nixosMarker
+        id: u2fConfigWatcher
 
-        path: "/etc/NIXOS"
+        path: "/etc/pam.d/dankshell-u2f"
+        watchChanges: true
         printErrors: false
     }
 
     FileView {
-        id: u2fConfigWatcher
+        id: customU2fPamWatcher
 
-        path: "/etc/pam.d/dankshell-u2f"
+        path: SettingsData.lockU2fPamPath !== "" ? SettingsData.lockU2fPamPath : ""
         printErrors: false
     }
 
@@ -145,15 +147,12 @@ Scope {
     }
 
     function ensureUserPamConfig(): void {
-        if (root.runningFromNixStore || resolveUserPam.running)
+        if (SettingsData.lockPamExternallyManaged || resolveUserPam.running)
             return;
         resolveUserPam.running = true;
     }
 
     Component.onCompleted: ensureUserPamConfig()
-
-    // Detects Nix-installed DMS on non-NixOS systems
-    readonly property bool runningFromNixStore: Quickshell.shellDir.startsWith("/nix/store/")
 
     PamContext {
         id: passwd
@@ -161,10 +160,10 @@ Scope {
         config: {
             if (root.customPamActive)
                 return SettingsData.lockPamPath.slice(SettingsData.lockPamPath.lastIndexOf("/") + 1);
+            if (SettingsData.lockPamExternallyManaged)
+                return "login";
             if (dankshellConfigWatcher.loaded)
                 return "dankshell";
-            if (nixosMarker.loaded || root.runningFromNixStore)
-                return "login";
             if (userPamWatcher.loaded)
                 return "dankshell";
             return "login";
@@ -174,9 +173,9 @@ Scope {
                 const idx = SettingsData.lockPamPath.lastIndexOf("/");
                 return idx > 0 ? SettingsData.lockPamPath.slice(0, idx) : "/";
             }
-            if (dankshellConfigWatcher.loaded)
+            if (SettingsData.lockPamExternallyManaged)
                 return "/etc/pam.d";
-            if (nixosMarker.loaded || root.runningFromNixStore)
+            if (dankshellConfigWatcher.loaded)
                 return "/etc/pam.d";
             if (userPamWatcher.loaded)
                 return root.userPamDir;
@@ -265,7 +264,7 @@ Scope {
         property int errorTries
 
         function checkAvail(): void {
-            if (!available || !SettingsData.enableFprint || !root.lockSecured || root.fprintSuppressedByCustomPam) {
+            if (!available || !SettingsData.enableFprint || !root.lockSecured || root.fprintSuppressedByPrimaryPam) {
                 abort();
                 return;
             }
@@ -325,7 +324,7 @@ Scope {
         property bool available: SettingsData.lockU2fReady
 
         function checkAvail(): void {
-            if (!available || !SettingsData.enableU2f || !root.lockSecured || root.u2fSuppressedByCustomPam) {
+            if (!available || !SettingsData.enableU2f || !root.lockSecured || root.u2fSuppressedByPrimaryPam) {
                 abort();
                 return;
             }
@@ -335,7 +334,7 @@ Scope {
         }
 
         function startForSecondFactor(): void {
-            if (!available || !SettingsData.enableU2f || root.u2fSuppressedByCustomPam) {
+            if (!available || !SettingsData.enableU2f || root.u2fSuppressedByPrimaryPam) {
                 root.completeUnlock();
                 return;
             }
@@ -348,7 +347,7 @@ Scope {
         }
 
         function startForAlternativeAuth(): void {
-            if (!available || !SettingsData.enableU2f || root.u2fSuppressedByCustomPam || SettingsData.u2fMode !== "or" || root.unlockInProgress || passwd.active || active)
+            if (!available || !SettingsData.enableU2f || root.u2fSuppressedByPrimaryPam || SettingsData.u2fMode !== "or" || root.unlockInProgress || passwd.active || active)
                 return;
             abort();
             root.u2fPending = true;
@@ -358,8 +357,18 @@ Scope {
             start();
         }
 
-        config: u2fConfigWatcher.loaded ? "dankshell-u2f" : "u2f"
-        configDirectory: u2fConfigWatcher.loaded ? "/etc/pam.d" : Quickshell.shellDir + "/assets/pam"
+        config: {
+            if (root.customU2fPamActive)
+                return SettingsData.lockU2fPamPath.slice(SettingsData.lockU2fPamPath.lastIndexOf("/") + 1);
+            return u2fConfigWatcher.loaded ? "dankshell-u2f" : "u2f";
+        }
+        configDirectory: {
+            if (root.customU2fPamActive) {
+                const idx = SettingsData.lockU2fPamPath.lastIndexOf("/");
+                return idx > 0 ? SettingsData.lockU2fPamPath.slice(0, idx) : "/";
+            }
+            return u2fConfigWatcher.loaded ? "/etc/pam.d" : Quickshell.shellDir + "/assets/pam";
+        }
 
         onMessageChanged: {
             if (message.toLowerCase().includes("touch"))
@@ -478,8 +487,11 @@ Scope {
         root.attemptInfoMessages = [];
         root.lockoutAnnouncedThisAttempt = false;
         root.resetAuthFlows();
-        if (!dankshellConfigWatcher.loaded && !nixosMarker.loaded && !userPamWatcher.loaded)
+        if (!SettingsData.lockPamExternallyManaged && !dankshellConfigWatcher.loaded && !userPamWatcher.loaded)
             ensureUserPamConfig();
+        // FileView cannot watch a path that does not exist yet; re-read so a
+        // dedicated service created after startup is used on the next lock.
+        u2fConfigWatcher.reload();
         fprint.checkAvail();
         u2f.checkAvail();
     }
@@ -513,6 +525,19 @@ Scope {
         }
 
         function onLockPamInlineU2fChanged(): void {
+            u2f.checkAvail();
+        }
+
+        function onLockPamExternallyManagedChanged(): void {
+            root.resetAuthFlows();
+            if (!SettingsData.lockPamExternallyManaged)
+                root.ensureUserPamConfig();
+            fprint.checkAvail();
+            u2f.checkAvail();
+        }
+
+        function onLockU2fPamPathChanged(): void {
+            u2f.abort();
             u2f.checkAvail();
         }
 

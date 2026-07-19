@@ -67,6 +67,7 @@ Singleton {
     property var lockComponent: null
     property bool monitorsOff: false
     property bool isShellLocked: false
+    property bool lockPowerOffRequested: false
 
     function reapplyDpmsIfNeeded() {
         if (monitorsOff)
@@ -79,6 +80,8 @@ Singleton {
         respectInhibitors: root.respectInhibitors
         enabled: false
         onIsIdleChanged: {
+            if (!enabled)
+                return;
             if (isIdle) {
                 if (SettingsData.fadeToDpmsEnabled) {
                     root.fadeToDpmsRequested();
@@ -100,6 +103,8 @@ Singleton {
         respectInhibitors: root.respectInhibitors
         enabled: false
         onIsIdleChanged: {
+            if (!enabled)
+                return;
             if (isIdle) {
                 root.requestMonitorOff();
             } else {
@@ -114,6 +119,8 @@ Singleton {
         respectInhibitors: root.respectInhibitors
         enabled: false
         onIsIdleChanged: {
+            if (!enabled)
+                return;
             if (isIdle) {
                 if (SettingsData.fadeToLockEnabled) {
                     root.fadeToLockRequested();
@@ -134,6 +141,8 @@ Singleton {
         respectInhibitors: root.respectInhibitors
         enabled: false
         onIsIdleChanged: {
+            if (!enabled)
+                return;
             if (isIdle)
                 root.requestSuspend();
         }
@@ -146,8 +155,10 @@ Singleton {
         id: lockWakeMonitor
         timeout: 1
         respectInhibitors: false
-        enabled: root.enabled && root.isShellLocked && root.monitorsOff && SettingsData.lockScreenPowerOffMonitorsOnLock
+        enabled: root.enabled && root.isShellLocked && root.monitorsOff && (SettingsData.lockScreenPowerOffMonitorsOnLock || root.lockPowerOffRequested)
         onIsIdleChanged: {
+            if (!enabled)
+                return;
             if (!isIdle && root.monitorsOff)
                 root.requestMonitorOn();
         }

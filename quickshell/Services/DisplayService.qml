@@ -34,8 +34,73 @@ Singleton {
     property bool brightnessInitialized: false
     property bool suppressOsd: true
 
+    readonly property int batteryRefreshRateTarget: 60000
+    readonly property int batteryRefreshRateTolerance: 1000
+
+    property var _lastAppliedTargets: ({})
+
+    Timer {
+        id: cascadeGuard
+        interval: 3000
+        repeat: false
+        onTriggered: root._lastAppliedTargets = ({})
+    }
+
+    property string _pendingReason: ""
+
+    Timer {
+        id: syncDebounce
+        interval: 300
+        repeat: false
+        onTriggered: root._runSync()
+    }
+
+    Timer {
+        id: startupRefreshRateSync
+        interval: 500
+        repeat: false
+        running: true
+        onTriggered: root.requestSync("startup")
+    }
+
     signal brightnessChanged(bool showOsd)
     signal deviceSwitched
+
+    Connections {
+        target: BatteryService
+        function onIsPluggedInChanged() {
+            root.requestSync("power-change");
+        }
+    }
+
+    Connections {
+        target: SettingsData
+        function onLowerDisplayRefreshRateOnBatteryChanged() {
+            root.requestSync("setting-change");
+        }
+
+        function onActiveDisplayProfileChanged() {
+            root.requestSync("profile-change");
+        }
+
+        function onActiveDisplayProfileModesChanged() {
+            root.requestSync("profile-change");
+        }
+    }
+
+    Connections {
+        target: NiriService
+        function onOutputsChanged() {
+            root.requestSync("output-change");
+        }
+    }
+
+    Connections {
+        target: WlrOutputService
+        function onStateChanged() {
+            root.requestSync("output-change");
+        }
+    }
 
     property bool nightModeActive: nightModeEnabled
 
@@ -55,6 +120,503 @@ Singleton {
     property real gammaSunPosition: gammaState?.sunPosition ?? 0
     property int gammaLowTemp: gammaState?.config?.LowTemp ?? 0
     property int gammaHighTemp: gammaState?.config?.HighTemp ?? 0
+
+    function syncRefreshRates(isPluggedIn, reason) {
+        if (!SettingsData.lowerDisplayRefreshRateOnBattery) {
+            if (reason === "setting-change")
+                applyConfiguredTargets("disabled", reason);
+            return;
+        }
+
+        if (!isPluggedIn) {
+            applyBatteryTargets(reason);
+            return;
+        }
+
+        applyConfiguredTargets("AC", reason);
+    }
+
+    function requestSync(reason) {
+        _pendingReason = reason || _pendingReason;
+        syncDebounce.restart();
+    }
+
+    function _runSync() {
+        syncRefreshRates(BatteryService.isPluggedIn, _pendingReason || "sync");
+        _pendingReason = "";
+    }
+
+    function outputIdentifiers(outputName, output) {
+        const identifiers = [outputName];
+        const make = output?.make || "";
+        const model = output?.model || "";
+        if (make && model) {
+            const serial = output.serial || output.serialNumber || "Unknown";
+            const modelId = make + " " + model;
+            const serialId = modelId + " " + serial;
+            const descId = ("desc:" + [make, model, output.serial || output.serialNumber].filter(p => p).join(" ")).replace(/,/g, "");
+            if (!identifiers.includes(serialId))
+                identifiers.push(serialId);
+            if (!identifiers.includes(modelId))
+                identifiers.push(modelId);
+            if (descId !== "desc:" && !identifiers.includes(descId))
+                identifiers.push(descId);
+        }
+        return identifiers;
+    }
+
+    function previousRefreshModes() {
+        return SettingsData.displayPreviousRefreshModes?.[CompositorService.compositor] || {};
+    }
+
+    function findPreviousRefreshMode(outputName, output) {
+        const modes = previousRefreshModes();
+        for (const identifier of outputIdentifiers(outputName, output)) {
+            const entry = modes[identifier];
+            const mode = typeof entry === "string" ? entry : entry?.mode;
+            if (mode)
+                return mode;
+        }
+        return "";
+    }
+
+    function storePreviousRefreshMode(outputName, output, mode) {
+        const modeString = formatModeString(mode);
+        if (!modeString)
+            return;
+        const modes = JSON.parse(JSON.stringify(previousRefreshModes()));
+        for (const identifier of outputIdentifiers(outputName, output)) {
+            modes[identifier] = {
+                "mode": modeString
+            };
+        }
+        SettingsData.setDisplayPreviousRefreshModes(CompositorService.compositor, modes);
+    }
+
+    function clearPreviousRefreshMode(outputName, output) {
+        const modes = JSON.parse(JSON.stringify(previousRefreshModes()));
+        let changed = false;
+        for (const identifier of outputIdentifiers(outputName, output)) {
+            if (modes[identifier] === undefined)
+                continue;
+            delete modes[identifier];
+            changed = true;
+        }
+        if (changed)
+            SettingsData.setDisplayPreviousRefreshModes(CompositorService.compositor, modes);
+    }
+
+    function applyConfiguredTargets(context, reason) {
+        if (CompositorService.isNiri) {
+            const outputs = NiriService.outputs || {};
+            const applied = [];
+            for (const name in outputs) {
+                const currentMode = getNiriCurrentMode(outputs[name]);
+                const target = computeTargetMode(name, outputs[name], "niri");
+                if (!target || !target.value)
+                    continue;
+                if (isModeAlreadyCurrent(currentMode, target.mode)) {
+                    if (target.source === "previous")
+                        clearPreviousRefreshMode(name, outputs[name]);
+                    continue;
+                }
+                if (root._lastAppliedTargets[name] === target.value)
+                    continue;
+                root._lastAppliedTargets[name] = target.value;
+                cascadeGuard.restart();
+                NiriService.applyOutputConfig(name, {
+                    "mode": target.value
+                }, success => {
+                    if (success && target.source === "previous")
+                        clearPreviousRefreshMode(name, outputs[name]);
+                });
+                applied.push(name + " " + (getModeRefresh(target.mode) / 1000).toFixed(0) + "Hz (" + target.source + ")");
+            }
+            if (applied.length > 0)
+                log.info("Updated display refresh rate: ", applied.join(", "), " (", context, ")");
+            return;
+        }
+
+        if (!WlrOutputService.wlrOutputAvailable)
+            return;
+
+        const outputs = WlrOutputService.outputs || [];
+        const modeOverrides = ({});
+        const restoredOutputs = [];
+        const applied = [];
+
+        for (const output of outputs) {
+            const target = computeTargetMode(output.name, output, "wlr");
+            if (!target || !target.value)
+                continue;
+            if (isModeAlreadyCurrent(output.currentMode, target.mode)) {
+                if (target.source === "previous")
+                    clearPreviousRefreshMode(output.name, output);
+                continue;
+            }
+            if (root._lastAppliedTargets[output.name] === target.value)
+                continue;
+            root._lastAppliedTargets[output.name] = target.value;
+            cascadeGuard.restart();
+            modeOverrides[output.name] = target;
+            if (target.source === "previous")
+                restoredOutputs.push(output);
+            applied.push(output.name + " " + (getModeRefresh(target.mode) / 1000).toFixed(0) + "Hz (" + target.source + ")");
+        }
+
+        if (applied.length > 0) {
+            log.info("Updated display refresh rate: ", applied.join(", "), " (", context, ")");
+            applyWlrModeOverrides(modeOverrides, success => {
+                if (!success)
+                    return;
+                for (const output of restoredOutputs)
+                    clearPreviousRefreshMode(output.name, output);
+            });
+        }
+    }
+
+    function applyBatteryTargets(reason) {
+        if (CompositorService.isNiri) {
+            const outputs = NiriService.outputs || {};
+            const applied = [];
+            for (const name in outputs) {
+                const output = outputs[name];
+                const currentMode = getNiriCurrentMode(output);
+                if (!currentMode)
+                    continue;
+                const currentRefresh = getModeRefresh(currentMode);
+                if (currentRefresh <= batteryRefreshRateTarget + batteryRefreshRateTolerance)
+                    continue;
+                const target = findBatteryRefreshMode(output, currentMode, "niri");
+                if (!target)
+                    continue;
+                const targetValue = formatNiriMode(target);
+                storePreviousRefreshMode(name, output, currentMode);
+                if (root._lastAppliedTargets[name] === targetValue)
+                    continue;
+                root._lastAppliedTargets[name] = targetValue;
+                cascadeGuard.restart();
+                NiriService.applyOutputConfig(name, {
+                    "mode": targetValue
+                });
+                applied.push(name + " " + (currentRefresh / 1000).toFixed(0) + "\u2192" + (getModeRefresh(target) / 1000).toFixed(0) + "Hz");
+            }
+            if (applied.length > 0)
+                log.info("Updated display refresh rate: ", applied.join(", "), " (battery)");
+            return;
+        }
+
+        if (!WlrOutputService.wlrOutputAvailable)
+            return;
+
+        const outputs = WlrOutputService.outputs || [];
+        const modeOverrides = ({});
+        const applied = [];
+
+        for (const output of outputs) {
+            const currentMode = output.currentMode;
+            if (!currentMode)
+                continue;
+            const currentRefresh = getModeRefresh(currentMode);
+            if (currentRefresh <= batteryRefreshRateTarget + batteryRefreshRateTolerance)
+                continue;
+            const target = findBatteryRefreshMode(output, currentMode, "wlr");
+            if (!target)
+                continue;
+            storePreviousRefreshMode(output.name, output, currentMode);
+            if (root._lastAppliedTargets[output.name] === target.id)
+                continue;
+            root._lastAppliedTargets[output.name] = target.id;
+            cascadeGuard.restart();
+            modeOverrides[output.name] = {
+                "value": target.id,
+                "mode": target,
+                "source": "battery"
+            };
+            applied.push(output.name + " " + (currentRefresh / 1000).toFixed(0) + "\u2192" + (getModeRefresh(target) / 1000).toFixed(0) + "Hz");
+        }
+
+        if (applied.length > 0) {
+            log.info("Updated display refresh rate: ", applied.join(", "), " (battery)");
+            applyWlrModeOverrides(modeOverrides);
+        }
+    }
+
+    function buildWlrHeads(modeOverrides) {
+        const outputs = WlrOutputService.outputs || [];
+        const heads = [];
+
+        for (const output of outputs) {
+            const enabled = output.enabled !== false;
+            const head = {
+                "name": output.name,
+                "enabled": enabled
+            };
+
+            if (enabled) {
+                const modeId = modeOverrides[output.name] !== undefined ? modeOverrides[output.name].value : output.currentMode?.id;
+                if (modeId !== undefined)
+                    head.modeId = modeId;
+
+                head.position = {
+                    "x": output.x ?? 0,
+                    "y": output.y ?? 0
+                };
+                head.scale = output.scale ?? 1.0;
+                head.transform = output.transform ?? 0;
+
+                if (output.adaptiveSyncSupported)
+                    head.adaptiveSync = output.adaptiveSync ?? 0;
+            }
+
+            heads.push(head);
+        }
+
+        return heads;
+    }
+
+    function applyWlrModeOverrides(modeOverrides, callback) {
+        if (CompositorService.isHyprland) {
+            HyprlandService.generateOutputsConfig(buildWlrOutputsData(modeOverrides), SettingsData.hyprlandOutputSettings, callback);
+            return;
+        }
+
+        if (CompositorService.isMango) {
+            MangoService.generateOutputsConfig(buildWlrOutputsData(modeOverrides), callback);
+            return;
+        }
+
+        WlrOutputService.applyConfiguration(buildWlrHeads(modeOverrides), callback);
+    }
+
+    function buildWlrOutputsData(modeOverrides) {
+        const outputs = WlrOutputService.outputs || [];
+        const data = ({});
+
+        for (const output of outputs) {
+            const target = modeOverrides[output.name]?.mode || output.currentMode;
+            const normalizedModes = (output.modes || []).map(mode => ({
+                        "id": mode.id,
+                        "width": getModeWidth(mode),
+                        "height": getModeHeight(mode),
+                        "refresh_rate": getModeRefresh(mode),
+                        "preferred": mode.preferred === true || mode.is_preferred === true
+                    }));
+            const currentMode = target ? normalizedModes.findIndex(mode => getModeWidth(mode) === getModeWidth(target) && getModeHeight(mode) === getModeHeight(target) && Math.abs(getModeRefresh(mode) - getModeRefresh(target)) <= batteryRefreshRateTolerance) : -1;
+
+            data[output.name] = {
+                "name": output.name,
+                "enabled": output.enabled !== false,
+                "make": output.make || "",
+                "model": output.model || "",
+                "serial": output.serial || output.serialNumber || "",
+                "modes": normalizedModes,
+                "current_mode": currentMode,
+                "configured_mode": target ? formatModeString(target) : "",
+                "vrr_supported": output.adaptiveSyncSupported ?? output.vrr_supported ?? false,
+                "vrr_enabled": isOutputVrrEnabled(output),
+                "logical": {
+                    "x": output.x ?? 0,
+                    "y": output.y ?? 0,
+                    "width": getModeWidth(target || output.currentMode) || 1920,
+                    "height": getModeHeight(target || output.currentMode) || 1080,
+                    "scale": output.scale ?? 1.0,
+                    "transform": mapWlrTransform(output.transform)
+                }
+            };
+        }
+
+        return data;
+    }
+
+    function mapWlrTransform(transform) {
+        switch (transform) {
+        case 1:
+            return "90";
+        case 2:
+            return "180";
+        case 3:
+            return "270";
+        case 4:
+            return "Flipped";
+        case 5:
+            return "Flipped90";
+        case 6:
+            return "Flipped180";
+        case 7:
+            return "Flipped270";
+        default:
+            return "Normal";
+        }
+    }
+
+    function findBatteryRefreshMode(output, currentMode, backend) {
+        if (!output || !currentMode || (backend === "wlr" && !output.enabled))
+            return null;
+
+        if (isOutputVrrEnabled(output))
+            return null;
+
+        const modes = output.modes || [];
+        const sameResolutionModes = modes.filter(m => getModeWidth(m) === getModeWidth(currentMode) && getModeHeight(m) === getModeHeight(currentMode));
+        const uniqueRefreshRates = [];
+        for (const mode of sameResolutionModes) {
+            const refresh = getModeRefresh(mode);
+            if (!uniqueRefreshRates.some(r => Math.abs(r - refresh) <= batteryRefreshRateTolerance))
+                uniqueRefreshRates.push(refresh);
+        }
+
+        if (uniqueRefreshRates.length <= 1)
+            return null;
+
+        let bestMode = null;
+        let bestDiff = Infinity;
+        for (const mode of sameResolutionModes) {
+            const diff = Math.abs(getModeRefresh(mode) - batteryRefreshRateTarget);
+            if (diff < bestDiff) {
+                bestMode = mode;
+                bestDiff = diff;
+            }
+        }
+
+        if (!bestMode || bestDiff > batteryRefreshRateTolerance)
+            return null;
+
+        return bestMode;
+    }
+
+    function computeTargetMode(outputName, output, backend) {
+        const profileMode = findActiveProfileMode(outputName, output);
+        if (profileMode) {
+            const mode = findModeByString(output?.modes || [], profileMode);
+            if (mode) {
+                return {
+                    "value": formatRestoreModeValue(mode, backend),
+                    "mode": mode,
+                    "source": "profile"
+                };
+            }
+        }
+
+        const previousMode = findPreviousRefreshMode(outputName, output);
+        if (previousMode) {
+            const mode = findModeByString(output?.modes || [], previousMode);
+            if (mode) {
+                return {
+                    "value": formatRestoreModeValue(mode, backend),
+                    "mode": mode,
+                    "source": "previous"
+                };
+            }
+        }
+
+        return {
+            "value": null,
+            "mode": null,
+            "source": "none"
+        };
+    }
+
+    function findActiveProfileMode(outputName, output) {
+        const compositor = CompositorService.compositor;
+        const profileModes = SettingsData.activeDisplayProfileModes?.[compositor] || {};
+        if (Object.keys(profileModes).length === 0)
+            return "";
+
+        const identifiers = [outputName];
+        if (output?.make && output?.model) {
+            const modelId = output.make + " " + output.model;
+            const serial = output.serial || output.serialNumber || "Unknown";
+            const serialId = modelId + " " + serial;
+            if (!identifiers.includes(serialId))
+                identifiers.push(serialId);
+            if (!identifiers.includes(modelId))
+                identifiers.push(modelId);
+        }
+
+        for (const identifier of identifiers) {
+            const mode = profileModes[identifier]?.mode;
+            if (mode)
+                return mode;
+        }
+
+        return "";
+    }
+
+    function findModeByString(modes, modeString) {
+        for (const mode of modes) {
+            if (formatModeString(mode) === modeString)
+                return mode;
+        }
+
+        const parsed = parseModeString(modeString);
+        if (!parsed)
+            return null;
+
+        for (const mode of modes) {
+            if (getModeWidth(mode) === parsed.width && getModeHeight(mode) === parsed.height && Math.abs(getModeRefresh(mode) - parsed.refresh) <= batteryRefreshRateTolerance)
+                return mode;
+        }
+
+        return null;
+    }
+
+    function parseModeString(modeString) {
+        const match = (modeString || "").match(/^(\d+)x(\d+)@([\d.]+)$/);
+        if (!match)
+            return null;
+        return {
+            "width": parseInt(match[1]),
+            "height": parseInt(match[2]),
+            "refresh": Math.round(parseFloat(match[3]) * 1000)
+        };
+    }
+
+    function isModeAlreadyCurrent(currentMode, targetMode) {
+        if (!currentMode || !targetMode)
+            return true;
+        return getModeWidth(currentMode) === getModeWidth(targetMode) && getModeHeight(currentMode) === getModeHeight(targetMode) && Math.abs(getModeRefresh(currentMode) - getModeRefresh(targetMode)) <= batteryRefreshRateTolerance;
+    }
+
+    function formatRestoreModeValue(mode, backend) {
+        if (!mode)
+            return null;
+        if (backend === "wlr")
+            return mode.id ?? null;
+        return formatNiriMode(mode);
+    }
+
+    function isOutputVrrEnabled(output) {
+        return output.vrr_enabled === true || output.adaptiveSync === 1;
+    }
+
+    function getNiriCurrentMode(output) {
+        if (!output || !output.modes || output.current_mode === undefined)
+            return null;
+        return output.modes[output.current_mode] || null;
+    }
+
+    function getModeWidth(mode) {
+        return mode?.width ?? 0;
+    }
+
+    function getModeHeight(mode) {
+        return mode?.height ?? 0;
+    }
+
+    function getModeRefresh(mode) {
+        return mode?.refresh_rate ?? mode?.refresh ?? 0;
+    }
+
+    function formatModeString(mode) {
+        if (!mode)
+            return "";
+        return getModeWidth(mode) + "x" + getModeHeight(mode) + "@" + (getModeRefresh(mode) / 1000).toFixed(3);
+    }
+
+    function formatNiriMode(mode) {
+        return mode.width + "x" + mode.height + "@" + (getModeRefresh(mode) / 1000).toFixed(3);
+    }
 
     function markDeviceUserControlled(deviceId) {
         const newControlled = Object.assign({}, userControlledDevices);

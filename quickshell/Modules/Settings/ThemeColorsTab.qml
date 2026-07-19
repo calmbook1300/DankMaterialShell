@@ -143,7 +143,7 @@ Item {
 
     function fixCursorInclude() {
         if (cursorReadOnly) {
-            ToastService.showWarning(I18n.tr("Hyprland conf mode"), I18n.tr("This install is still using hyprland.conf. Run dms setup to migrate before editing cursor settings."), "dms setup", "hyprland-migration");
+            ToastService.showWarning(I18n.tr("Hyprland conf mode"), I18n.tr("This install is still using hyprland.conf. Run dms setup to migrate before changing these settings."), "dms setup", "hyprland-migration");
             return;
         }
         const paths = getCursorConfigPaths();
@@ -1626,7 +1626,6 @@ Item {
                     tags: ["widget", "background", "color", "surface", "material"]
                     settingKey: "widgetBackgroundColor"
                     text: I18n.tr("Widget Background Color")
-                    description: I18n.tr("Choose the background color for widgets")
                     dropdownWidth: 220
                     options: themeColorsTab.widgetBackgroundOptions
                     currentMode: SettingsData.widgetBackgroundColor
@@ -1734,16 +1733,6 @@ Item {
                         }
                     }
                 }
-                SettingsToggleRow {
-                    tab: "theme"
-                    tags: ["foreground", "layers", "contrast", "surface", "blur", "glass", "frosted"]
-                    settingKey: "blurForegroundLayers"
-                    text: I18n.tr("Foreground Layers")
-                    description: I18n.tr("Show foreground surfaces on panels for stronger contrast")
-                    checked: SettingsData.blurForegroundLayers ?? true
-                    onToggled: checked => SettingsData.set("blurForegroundLayers", checked)
-                }
-
                 SettingsSliderRow {
                     tab: "theme"
                     tags: ["surface", "popup", "transparency", "opacity", "modal"]
@@ -1759,12 +1748,47 @@ Item {
                     onSliderValueChanged: newValue => SettingsData.set("popupTransparency", newValue / 100)
                 }
 
+                SettingsToggleRow {
+                    tab: "theme"
+                    tags: ["foreground", "layers", "contrast", "surface", "blur", "glass", "frosted"]
+                    settingKey: "blurForegroundLayers"
+                    text: I18n.tr("Foreground Layers")
+                    description: I18n.tr("Show foreground surfaces on panels for stronger contrast")
+                    checked: SettingsData.blurForegroundLayers ?? true
+                    onToggled: checked => SettingsData.set("blurForegroundLayers", checked)
+                }
+
+                SettingsSliderRow {
+                    tab: "theme"
+                    tags: ["foreground", "layers", "outline", "border", "cards", "widgets", "notifications", "control center"]
+                    settingKey: "blurLayerOutlineOpacity"
+                    text: I18n.tr("Layer Outline Opacity")
+                    description: I18n.tr("Controls outlines around foreground cards, pills, and notification cards")
+                    value: Math.round((SettingsData.blurLayerOutlineOpacity ?? 0.12) * 100)
+                    minimum: 0
+                    maximum: 40
+                    unit: "%"
+                    defaultValue: 12
+                    onSliderValueChanged: newValue => SettingsData.set("blurLayerOutlineOpacity", newValue / 100)
+                }
+
+                SettingsToggleRow {
+                    tab: "theme"
+                    tags: ["surface", "popup", "modal", "border", "outline", "edge"]
+                    settingKey: "blurBorderEnabled"
+                    text: I18n.tr("Surface Border Outline")
+                    description: I18n.tr("Outline around shell surfaces")
+                    checked: SettingsData.blurBorderEnabled ?? true
+                    onToggled: checked => SettingsData.set("blurBorderEnabled", checked)
+                }
+
                 SettingsDropdownRow {
                     tab: "theme"
                     tags: ["surface", "popup", "modal", "border", "outline", "edge"]
                     settingKey: "blurBorderColor"
                     text: I18n.tr("Surface Border Color")
                     description: I18n.tr("Border color around popouts, modals, and other shell surfaces")
+                    visible: SettingsData.blurBorderEnabled ?? true
                     options: [I18n.tr("Outline", "surface border color"), I18n.tr("Primary", "surface border color"), I18n.tr("Secondary", "surface border color"), I18n.tr("Text Color", "surface border color"), I18n.tr("Custom", "surface border color")]
                     optionColorMap: ({
                             [I18n.tr("Outline", "surface border color")]: Theme.outline,
@@ -1809,26 +1833,13 @@ Item {
                     settingKey: "blurBorderOpacity"
                     text: I18n.tr("Surface Border Opacity")
                     description: I18n.tr("Controls the outline of popouts, modals, and other shell surfaces")
+                    visible: SettingsData.blurBorderEnabled ?? true
                     value: Math.round((SettingsData.blurBorderOpacity ?? 0.35) * 100)
                     minimum: 0
                     maximum: 100
                     unit: "%"
                     defaultValue: 35
                     onSliderValueChanged: newValue => SettingsData.set("blurBorderOpacity", newValue / 100)
-                }
-
-                SettingsSliderRow {
-                    tab: "theme"
-                    tags: ["foreground", "layers", "outline", "border", "cards", "widgets", "notifications", "control center"]
-                    settingKey: "blurLayerOutlineOpacity"
-                    text: I18n.tr("Layer Outline Opacity")
-                    description: I18n.tr("Controls outlines around foreground cards, pills, and notification cards")
-                    value: Math.round((SettingsData.blurLayerOutlineOpacity ?? 0.12) * 100)
-                    minimum: 0
-                    maximum: 40
-                    unit: "%"
-                    defaultValue: 12
-                    onSliderValueChanged: newValue => SettingsData.set("blurLayerOutlineOpacity", newValue / 100)
                 }
 
                 SettingsSliderRow {
@@ -1943,7 +1954,6 @@ Item {
                     tags: ["elevation", "shadow", "opacity", "transparency", "m3"]
                     settingKey: "m3ElevationOpacity"
                     text: I18n.tr("Shadow Opacity")
-                    description: I18n.tr("Controls the opacity of the shadow")
                     value: SettingsData.m3ElevationOpacity ?? 30
                     minimum: 0
                     maximum: 100
@@ -2106,32 +2116,6 @@ Item {
 
             SettingsCard {
                 tab: "theme"
-                tags: ["modal", "darken", "background", "overlay"]
-                title: I18n.tr("Modal Background")
-                settingKey: "modalBackground"
-                iconName: "layers"
-
-                SettingsControlledByFrame {
-                    visible: themeColorsTab.frameModeActive
-                    parentModal: themeColorsTab.parentModal
-                    settingLabel: I18n.tr("Darken Modal Background")
-                    reason: I18n.tr("Disabled by Frame Mode")
-                }
-
-                SettingsToggleRow {
-                    tab: "theme"
-                    tags: ["modal", "darken", "background", "overlay"]
-                    settingKey: "modalDarkenBackground"
-                    text: I18n.tr("Darken Modal Background")
-                    description: I18n.tr("Show darkened overlay behind modal dialogs")
-                    visible: !themeColorsTab.frameModeActive
-                    checked: SettingsData.modalDarkenBackground
-                    onToggled: checked => SettingsData.set("modalDarkenBackground", checked)
-                }
-            }
-
-            SettingsCard {
-                tab: "theme"
                 tags: ["applications", "portal", "dark", "terminal"]
                 title: I18n.tr("Applications")
                 settingKey: "applications"
@@ -2220,7 +2204,7 @@ Item {
                                 StyledText {
                                     text: {
                                         if (cursorWarningBox.showLegacy)
-                                            return I18n.tr("This install is still using hyprland.conf. Run dms setup to migrate before editing cursor settings.");
+                                            return I18n.tr("This install is still using hyprland.conf. Run dms setup to migrate before changing these settings.");
                                         if (cursorWarningBox.showSetup)
                                             return I18n.tr("Click 'Setup' to create %1 and add include to your compositor config.").arg("dms/cursor");
                                         return "";

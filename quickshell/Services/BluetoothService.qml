@@ -5,6 +5,7 @@ import QtQuick
 import Quickshell
 import Quickshell.Io
 import Quickshell.Bluetooth
+import qs.Common
 import qs.Services
 
 Singleton {
@@ -14,9 +15,18 @@ Singleton {
     readonly property bool available: adapter !== null
     readonly property bool enabled: (adapter && adapter.enabled) ?? false
     readonly property bool discovering: (adapter && adapter.discovering) ?? false
-    property bool pactlAvailable: false
-    property bool pactlChecked: false
-    property var pendingPactlActions: []
+    readonly property bool dbusBridgeAvailable: DMSService.isConnected && DMSService.capabilities.includes("dbus")
+    property bool wpexecAvailable: false
+    property bool wpexecChecked: false
+    property var pendingCodecActions: []
+    property bool _codecSignalsSubscribed: false
+    readonly property string bluezService: "org.bluez"
+    readonly property string mediaTransportIface: "org.bluez.MediaTransport1"
+    readonly property string mediaEndpointIface: "org.bluez.MediaEndpoint1"
+    readonly property string objectManagerIface: "org.freedesktop.DBus.ObjectManager"
+    readonly property string propertiesIface: "org.freedesktop.DBus.Properties"
+    readonly property string cardProfileScript: Quickshell.shellDir + "/scripts/bluez-card-profile.lua"
+    readonly property bool codecControlAvailable: wpexecChecked && wpexecAvailable
     readonly property var devices: adapter ? adapter.devices : null
     readonly property bool enhancedPairingAvailable: DMSService.dmsAvailable && DMSService.apiVersion >= 9 && DMSService.capabilities.includes("bluetooth")
     readonly property bool connected: {
@@ -65,20 +75,189 @@ Singleton {
     }
 
     Component.onCompleted: {
-        detectPactlProcess.running = true;
+        detectWpexecProcess.running = true;
+        maybeSubscribeCodecSignals();
     }
 
-    function whenPactlChecked(action) {
-        if (pactlChecked) {
+    Connections {
+        target: DMSService
+
+        function onConnectionStateChanged() {
+            root._codecSignalsSubscribed = false;
+            root.maybeSubscribeCodecSignals();
+        }
+
+        function onCapabilitiesReceived() {
+            root.maybeSubscribeCodecSignals();
+        }
+
+        function onDbusSignalReceived(subscriptionId, data) {
+            root.handleCodecDbusSignal(data);
+        }
+    }
+
+    function whenCodecBackendReady(action) {
+        if (wpexecChecked) {
             action();
             return;
         }
 
-        const actions = pendingPactlActions.slice();
+        const actions = pendingCodecActions.slice();
         actions.push(action);
-        pendingPactlActions = actions;
-        if (!detectPactlProcess.running)
-            detectPactlProcess.running = true;
+        pendingCodecActions = actions;
+        if (!detectWpexecProcess.running)
+            detectWpexecProcess.running = true;
+    }
+
+    function maybeSubscribeCodecSignals() {
+        if (!dbusBridgeAvailable || _codecSignalsSubscribed)
+            return;
+        _codecSignalsSubscribed = true;
+        DMSService.dbusSubscribe("system", bluezService, "", objectManagerIface, "InterfacesAdded", null);
+        DMSService.dbusSubscribe("system", bluezService, "", objectManagerIface, "InterfacesRemoved", null);
+        DMSService.dbusSubscribe("system", bluezService, "", propertiesIface, "PropertiesChanged", null);
+    }
+
+    function handleCodecDbusSignal(data) {
+        if (!data?.path || !data.path.includes("/dev_"))
+            return;
+
+        const member = data.member || "";
+        if (member !== "InterfacesAdded" && member !== "InterfacesRemoved" && member !== "PropertiesChanged")
+            return;
+
+        if (member === "PropertiesChanged" && data.body?.[0] !== mediaTransportIface && data.body?.[0] !== mediaEndpointIface)
+            return;
+
+        const device = deviceForDbusPath(data.path);
+        if (device && device.connected && isAudioDevice(device))
+            Qt.callLater(() => root.refreshDeviceCodec(device));
+    }
+
+    function deviceForDbusPath(path) {
+        if (!path || !adapter?.devices)
+            return null;
+        const match = path.match(/\/dev_([0-9A-Fa-f_]+)/);
+        if (!match)
+            return null;
+        const address = match[1].replace(/_/g, ":").toUpperCase();
+        return adapter.devices.values.find(d => (d.address || "").toUpperCase() === address) ?? null;
+    }
+
+    function bytesFromDbusValue(value) {
+        if (!value)
+            return [];
+        if (Array.isArray(value))
+            return value.map(v => Number(v) & 0xff);
+        if (typeof value === "string") {
+            try {
+                const decoded = Qt.atob(value);
+                if (decoded instanceof ArrayBuffer) {
+                    return Array.from(new Uint8Array(decoded));
+                }
+                const bytes = [];
+                for (let i = 0; i < decoded.length; i++)
+                    bytes.push(decoded.charCodeAt(i) & 0xff);
+                return bytes;
+            } catch (e) {
+                return [];
+            }
+        }
+        return [];
+    }
+
+    function codecNameFromBluez(codecId, configValue) {
+        const id = Number(codecId);
+        if (id === 0x00)
+            return "SBC";
+        if (id === 0x01)
+            return "MPEG12";
+        if (id === 0x02)
+            return "AAC";
+        if (id === 0x04)
+            return "ATRAC";
+        if (id === 0xFF) {
+            const bytes = bytesFromDbusValue(configValue);
+            if (bytes.length >= 6) {
+                const vendor = bytes[0] | (bytes[1] << 8) | (bytes[2] << 16) | (bytes[3] << 24);
+                const vendorCodec = bytes[4] | (bytes[5] << 8);
+                if (vendor === 0x0000004f && vendorCodec === 0x0001)
+                    return "APTX";
+                if (vendor === 0x000000d7 && vendorCodec === 0x0024)
+                    return "APTX_HD";
+                if (vendor === 0x0000000a && vendorCodec === 0x0002)
+                    return "APTX";
+                if (vendor === 0x0000012d && vendorCodec === 0x00aa)
+                    return "LDAC";
+            }
+            return "VENDOR";
+        }
+        return "";
+    }
+
+    function queryBluezCodecState(device, callback) {
+        if (!dbusBridgeAvailable || !device) {
+            callback([], "");
+            return;
+        }
+
+        const devicePath = getDevicePath(device);
+        if (!devicePath) {
+            callback([], "");
+            return;
+        }
+
+        DMSService.dbusCall("system", bluezService, "/", objectManagerIface, "GetManagedObjects", [], response => {
+            if (response.error) {
+                callback([], "");
+                return;
+            }
+
+            const objects = response.result?.values?.[0] || {};
+            const codecs = [];
+            let current = "";
+
+            for (const path in objects) {
+                if (!path.startsWith(devicePath + "/"))
+                    continue;
+                const ifaces = objects[path] || {};
+                const transport = ifaces[mediaTransportIface];
+                if (transport) {
+                    const name = codecNameFromBluez(transport.Codec, transport.Configuration);
+                    if (name) {
+                        current = root.getCodecInfo(name).name;
+                        if (!codecs.some(c => c.name === current)) {
+                            const info = root.getCodecInfo(name);
+                            codecs.push({
+                                "name": info.name,
+                                "profile": info.name,
+                                "description": info.description,
+                                "qualityColor": info.qualityColor,
+                                "category": root.codecCategory(info.name, info.name)
+                            });
+                        }
+                    }
+                }
+                const endpoint = ifaces[mediaEndpointIface];
+                if (endpoint) {
+                    const name = codecNameFromBluez(endpoint.Codec, endpoint.Capabilities || endpoint.Configuration);
+                    if (name) {
+                        const info = root.getCodecInfo(name);
+                        if (!codecs.some(c => c.name === info.name)) {
+                            codecs.push({
+                                "name": info.name,
+                                "profile": info.name,
+                                "description": info.description,
+                                "qualityColor": info.qualityColor,
+                                "category": root.codecCategory(info.name, info.name)
+                            });
+                        }
+                    }
+                }
+            }
+
+            callback(codecs, current);
+        });
     }
 
     function sortDevices(devices) {
@@ -256,8 +435,8 @@ Singleton {
     function getDevicePath(device) {
         if (!device || !device.address) {
             return "";
-    	}
-	return device.dbusPath ?? "";
+        }
+        return device.dbusPath ?? "";
     }
 
     function isAudioDevice(device) {
@@ -282,15 +461,60 @@ Singleton {
                 "description": "High quality • Balanced battery",
                 "qualityColor": "#FF9800"
             },
+            "APTX_LL": {
+                "name": "aptX LL",
+                "description": "Low latency • Gaming and video",
+                "qualityColor": "#FF9800"
+            },
+            "APTX_ADAPTIVE": {
+                "name": "aptX Adaptive",
+                "description": "Adaptive quality and latency",
+                "qualityColor": "#FF9800"
+            },
             "APTX": {
                 "name": "aptX",
                 "description": "Good quality • Low latency",
                 "qualityColor": "#FF9800"
             },
+            "AAC_ELD": {
+                "name": "AAC-ELD",
+                "description": "Low-delay AAC • Voice and video",
+                "qualityColor": "#2196F3"
+            },
             "AAC": {
                 "name": "AAC",
                 "description": "Balanced quality and battery",
                 "qualityColor": "#2196F3"
+            },
+            "OPUS_05": {
+                "name": "Opus",
+                "description": "High quality • Modern Bluetooth LE audio",
+                "qualityColor": "#4CAF50"
+            },
+            "OPUS_G": {
+                "name": "Opus",
+                "description": "High quality • Modern Bluetooth LE audio",
+                "qualityColor": "#4CAF50"
+            },
+            "OPUS": {
+                "name": "Opus",
+                "description": "High quality • Efficient streaming",
+                "qualityColor": "#4CAF50"
+            },
+            "LC3": {
+                "name": "LC3",
+                "description": "LE Audio • Efficient high quality",
+                "qualityColor": "#4CAF50"
+            },
+            "LC3_SWB": {
+                "name": "LC3-SWB",
+                "description": "Wideband speech • Hands-free calls",
+                "qualityColor": "#9E9E9E"
+            },
+            "LC3_A127": {
+                "name": "LC3",
+                "description": "LE Audio speech • Hands-free calls",
+                "qualityColor": "#9E9E9E"
             },
             "SBC_XQ": {
                 "name": "SBC-XQ",
@@ -311,6 +535,11 @@ Singleton {
                 "name": "CVSD",
                 "description": "Basic speech codec • Legacy compatibility",
                 "qualityColor": "#9E9E9E"
+            },
+            "FASTSTREAM": {
+                "name": "FastStream",
+                "description": "Low latency SBC variant",
+                "qualityColor": "#2196F3"
             }
         };
 
@@ -324,29 +553,73 @@ Singleton {
     property var deviceCodecs: ({})
 
     function updateDeviceCodec(deviceAddress, codec) {
-        deviceCodecs[deviceAddress] = codec;
-        deviceCodecsChanged();
+        if (!deviceAddress || !codec)
+            return;
+        const next = Object.assign({}, deviceCodecs);
+        next[deviceAddress] = codec;
+        deviceCodecs = next;
+    }
+
+    function codecCategory(codecName, profileName) {
+        const profile = String(profileName || "").toLowerCase();
+        const codec = String(codecName || "").replace(/[-\s]+/g, "_").toUpperCase();
+        if (profile.includes("headset") || profile.includes("hfp") || profile.includes("hsp") || profile.includes("handsfree") || profile.includes("head-unit") || profile.includes("audio-gateway"))
+            return "call";
+        if (codec === "CVSD" || codec === "MSBC" || codec === "LC3_SWB" || codec === "LC3_A127")
+            return "call";
+        return "media";
+    }
+
+    function codecNameFromProfile(profileName) {
+        if (!profileName)
+            return "";
+        const match = String(profileName).match(/codec\s+([^\)]+)/i);
+        if (match)
+            return getCodecInfo(match[1].trim()).name;
+        const parts = String(profileName).split(/[-_]/);
+        if (parts.length > 1) {
+            const tail = parts.slice(1).join("_");
+            const info = getCodecInfo(tail);
+            if (info.description !== "Unknown codec")
+                return info.name;
+            const last = parts[parts.length - 1];
+            const lastInfo = getCodecInfo(last);
+            if (lastInfo.description !== "Unknown codec")
+                return lastInfo.name;
+        }
+        const info = getCodecInfo(profileName);
+        return info.description === "Unknown codec" ? "" : info.name;
     }
 
     function refreshDeviceCodec(device) {
         if (!device || !device.connected || !isAudioDevice(device)) {
             return;
         }
-        if (!pactlChecked) {
-            whenPactlChecked(() => root.refreshDeviceCodec(device));
-            return;
-        }
-        if (!pactlAvailable) {
-            return;
-        }
 
-        const cardName = getCardName(device);
-        codecQueryProcess.cardName = cardName;
-        codecQueryProcess.deviceAddress = device.address;
-        codecQueryProcess.availableCodecs = [];
-        codecQueryProcess.parsingTargetCard = false;
-        codecQueryProcess.detectedCodec = "";
-        codecQueryProcess.running = true;
+        whenCodecBackendReady(() => {
+            if (root.wpexecAvailable) {
+                root.queryCardProfiles(device, (codecs, current) => {
+                    if (current) {
+                        root.updateDeviceCodec(device.address, current);
+                        return;
+                    }
+                    if (!root.dbusBridgeAvailable)
+                        return;
+                    root.queryBluezCodecState(device, (bluezCodecs, bluezCurrent) => {
+                        if (bluezCurrent)
+                            root.updateDeviceCodec(device.address, bluezCurrent);
+                    });
+                });
+                return;
+            }
+
+            if (!root.dbusBridgeAvailable)
+                return;
+            root.queryBluezCodecState(device, (codecs, current) => {
+                if (current)
+                    root.updateDeviceCodec(device.address, current);
+            });
+        });
     }
 
     function getCurrentCodec(device, callback) {
@@ -354,22 +627,33 @@ Singleton {
             callback("");
             return;
         }
-        if (!pactlChecked) {
-            whenPactlChecked(() => root.getCurrentCodec(device, callback));
-            return;
-        }
-        if (!pactlAvailable) {
-            callback("");
-            return;
-        }
 
-        const cardName = getCardName(device);
-        codecQueryProcess.cardName = cardName;
-        codecQueryProcess.callback = callback;
-        codecQueryProcess.availableCodecs = [];
-        codecQueryProcess.parsingTargetCard = false;
-        codecQueryProcess.detectedCodec = "";
-        codecQueryProcess.running = true;
+        whenCodecBackendReady(() => {
+            if (root.wpexecAvailable) {
+                root.queryCardProfiles(device, (codecs, current) => {
+                    if (current) {
+                        callback(current);
+                        return;
+                    }
+                    if (!root.dbusBridgeAvailable) {
+                        callback("");
+                        return;
+                    }
+                    root.queryBluezCodecState(device, (bluezCodecs, bluezCurrent) => {
+                        callback(bluezCurrent || "");
+                    });
+                });
+                return;
+            }
+
+            if (!root.dbusBridgeAvailable) {
+                callback("");
+                return;
+            }
+            root.queryBluezCodecState(device, (codecs, current) => {
+                callback(current || "");
+            });
+        });
     }
 
     function getAvailableCodecs(device, callback) {
@@ -377,214 +661,135 @@ Singleton {
             callback([], "");
             return;
         }
-        if (!pactlChecked) {
-            whenPactlChecked(() => root.getAvailableCodecs(device, callback));
+
+        whenCodecBackendReady(() => {
+            if (!root.wpexecAvailable) {
+                if (root.dbusBridgeAvailable) {
+                    root.queryBluezCodecState(device, callback);
+                    return;
+                }
+                callback([], "");
+                return;
+            }
+
+            root.queryCardProfiles(device, (codecs, current) => {
+                if (codecs.length > 0 || !root.dbusBridgeAvailable) {
+                    callback(codecs, current);
+                    return;
+                }
+                root.queryBluezCodecState(device, (bluezCodecs, bluezCurrent) => {
+                    callback(bluezCodecs, bluezCurrent || current);
+                });
+            });
+        });
+    }
+
+    function switchCodec(device, profileName, callback, codecDisplayName) {
+        if (!device || !isAudioDevice(device)) {
+            callback(false, "Invalid device");
             return;
         }
-        if (!pactlAvailable) {
+
+        whenCodecBackendReady(() => {
+            if (!root.wpexecAvailable) {
+                callback(false, I18n.tr("Codec switching is unavailable. WirePlumber wpexec was not found."));
+                return;
+            }
+
+            const cardName = root.getCardName(device);
+            codecSwitchProcess.cardName = cardName;
+            codecSwitchProcess.profile = profileName;
+            codecSwitchProcess.deviceAddress = device.address || "";
+            codecSwitchProcess.expectedCodec = codecDisplayName || root.codecNameFromProfile(profileName);
+            codecSwitchProcess.callback = callback;
+            codecSwitchProcess.command = ["wpexec", root.cardProfileScript, JSON.stringify({
+                    "mode": "set",
+                    "device": cardName,
+                    "target": profileName
+                })];
+            codecSwitchProcess.running = true;
+        });
+    }
+
+    function queryCardProfiles(device, callback) {
+        if (!device || !wpexecAvailable) {
             callback([], "");
             return;
         }
 
         const cardName = getCardName(device);
-        codecFullQueryProcess.cardName = cardName;
-        codecFullQueryProcess.callback = callback;
-        codecFullQueryProcess.availableCodecs = [];
-        codecFullQueryProcess.parsingTargetCard = false;
-        codecFullQueryProcess.detectedCodec = "";
-        codecFullQueryProcess.running = true;
-    }
-
-    function switchCodec(device, profileName, callback) {
-        if (!device || !isAudioDevice(device)) {
-            callback(false, "Invalid device");
-            return;
-        }
-        if (!pactlChecked) {
-            whenPactlChecked(() => root.switchCodec(device, profileName, callback));
-            return;
-        }
-        if (!pactlAvailable) {
-            callback(false, I18n.tr("Codec switching is unavailable because pactl was not found"));
-            return;
-        }
-
-        const cardName = getCardName(device);
-        codecSwitchProcess.cardName = cardName;
-        codecSwitchProcess.profile = profileName;
-        codecSwitchProcess.callback = callback;
-        codecSwitchProcess.running = true;
+        codecListProcess.cardName = cardName;
+        codecListProcess.callback = callback;
+        codecListProcess.availableCodecs = [];
+        codecListProcess.detectedCodec = "";
+        codecListProcess.command = ["wpexec", cardProfileScript, JSON.stringify({
+                "mode": "list",
+                "device": cardName
+            })];
+        codecListProcess.running = true;
     }
 
     Process {
-        id: detectPactlProcess
+        id: detectWpexecProcess
         running: false
-        command: ["sh", "-c", "command -v pactl"]
+        command: ["sh", "-c", "command -v wpexec"]
 
         onExited: function (exitCode) {
-            root.pactlAvailable = (exitCode === 0);
-            root.pactlChecked = true;
-            const actions = root.pendingPactlActions.slice();
-            root.pendingPactlActions = [];
+            root.wpexecAvailable = (exitCode === 0);
+            root.wpexecChecked = true;
+            const actions = root.pendingCodecActions.slice();
+            root.pendingCodecActions = [];
             actions.forEach(action => action());
         }
     }
 
     Process {
-        id: codecQueryProcess
+        id: codecListProcess
 
         property string cardName: ""
-        property string deviceAddress: ""
         property var callback: null
-        property bool parsingTargetCard: false
         property string detectedCodec: ""
         property var availableCodecs: []
 
-        command: ["pactl", "list", "cards"]
-
-        onExited: (exitCode, exitStatus) => {
-            if (exitCode === 0 && detectedCodec) {
-                if (deviceAddress) {
-                    root.updateDeviceCodec(deviceAddress, detectedCodec);
-                }
-                if (callback) {
-                    callback(detectedCodec);
-                }
-            } else if (callback) {
-                callback("");
-            }
-
-            parsingTargetCard = false;
-            detectedCodec = "";
-            availableCodecs = [];
-            deviceAddress = "";
-            callback = null;
-        }
+        command: ["wpexec", root.cardProfileScript, "{}"]
 
         stdout: SplitParser {
             splitMarker: "\n"
             onRead: data => {
-                let line = data.trim();
-
-                if (line.includes(`Name: ${codecQueryProcess.cardName}`)) {
-                    codecQueryProcess.parsingTargetCard = true;
+                const line = data.trim();
+                if (!line.startsWith("CODEC\t"))
                     return;
-                }
-
-                if (codecQueryProcess.parsingTargetCard && line.startsWith("Name: ") && !line.includes(codecQueryProcess.cardName)) {
-                    codecQueryProcess.parsingTargetCard = false;
+                const parts = line.split("\t");
+                if (parts.length < 5)
                     return;
-                }
-
-                if (codecQueryProcess.parsingTargetCard) {
-                    if (line.startsWith("Active Profile:")) {
-                        let profile = line.split(": ")[1] || "";
-                        let activeCodec = codecQueryProcess.availableCodecs.find(c => {
-                            return c.profile === profile;
-                        });
-                        if (activeCodec) {
-                            codecQueryProcess.detectedCodec = activeCodec.name;
-                        }
-                        return;
-                    }
-                    if (line.includes("codec") && line.includes("available: yes")) {
-                        let parts = line.split(": ");
-                        if (parts.length >= 2) {
-                            let profile = parts[0].trim();
-                            let description = parts[1];
-                            let codecMatch = description.match(/codec ([^\)]+)\)/i);
-                            let codecName = codecMatch ? codecMatch[1].trim().toUpperCase() : "UNKNOWN";
-                            let codecInfo = root.getCodecInfo(codecName);
-                            if (codecInfo && !codecQueryProcess.availableCodecs.some(c => {
-                                return c.profile === profile;
-                            })) {
-                                let newCodecs = codecQueryProcess.availableCodecs.slice();
-                                newCodecs.push({
-                                    "name": codecInfo.name,
-                                    "profile": profile,
-                                    "description": codecInfo.description,
-                                    "qualityColor": codecInfo.qualityColor
-                                });
-                                codecQueryProcess.availableCodecs = newCodecs;
-                            }
-                        }
-                    }
+                const codecName = parts[1];
+                const profile = parts[2];
+                const isCurrent = parts[4] === "1";
+                const codecInfo = root.getCodecInfo(codecName);
+                if (!codecInfo)
+                    return;
+                if (isCurrent)
+                    codecListProcess.detectedCodec = codecInfo.name;
+                if (!codecListProcess.availableCodecs.some(c => c.profile === profile)) {
+                    const next = codecListProcess.availableCodecs.slice();
+                    next.push({
+                        "name": codecInfo.name,
+                        "profile": profile,
+                        "description": codecInfo.description,
+                        "qualityColor": codecInfo.qualityColor,
+                        "category": root.codecCategory(codecInfo.name, profile)
+                    });
+                    codecListProcess.availableCodecs = next;
                 }
             }
         }
-    }
 
-    Process {
-        id: codecFullQueryProcess
-
-        property string cardName: ""
-        property var callback: null
-        property bool parsingTargetCard: false
-        property string detectedCodec: ""
-        property var availableCodecs: []
-
-        command: ["pactl", "list", "cards"]
-
-        onExited: function (exitCode, exitStatus) {
-            if (callback) {
+        onExited: function (exitCode) {
+            if (callback)
                 callback(exitCode === 0 ? availableCodecs : [], exitCode === 0 ? detectedCodec : "");
-            }
-            parsingTargetCard = false;
             detectedCodec = "";
             availableCodecs = [];
             callback = null;
-        }
-
-        stdout: SplitParser {
-            splitMarker: "\n"
-            onRead: data => {
-                let line = data.trim();
-
-                if (line.includes(`Name: ${codecFullQueryProcess.cardName}`)) {
-                    codecFullQueryProcess.parsingTargetCard = true;
-                    return;
-                }
-
-                if (codecFullQueryProcess.parsingTargetCard && line.startsWith("Name: ") && !line.includes(codecFullQueryProcess.cardName)) {
-                    codecFullQueryProcess.parsingTargetCard = false;
-                    return;
-                }
-
-                if (codecFullQueryProcess.parsingTargetCard) {
-                    if (line.startsWith("Active Profile:")) {
-                        let profile = line.split(": ")[1] || "";
-                        let activeCodec = codecFullQueryProcess.availableCodecs.find(c => {
-                            return c.profile === profile;
-                        });
-                        if (activeCodec) {
-                            codecFullQueryProcess.detectedCodec = activeCodec.name;
-                        }
-                        return;
-                    }
-                    if (line.includes("codec") && line.includes("available: yes")) {
-                        let parts = line.split(": ");
-                        if (parts.length >= 2) {
-                            let profile = parts[0].trim();
-                            let description = parts[1];
-                            let codecMatch = description.match(/codec ([^\)]+)\)/i);
-                            let codecName = codecMatch ? codecMatch[1].trim().toUpperCase() : "UNKNOWN";
-                            let codecInfo = root.getCodecInfo(codecName);
-                            if (codecInfo && !codecFullQueryProcess.availableCodecs.some(c => {
-                                return c.profile === profile;
-                            })) {
-                                let newCodecs = codecFullQueryProcess.availableCodecs.slice();
-                                newCodecs.push({
-                                    "name": codecInfo.name,
-                                    "profile": profile,
-                                    "description": codecInfo.description,
-                                    "qualityColor": codecInfo.qualityColor
-                                });
-                                codecFullQueryProcess.availableCodecs = newCodecs;
-                            }
-                        }
-                    }
-                }
-            }
         }
     }
 
@@ -593,26 +798,37 @@ Singleton {
 
         property string cardName: ""
         property string profile: ""
+        property string deviceAddress: ""
+        property string expectedCodec: ""
         property var callback: null
+        property bool sawOk: false
 
-        command: ["pactl", "set-card-profile", cardName, profile]
+        command: ["wpexec", root.cardProfileScript, "{}"]
 
-        onExited: function (exitCode, exitStatus) {
-            if (callback) {
-                callback(exitCode === 0, exitCode === 0 ? "Codec switched successfully" : "Failed to switch codec");
+        stdout: SplitParser {
+            splitMarker: "\n"
+            onRead: data => {
+                const line = data.trim();
+                if (!line.startsWith("OK\t"))
+                    return;
+                codecSwitchProcess.sawOk = true;
+                const appliedProfile = line.split("\t")[1] || "";
+                if (appliedProfile)
+                    codecSwitchProcess.expectedCodec = root.codecNameFromProfile(appliedProfile) || codecSwitchProcess.expectedCodec;
             }
+        }
 
-            // If successful, refresh the codec for this device
-            if (exitCode === 0) {
-                if (root.adapter && root.adapter.devices) {
-                    root.adapter.devices.values.forEach(device => {
-                        if (device && root.getCardName(device) === cardName) {
-                            Qt.callLater(() => root.refreshDeviceCodec(device));
-                        }
-                    });
-                }
-            }
+        onExited: function (exitCode) {
+            const success = exitCode === 0 && sawOk;
+            if (success && deviceAddress && expectedCodec)
+                root.updateDeviceCodec(deviceAddress, expectedCodec);
 
+            if (callback)
+                callback(success, success ? I18n.tr("Codec switched successfully") : I18n.tr("Failed to switch codec"));
+
+            sawOk = false;
+            expectedCodec = "";
+            deviceAddress = "";
             callback = null;
         }
     }

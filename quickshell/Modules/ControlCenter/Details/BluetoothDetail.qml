@@ -92,15 +92,7 @@ Rectangle {
     }
 
     function updateDeviceCodecDisplay(deviceAddress, codecName) {
-        for (let i = 0; i < pairedRepeater.count; i++) {
-            const item = pairedRepeater.itemAt(i);
-            if (!item?.modelData)
-                continue;
-            if (item.modelData.address !== deviceAddress)
-                continue;
-            item.currentCodec = codecName;
-            break;
-        }
+        BluetoothService.updateDeviceCodec(deviceAddress, codecName);
     }
 
     function normalizePinList(value) {
@@ -166,7 +158,7 @@ Rectangle {
                 }
 
                 StyledText {
-                    text: scanButton.isDiscovering ? I18n.tr("Scanning") : I18n.tr("Scan")
+                    text: scanButton.isDiscovering ? I18n.tr("Scanning...") : I18n.tr("Scan")
                     color: scanButton.adapterEnabled ? Theme.primary : Theme.surfaceVariantText
                     font.pixelSize: Theme.fontSizeMedium
                     font.weight: Font.Medium
@@ -255,7 +247,10 @@ Rectangle {
                     required property var modelData
                     required property int index
 
-                    readonly property string currentCodec: BluetoothService.deviceCodecs[modelData.address] || ""
+                    readonly property string currentCodec: {
+                        const codecs = BluetoothService.deviceCodecs;
+                        return codecs[modelData.address] || "";
+                    }
                     readonly property bool isConnecting: modelData.state === BluetoothDeviceState.Connecting
                     readonly property bool isConnected: modelData.connected
                     readonly property bool isPinned: root.getPinnedDevices().includes(modelData.address)
