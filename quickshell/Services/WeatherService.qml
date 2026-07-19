@@ -5,7 +5,6 @@ import QtQuick
 import Quickshell
 import Quickshell.Io
 import qs.Common
-import qs.Modules.Greetd
 import "../Common/suncalc.js" as SunCalc
 
 Singleton {
@@ -46,7 +45,8 @@ Singleton {
     property int _geocodeReqId: 0
     property var _pendingCoords: null
 
-    readonly property var lowPriorityCmd: ["nice", "-n", "19", "ionice", "-c3"]
+    // ionice is util-linux only; the BSDs get plain nice
+    readonly property var lowPriorityCmd: Qt.platform.os === "linux" ? ["nice", "-n", "19", "ionice", "-c3"] : ["nice", "-n", "19"]
     readonly property var curlBaseCmd: ["curl", "-sS", "--fail", "--connect-timeout", "3", "--max-time", "6", "--limit-rate", "100k", "--compressed"]
 
     property var weatherIcons: ({
@@ -462,7 +462,7 @@ Singleton {
     }
 
     function getConfiguredLocationName() {
-        return SessionData.isGreeterMode ? SessionData.weatherLocation : SettingsData.weatherLocation;
+        return SettingsData.weatherLocation;
     }
 
     function setLocation(lat, lon, city, country) {
@@ -515,9 +515,9 @@ Singleton {
     }
 
     function updateLocation() {
-        const useAuto = SessionData.isGreeterMode ? GreetdSettings.useAutoLocation : SettingsData.useAutoLocation;
-        const coords = SessionData.isGreeterMode ? SessionData.weatherCoordinates : SettingsData.weatherCoordinates;
-        const cityName = SessionData.isGreeterMode ? SessionData.weatherLocation : SettingsData.weatherLocation;
+        const useAuto = SettingsData.useAutoLocation;
+        const coords = SettingsData.weatherCoordinates;
+        const cityName = SettingsData.weatherLocation;
 
         if (useAuto) {
             getLocationFromService();
@@ -1023,7 +1023,7 @@ Singleton {
     Timer {
         id: updateTimer
         interval: nextInterval()
-        running: root.refCount > 0 && SettingsData.weatherEnabled && !SessionData.isGreeterMode
+        running: root.refCount > 0 && SettingsData.weatherEnabled
         repeat: true
         triggeredOnStart: true
         onTriggered: {

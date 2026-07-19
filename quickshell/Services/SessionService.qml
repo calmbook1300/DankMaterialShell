@@ -12,6 +12,8 @@ Singleton {
     id: root
     readonly property var log: Log.scoped("SessionService")
 
+    // Qt.platform.os is "unix" on the BSDs (qtdeclarative qqmlplatform.cpp)
+    readonly property bool isBSD: Qt.platform.os === "unix"
     property bool hasUwsm: false
     property bool isElogind: false
     property bool loginctlCommandAvailable: false
@@ -351,8 +353,24 @@ Singleton {
     }
 
     function powerManagerCommand(action) {
+        if (isBSD)
+            return bsdPowerCommand(action);
         const useLoginctl = isElogind || (loginctlCommandAvailable && !systemctlCommandAvailable);
         return [useLoginctl ? "loginctl" : "systemctl", action];
+    }
+
+    function bsdPowerCommand(action) {
+        switch (action) {
+        case "suspend":
+        case "suspend-then-hibernate":
+            return ["acpiconf", "-s", "3"];
+        case "hibernate":
+            return ["acpiconf", "-s", "4"];
+        case "reboot":
+            return ["shutdown", "-r", "now"];
+        default:
+            return ["shutdown", "-p", "now"];
+        }
     }
 
     function suspend() {

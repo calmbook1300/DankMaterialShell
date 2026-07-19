@@ -20,7 +20,7 @@ func NewManagerWithOptions(exponential bool) (*Manager, error) {
 	}
 
 	go m.initLogind()
-	go m.initSysfs()
+	go m.initNative()
 	go m.initDDC()
 
 	return m, nil
@@ -38,39 +38,6 @@ func (m *Manager) initLogind() {
 	m.logindBackend = logind
 	m.logindReady = true
 	log.Info("Logind backend initialized - will use for brightness control")
-}
-
-func (m *Manager) initSysfs() {
-	log.Debug("Initializing sysfs backend...")
-	sysfs, err := NewSysfsBackend()
-	if err != nil {
-		log.Warnf("Failed to initialize sysfs backend: %v", err)
-		return
-	}
-
-	devices, err := sysfs.GetDevices()
-	if err != nil {
-		log.Warnf("Failed to get initial sysfs devices: %v", err)
-		m.sysfsBackend = sysfs
-		m.sysfsReady = true
-		m.updateState()
-		m.initUdev()
-		return
-	}
-
-	log.Infof("Sysfs backend initialized with %d devices", len(devices))
-	for _, d := range devices {
-		log.Debugf("  - %s: %s (%d%%)", d.ID, d.Name, d.CurrentPercent)
-	}
-
-	m.sysfsBackend = sysfs
-	m.sysfsReady = true
-	m.updateState()
-	m.initUdev()
-}
-
-func (m *Manager) initUdev() {
-	m.udevMonitor = NewUdevMonitor(m)
 }
 
 func (m *Manager) initDDC() {
@@ -96,9 +63,9 @@ func (m *Manager) Rescan() {
 		}
 	}
 
-	if m.sysfsReady && m.sysfsBackend != nil {
-		if err := m.sysfsBackend.Rescan(); err != nil {
-			log.Debugf("Sysfs rescan failed: %v", err)
+	if m.nativeReady && m.nativeBackend != nil {
+		if err := m.nativeBackend.Rescan(); err != nil {
+			log.Debugf("Native backend rescan failed: %v", err)
 		}
 	}
 
@@ -150,10 +117,10 @@ func stateChanged(old, new State) bool {
 func (m *Manager) updateState() {
 	allDevices := make([]Device, 0)
 
-	if m.sysfsReady && m.sysfsBackend != nil {
-		devices, err := m.sysfsBackend.GetDevices()
+	if m.nativeReady && m.nativeBackend != nil {
+		devices, err := m.nativeBackend.GetDevices()
 		if err != nil {
-			log.Debugf("Failed to get sysfs devices: %v", err)
+			log.Debugf("Failed to get native backend devices: %v", err)
 		}
 		if err == nil {
 			allDevices = append(allDevices, devices...)
@@ -232,18 +199,21 @@ func (m *Manager) SetBrightnessWithExponent(deviceID string, percent int, expone
 	m.stateMutex.Unlock()
 
 	var err error
-	if deviceClass == ClassDDC {
+	switch {
+	case deviceClass == ClassDDC:
 		log.Debugf("Calling DDC backend for %s", deviceID)
 		err = m.ddcBackend.SetBrightnessWithExponent(deviceID, percent, exponential, exponent, func() {
 			m.updateState()
 			m.debouncedBroadcast(deviceID)
 		})
-	} else if m.logindReady && m.logindBackend != nil {
+	case m.logindReady && m.logindBackend != nil:
 		log.Debugf("Calling logind backend for %s", deviceID)
 		err = m.setViaSysfsWithLogindWithExponent(deviceID, percent, exponential, exponent)
-	} else {
-		log.Debugf("Calling sysfs backend for %s", deviceID)
-		err = m.sysfsBackend.SetBrightnessWithExponent(deviceID, percent, exponential, exponent)
+	case m.nativeBackend != nil:
+		log.Debugf("Calling native backend for %s", deviceID)
+		err = m.nativeBackend.SetBrightnessWithExponent(deviceID, percent, exponential, exponent)
+	default:
+		err = fmt.Errorf("no brightness backend for %s", deviceID)
 	}
 
 	if err != nil {

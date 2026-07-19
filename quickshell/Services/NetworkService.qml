@@ -95,7 +95,6 @@ Singleton {
     signal connectionChanged
     signal credentialsNeeded(string token, string ssid, string setting, var fields, var hints, string reason, string connType, string connName, string vpnService, var fieldsInfo)
 
-    property bool usingLegacy: false
     property var activeService: null
 
     readonly property string socketPath: Quickshell.env("DMS_SOCKET")
@@ -107,18 +106,12 @@ Singleton {
     Component.onCompleted: {
         log.info("Initializing...");
         if (!socketPath || socketPath.length === 0) {
-            log.info("DMS_SOCKET not set, using LegacyNetworkService");
-            useLegacyService();
+            log.info("DMS_SOCKET not set, network backend unavailable");
             return;
         }
         if (DMSNetworkService.networkAvailable) {
             log.info("Network capability already available, using DMSNetworkService");
             useDMSService();
-            return;
-        }
-        if (DMSService.isConnected && DMSService.capabilities.length > 0) {
-            log.info("Network capability not available in DMS, using LegacyNetworkService");
-            useLegacyService();
             return;
         }
         log.debug("DMS_SOCKET found, waiting for capabilities...");
@@ -131,27 +124,13 @@ Singleton {
             if (!activeService && DMSNetworkService.networkAvailable) {
                 log.info("Network capability detected, using DMSNetworkService");
                 useDMSService();
-            } else if (!activeService && !DMSNetworkService.networkAvailable && socketPath && socketPath.length > 0) {
-                log.info("Network capability not available in DMS, using LegacyNetworkService");
-                useLegacyService();
             }
         }
     }
 
     function useDMSService() {
         activeService = DMSNetworkService;
-        usingLegacy = false;
         log.info("Switched to DMSNetworkService, networkAvailable:", networkAvailable);
-        connectSignals();
-    }
-
-    function useLegacyService() {
-        activeService = LegacyNetworkService;
-        usingLegacy = true;
-        log.info("Switched to LegacyNetworkService, networkAvailable:", networkAvailable);
-        if (LegacyNetworkService.activate) {
-            LegacyNetworkService.activate();
-        }
         connectSignals();
     }
 

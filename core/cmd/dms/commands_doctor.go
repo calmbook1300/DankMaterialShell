@@ -833,6 +833,8 @@ func detectNetworkBackend(stackResult *network.DetectResult) string {
 		return "systemd-networkd"
 	case network.BackendConnMan:
 		return "ConnMan"
+	case network.BackendWpaSupplicant:
+		return "wpa_supplicant"
 	default:
 		return ""
 	}

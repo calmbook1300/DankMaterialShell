@@ -361,6 +361,16 @@ EOFCONFIG
         wireplumberReloading = true;
         wireplumberReloadStarted();
 
+        if (!SessionService.systemctlCommandAvailable) {
+            Proc.runCommand("restartWireplumber", ["sh", "-c", "pkill -x wireplumber; sleep 1"], () => {
+                Quickshell.execDetached(["wireplumber"]);
+                wireplumberReloading = false;
+                ToastService.showInfo(I18n.tr("Audio system restarted"), I18n.tr("Device names updated"));
+                wireplumberReloadCompleted(true);
+            }, 5000);
+            return;
+        }
+
         Proc.runCommand("restartWireplumber", ["systemctl", "--user", "restart", "wireplumber"], (output, exitCode) => {
             wireplumberReloading = false;
 

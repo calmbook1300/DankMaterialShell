@@ -13,14 +13,14 @@ Singleton {
     property var settingsRoot: null
 
     onSettingsRootChanged: {
-        if (settingsRoot && !settingsRoot.isGreeterMode)
+        if (settingsRoot)
             consumeGreeterAutoLoginPendingSync();
     }
 
     readonly property string greeterAutoLoginPendingSyncPath: (Quickshell.env("DMS_GREET_CFG_DIR") || "/var/cache/dms-greeter") + "/.local/state/auto-login-sync-pending"
 
     function consumeGreeterAutoLoginPendingSync() {
-        if (!settingsRoot || settingsRoot.isGreeterMode)
+        if (!settingsRoot)
             return;
         greeterAutoLoginPendingCheckProcess.running = true;
     }
@@ -287,7 +287,7 @@ Singleton {
     property string authApplyTerminalFallbackStderr: ""
 
     function scheduleAuthApply() {
-        if (!settingsRoot || settingsRoot.isGreeterMode)
+        if (!settingsRoot)
             return;
 
         authApplyQueued = true;
@@ -300,7 +300,7 @@ Singleton {
     }
 
     function beginAuthApply() {
-        if (!authApplyQueued || authApplyRunning || !settingsRoot || settingsRoot.isGreeterMode)
+        if (!authApplyQueued || authApplyRunning || !settingsRoot)
             return;
 
         authApplyQueued = false;
@@ -339,7 +339,7 @@ Singleton {
     property string greeterAutoLoginSyncStderr: ""
 
     function scheduleGreeterAutoLoginSync() {
-        if (!settingsRoot || settingsRoot.isGreeterMode)
+        if (!settingsRoot)
             return;
 
         greeterAutoLoginSyncQueued = true;
@@ -352,7 +352,7 @@ Singleton {
     }
 
     function beginGreeterAutoLoginSync() {
-        if (!greeterAutoLoginSyncQueued || greeterAutoLoginSyncRunning || !settingsRoot || settingsRoot.isGreeterMode)
+        if (!greeterAutoLoginSyncQueued || greeterAutoLoginSyncRunning || !settingsRoot)
             return;
 
         greeterAutoLoginSyncQueued = false;
@@ -367,7 +367,7 @@ Singleton {
         ToastService.dismissCategory("greeter-autologin-sync");
         if (settingsRoot)
             settingsRoot.set("greeterSyncPending", true);
-        ToastService.showWarning(I18n.tr("Auto-login change needs a sync"), I18n.tr("Administrator access is required. Use the Sync button in Settings → Greeter to apply.") + (details ? "\n\n" + details : ""), "dms greeter sync --autologin", "greeter-autologin-sync");
+        ToastService.showWarning(I18n.tr("Auto-login change needs a sync"), I18n.tr("Administrator access is required. Use the Sync button in Settings → Greeter to apply.") + (details ? "\n\n" + details : ""), "dms-greeter sync --autologin", "greeter-autologin-sync");
         finishGreeterAutoLoginSync();
     }
 
@@ -535,7 +535,7 @@ Singleton {
     }
 
     property var greeterAutoLoginSyncProcess: Process {
-        command: ["dms", "greeter", "sync", "--yes", "--autologin"]
+        command: ["dms-greeter", "sync", "--yes", "--autologin"]
         running: false
 
         stdout: StdioCollector {
@@ -575,7 +575,7 @@ Singleton {
         onExited: exitCode => {
             const enabling = root.settingsRoot && root.settingsRoot.greeterAutoLogin;
             if (exitCode === 0) {
-                ToastService.showWarning(enabling ? I18n.tr("Applying auto-login on startup...") : I18n.tr("Disabling auto-login on startup..."), "", "dms greeter sync --autologin", "greeter-autologin-sync");
+                ToastService.showWarning(enabling ? I18n.tr("Applying auto-login on startup...") : I18n.tr("Disabling auto-login on startup..."), "", "dms-greeter sync --autologin", "greeter-autologin-sync");
                 root.greeterAutoLoginSyncProcess.running = true;
                 return;
             }

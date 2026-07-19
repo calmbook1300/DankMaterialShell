@@ -137,6 +137,10 @@ TAB_INDEX_MAP = {
     "BatteryTab.qml": 42,
 }
 
+FILE_CONDITION_MAP = {
+    "GreeterTab.qml": "greeterAvailable",
+}
+
 TAB_CATEGORY_MAP = {
     0: "Personalization",
     1: "Time & Weather",
@@ -385,7 +389,7 @@ def find_settings_components(content, filename, wrappers):
                 description = extract_i18n_string(desc_raw)
 
             visible_raw = extract_property(block, "visible")
-            condition_key = None
+            condition_key = FILE_CONDITION_MAP.get(filename)
             if visible_raw:
                 if "CompositorService.isNiri" in visible_raw:
                     condition_key = "isNiri"
@@ -399,8 +403,8 @@ def find_settings_components(content, filename, wrappers):
                     condition_key = "soundsAvailable"
                 elif "CupsService.cupsAvailable" in visible_raw:
                     condition_key = "cupsAvailable"
-                elif "NetworkService.usingLegacy" in visible_raw:
-                    condition_key = "networkNotLegacy"
+                elif "NetworkService.networkAvailable" in visible_raw:
+                    condition_key = "networkAvailable"
                 elif "DMSService.isConnected" in visible_raw:
                     condition_key = "dmsConnected"
                 elif "Theme.matugenAvailable" in visible_raw:
@@ -455,6 +459,7 @@ def parse_tabs_from_sidebar(sidebar_file):
             ("shortcutsOnly", "keybindsAvailable"),
             ("soundsOnly", "soundsAvailable"),
             ("cupsOnly", "cupsAvailable"),
+            ("greeterOnly", "greeterAvailable"),
             ("dmsOnly", "dmsConnected"),
             ("hyprlandNiriOnly", "isHyprlandOrNiri"),
             ("clipboardOnly", "dmsConnected"),

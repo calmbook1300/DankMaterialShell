@@ -7818,7 +7818,8 @@
       "typography"
     ],
     "icon": "palette",
-    "description": "Font used on the login screen"
+    "description": "Font used on the login screen",
+    "conditionKey": "greeterAvailable"
   },
   {
     "section": "greeterAuth",
@@ -7842,7 +7843,8 @@
       "write"
     ],
     "icon": "fingerprint",
-    "description": "DMS removes its managed block from /etc/pam.d/greetd and stops write services"
+    "description": "DMS removes its managed block from /etc/pam.d/greetd and stops write services",
+    "conditionKey": "greeterAvailable"
   },
   {
     "section": "greeterAutoLogin",
@@ -7875,7 +7877,8 @@
       "unlock",
       "until"
     ],
-    "description": "Skip the greeter password after boot until you sign out. Lock screen unlock is unchanged. Takes effect on the next reboot after sync."
+    "description": "Skip the greeter password after boot until you sign out. Lock screen unlock is unchanged. Takes effect on the next reboot after sync.",
+    "conditionKey": "greeterAvailable"
   },
   {
     "section": "greeterBehavior",
@@ -7894,7 +7897,8 @@
       "session"
     ],
     "icon": "history",
-    "description": "Pre-select the last used session on the greeter"
+    "description": "Pre-select the last used session on the greeter",
+    "conditionKey": "greeterAvailable"
   },
   {
     "section": "greeterLockDateFormat",
@@ -7910,7 +7914,8 @@
       "login",
       "screen"
     ],
-    "description": "Format the date on the login screen"
+    "description": "Format the date on the login screen",
+    "conditionKey": "greeterAvailable"
   },
   {
     "section": "greeterDeps",
@@ -7925,7 +7930,8 @@
       "greeter",
       "login"
     ],
-    "icon": "extension"
+    "icon": "extension",
+    "conditionKey": "greeterAvailable"
   },
   {
     "section": "greeterEnableFprint",
@@ -7941,7 +7947,8 @@
       "greetd",
       "greeter",
       "login"
-    ]
+    ],
+    "conditionKey": "greeterAvailable"
   },
   {
     "section": "greeterEnableU2f",
@@ -7958,7 +7965,8 @@
       "login",
       "security",
       "u2f"
-    ]
+    ],
+    "conditionKey": "greeterAvailable"
   },
   {
     "section": "_tab_31",
@@ -7971,7 +7979,8 @@
       "greeter",
       "login"
     ],
-    "icon": "login"
+    "icon": "login",
+    "conditionKey": "greeterAvailable"
   },
   {
     "section": "greeterFontFamily",
@@ -7987,7 +7996,8 @@
       "screen",
       "typography"
     ],
-    "description": "Font used on the login screen"
+    "description": "Font used on the login screen",
+    "conditionKey": "greeterAvailable"
   },
   {
     "section": "greeterRememberLastSession",
@@ -8004,7 +8014,8 @@
       "select",
       "session"
     ],
-    "description": "Pre-select the last used session on the greeter"
+    "description": "Pre-select the last used session on the greeter",
+    "conditionKey": "greeterAvailable"
   },
   {
     "section": "greeterRememberLastUser",
@@ -8023,7 +8034,8 @@
       "user",
       "username"
     ],
-    "description": "Pre-fill the last successful username on the greeter"
+    "description": "Pre-fill the last successful username on the greeter",
+    "conditionKey": "greeterAvailable"
   },
   {
     "section": "greeterStatus",
@@ -8037,7 +8049,8 @@
       "login",
       "status"
     ],
-    "icon": "info"
+    "icon": "info",
+    "conditionKey": "greeterAvailable"
   },
   {
     "section": "greeterPamExternallyManaged",
@@ -8061,7 +8074,8 @@
       "system",
       "write"
     ],
-    "description": "DMS removes its managed block from /etc/pam.d/greetd and stops write services"
+    "description": "DMS removes its managed block from /etc/pam.d/greetd and stops write services",
+    "conditionKey": "greeterAvailable"
   },
   {
     "section": "muxType",
@@ -8617,7 +8631,7 @@
       "user",
       "users"
     ],
-    "description": "Add the new user to the %1 group so they can run dms greeter sync --profile."
+    "description": "Add the new user to the %1 group so they can run dms-greeter sync --profile."
   },
   {
     "section": "createUser",

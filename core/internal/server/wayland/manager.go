@@ -13,12 +13,12 @@ import (
 
 	wlclient "github.com/AvengeMedia/DankMaterialShell/core/pkg/go-wayland/wayland/client"
 	"github.com/godbus/dbus/v5"
-	"golang.org/x/sys/unix"
 
 	"github.com/AvengeMedia/DankMaterialShell/core/internal/errdefs"
 	"github.com/AvengeMedia/DankMaterialShell/core/internal/geolocation"
 	"github.com/AvengeMedia/DankMaterialShell/core/internal/log"
 	"github.com/AvengeMedia/DankMaterialShell/core/internal/proto/wlr_gamma_control"
+	"github.com/AvengeMedia/DankMaterialShell/core/internal/wayland/shm"
 )
 
 const animKelvinStep = 25
@@ -920,7 +920,7 @@ func (m *Manager) setGammaBytes(out *outputState, data []byte) error {
 		return fmt.Errorf("gamma control invalid")
 	}
 
-	fd, err := MemfdCreate("gamma-ramp", 0)
+	fd, err := shm.CreateAnonFd("gamma-ramp")
 	if err != nil {
 		return err
 	}
@@ -1294,12 +1294,4 @@ func (m *Manager) Close() {
 		m.dbusConn.RemoveSignal(m.dbusSignal)
 		m.dbusConn.Close()
 	}
-}
-
-func MemfdCreate(name string, flags int) (int, error) {
-	fd, err := unix.MemfdCreate(name, flags)
-	if err != nil {
-		return -1, err
-	}
-	return fd, nil
 }

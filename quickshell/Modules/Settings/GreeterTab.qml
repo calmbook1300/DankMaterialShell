@@ -25,7 +25,7 @@ Item {
 
         switch (SettingsData.greeterFingerprintReason) {
         case "ready":
-            return I18n.tr("Authentication changes apply automatically", "greeter auth setting description");
+            return I18n.tr("Applies on the next greeter sync", "greeter auth setting description");
         case "missing_enrollment":
             return I18n.tr("Fingerprint reader detected, but no prints are enrolled yet. You can enable this now and run Sync later.", "greeter fingerprint login setting");
         case "missing_reader":
@@ -45,7 +45,7 @@ Item {
 
         switch (SettingsData.greeterU2fReason) {
         case "ready":
-            return I18n.tr("Authentication changes apply automatically", "greeter auth setting description");
+            return I18n.tr("Applies on the next greeter sync", "greeter auth setting description");
         case "missing_key_registration":
             return I18n.tr("Security-key support was detected, but no registered key was found yet. You can enable this now and register one later.", "security key setting status");
         case "missing_pam_support":
@@ -82,27 +82,44 @@ Item {
     property bool greeterBinaryExists: false
     property bool greeterEnabled: false
     readonly property bool greeterInstalled: greeterBinaryExists || greeterEnabled
+    readonly property string greeterAction: {
+        if (!greeterInstalled)
+            return "install";
+        if (!greeterEnabled)
+            return "activate";
+        return "";
+    }
+    readonly property bool greeterActionAvailable: greeterAction !== ""
 
     readonly property string greeterActionLabel: {
-        if (!root.greeterInstalled)
+        switch (greeterAction) {
+        case "install":
             return I18n.tr("Install");
-        if (!root.greeterEnabled)
+        case "activate":
             return I18n.tr("Activate");
-        return I18n.tr("Uninstall");
+        default:
+            return "";
+        }
     }
     readonly property string greeterActionIcon: {
-        if (!root.greeterInstalled)
+        switch (greeterAction) {
+        case "install":
             return "download";
-        if (!root.greeterEnabled)
+        case "activate":
             return "login";
-        return "delete";
+        default:
+            return "";
+        }
     }
     readonly property var greeterActionCommand: {
-        if (!root.greeterInstalled)
+        switch (greeterAction) {
+        case "install":
             return ["dms", "greeter", "install", "--terminal"];
-        if (!root.greeterEnabled)
-            return ["dms", "greeter", "enable", "--terminal"];
-        return ["dms", "greeter", "uninstall", "--terminal", "--yes"];
+        case "activate":
+            return ["dms-greeter", "enable", "--terminal"];
+        default:
+            return [];
+        }
     }
     property string greeterPendingAction: ""
 
@@ -120,26 +137,28 @@ Item {
     }
 
     function runGreeterInstallAction() {
-        root.greeterPendingAction = !root.greeterInstalled ? "install" : !root.greeterEnabled ? "activate" : "uninstall";
+        root.greeterPendingAction = root.greeterAction;
         greeterStatusText = I18n.tr("Opening terminal: ") + root.greeterActionLabel + "...";
         greeterInstallActionRunning = true;
         greeterInstallActionProcess.running = true;
     }
 
     function promptGreeterActionConfirm() {
+        if (!root.greeterActionAvailable)
+            return;
+
         var title, message, confirmText;
-        if (!root.greeterInstalled) {
+        switch (root.greeterAction) {
+        case "install":
             title = I18n.tr("Install Greeter", "greeter action confirmation");
             message = I18n.tr("Install the DMS greeter? A terminal will open for sudo authentication.");
             confirmText = I18n.tr("Install");
-        } else if (!root.greeterEnabled) {
+            break;
+        case "activate":
             title = I18n.tr("Activate Greeter", "greeter action confirmation");
             message = I18n.tr("Activate the DMS greeter? A terminal will open for sudo authentication. Run Sync after activation to apply your settings.");
             confirmText = I18n.tr("Activate");
-        } else {
-            title = I18n.tr("Uninstall Greeter", "greeter action confirmation");
-            message = I18n.tr("Uninstall the DMS greeter? This will remove configuration and restore your previous display manager. A terminal will open for sudo authentication.");
-            confirmText = I18n.tr("Uninstall");
+            break;
         }
         greeterActionConfirm.showWithOptions({
             "title": title,
@@ -188,7 +207,7 @@ Item {
 
     Process {
         id: greeterBinaryCheckProcess
-        command: ["sh", "-c", "test -f /usr/bin/dms-greeter || test -f /usr/local/bin/dms-greeter"]
+        command: ["sh", "-c", "command -v dms-greeter >/dev/null 2>&1"]
         running: false
 
         onExited: exitCode => {
@@ -198,7 +217,7 @@ Item {
 
     Process {
         id: greeterStatusProcess
-        command: ["dms", "greeter", "status"]
+        command: ["dms-greeter", "status"]
         running: false
 
         stdout: StdioCollector {
@@ -221,7 +240,7 @@ Item {
                     root.greeterStatusText = root.greeterStatusText + "\n\nstderr:\n" + err;
                 return;
             }
-            var failure = I18n.tr("Failed to run 'dms greeter status'. Ensure DMS is installed and dms is in PATH.", "greeter status error") + " (exit " + exitCode + ")";
+            var failure = I18n.tr("Failed to run 'dms-greeter status'. Ensure the dms-greeter package is installed.", "greeter status error") + " (exit " + exitCode + ")";
             if (out !== "")
                 failure = failure + "\n\n" + out;
             if (err !== "")
@@ -232,7 +251,7 @@ Item {
 
     Process {
         id: greeterSyncProcess
-        command: ["dms", "greeter", "sync", "--yes"]
+        command: ["dms-greeter", "sync", "--yes"]
         running: false
 
         stdout: StdioCollector {
@@ -247,16 +266,8 @@ Item {
             root.greeterSyncRunning = false;
             const out = (root.greeterSyncStdout || "").trim();
             const err = (root.greeterSyncStderr || "").trim();
-            if (exitCode === 0) {
-                var success = I18n.tr("Sync completed successfully.");
-                if (out !== "")
-                    success = success + "\n\n" + out;
-                if (err !== "")
-                    success = success + "\n\nstderr:\n" + err;
-                root.greeterStatusText = success;
-                SettingsData.clearGreeterSyncPending();
-                ToastService.showInfo(I18n.tr("Greeter sync complete"));
-            } else {
+            root.checkGreeterInstallState();
+            if (exitCode !== 0) {
                 var failure = I18n.tr("Sync failed in background mode. Trying terminal mode so you can authenticate interactively.") + " (exit " + exitCode + ")";
                 if (out !== "")
                     failure = failure + "\n\n" + out;
@@ -264,8 +275,16 @@ Item {
                     failure = failure + "\n\nstderr:\n" + err;
                 root.greeterStatusText = failure;
                 root.launchGreeterSyncTerminalFallback(false, "");
+                return;
             }
-            root.checkGreeterInstallState();
+            var success = I18n.tr("Sync completed successfully.");
+            if (out !== "")
+                success = success + "\n\n" + out;
+            if (err !== "")
+                success = success + "\n\nstderr:\n" + err;
+            root.greeterStatusText = success;
+            SettingsData.clearGreeterSyncPending();
+            ToastService.showInfo(I18n.tr("Greeter sync complete"));
         }
     }
 
@@ -295,7 +314,7 @@ Item {
 
     Process {
         id: greeterTerminalFallbackProcess
-        command: ["dms", "greeter", "sync", "--terminal", "--yes"]
+        command: ["dms-greeter", "sync", "--terminal", "--yes"]
         running: false
 
         stderr: StdioCollector {
@@ -310,7 +329,7 @@ Item {
                 SettingsData.clearGreeterSyncPending();
                 return;
             }
-            var fallback = I18n.tr("Terminal fallback failed. Install one of the supported terminal emulators or run 'dms greeter sync' manually.") + " (exit " + exitCode + ")";
+            var fallback = I18n.tr("Terminal fallback failed. Install one of the supported terminal emulators or run 'dms-greeter sync' manually.") + " (exit " + exitCode + ")";
             const err = (root.greeterTerminalFallbackStderr || "").trim();
             if (err !== "")
                 fallback = fallback + "\n\nstderr:\n" + err;
@@ -327,17 +346,19 @@ Item {
             root.greeterInstallActionRunning = false;
             const pending = root.greeterPendingAction;
             root.greeterPendingAction = "";
-            if (exitCode === 0) {
-                if (pending === "install")
-                    root.greeterStatusText = I18n.tr("Install complete. Greeter has been installed.");
-                else if (pending === "activate")
-                    root.greeterStatusText = I18n.tr("Greeter activated. greetd is now enabled.");
-                else
-                    root.greeterStatusText = I18n.tr("Uninstall complete. Greeter has been removed.");
-            } else {
-                root.greeterStatusText = I18n.tr("Action failed or terminal was closed.") + " (exit " + exitCode + ")";
-            }
             root.checkGreeterInstallState();
+            if (exitCode !== 0) {
+                root.greeterStatusText = I18n.tr("Action failed or terminal was closed.") + " (exit " + exitCode + ")";
+                return;
+            }
+            switch (pending) {
+            case "install":
+                root.greeterStatusText = I18n.tr("Install complete. Greeter has been installed.");
+                return;
+            default:
+                root.greeterStatusText = I18n.tr("Greeter activated. greetd is now enabled.");
+                return;
+            }
         }
     }
 
@@ -400,7 +421,7 @@ Item {
                 settingKey: "greeterStatus"
 
                 StyledText {
-                    text: I18n.tr("Sync applies your theme and settings to the login screen. Shared users should run dms greeter sync --profile instead of a primary user sync.")
+                    text: I18n.tr("Sync applies your theme and settings to the login screen. Shared users should run dms-greeter sync --profile instead of a primary user sync.")
                     font.pixelSize: Theme.fontSizeSmall
                     color: Theme.surfaceVariantText
                     width: parent.width
@@ -423,7 +444,13 @@ Item {
                         id: statusTextArea
                         anchors.fill: parent
                         anchors.margins: Theme.spacingM
-                        text: root.greeterStatusRunning ? I18n.tr("Checking...", "greeter status loading") : (root.greeterStatusText || I18n.tr("Click Refresh to check status.", "greeter status placeholder"))
+                        text: {
+                            if (root.greeterStatusRunning)
+                                return I18n.tr("Checking...", "greeter status loading");
+                            if (root.greeterStatusText !== "")
+                                return root.greeterStatusText;
+                            return I18n.tr("Click Refresh to check status.", "greeter status placeholder");
+                        }
                         font.pixelSize: Theme.fontSizeSmall
                         font.family: "monospace"
                         color: root.greeterStatusRunning ? Theme.surfaceVariantText : Theme.surfaceText
@@ -442,6 +469,7 @@ Item {
                     spacing: Theme.spacingS
 
                     DankButton {
+                        visible: root.greeterActionAvailable
                         text: root.greeterActionLabel
                         iconName: root.greeterActionIcon
                         horizontalPadding: Theme.spacingL
@@ -556,9 +584,13 @@ Item {
                     description: I18n.tr("Format the date on the login screen")
                     options: root._lockDateFormatPresets.map(p => p.label)
                     currentValue: {
-                        var current = (SettingsData.greeterLockDateFormat !== undefined && SettingsData.greeterLockDateFormat !== "") ? SettingsData.greeterLockDateFormat : SettingsData.lockDateFormat || "";
+                        var current = SettingsData.greeterLockDateFormat || SettingsData.lockDateFormat || "";
                         var match = root._lockDateFormatPresets.find(p => p.format === current);
-                        return match ? match.label : (current ? I18n.tr("Custom") + ": " + current : root._lockDateFormatPresets[0].label);
+                        if (match)
+                            return match.label;
+                        if (current)
+                            return I18n.tr("Custom") + ": " + current;
+                        return root._lockDateFormatPresets[0].label;
                     }
                     onValueChanged: value => {
                         var preset = root._lockDateFormatPresets.find(p => p.label === value);

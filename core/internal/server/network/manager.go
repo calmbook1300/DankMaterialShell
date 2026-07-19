@@ -12,7 +12,8 @@ import (
 )
 
 // ErrNoNetworkBackend is returned when no supported network management daemon
-// (NetworkManager, iwd, systemd-networkd, ConnMan) is present on the system.
+// (NetworkManager, iwd, systemd-networkd, ConnMan, wpa_supplicant) is present
+// on the system.
 var ErrNoNetworkBackend = errors.New("no supported network backend found")
 
 func NewManager() (*Manager, error) {
@@ -61,6 +62,13 @@ func NewManager() (*Manager, error) {
 			}
 			backend = nd
 		}
+
+	case BackendWpaSupplicant:
+		wpa, err := NewWpaSupplicantBackend()
+		if err != nil {
+			return nil, fmt.Errorf("failed to create wpa_supplicant backend: %w", err)
+		}
+		backend = wpa
 
 	default:
 		return nil, fmt.Errorf("%w: %s", ErrNoNetworkBackend, detection.ChosenReason)

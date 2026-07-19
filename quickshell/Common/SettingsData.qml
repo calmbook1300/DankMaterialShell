@@ -17,8 +17,6 @@ Singleton {
 
     readonly property int settingsConfigVersion: 12
 
-    readonly property bool isGreeterMode: Quickshell.env("DMS_RUN_GREETER") === "1" || Quickshell.env("DMS_RUN_GREETER") === "true"
-
     enum Position {
         Top,
         Bottom,
@@ -1441,19 +1439,15 @@ Singleton {
     signal workspaceIconsUpdated
 
     function refreshAuthAvailability() {
-        if (isGreeterMode)
-            return;
         Processes.detectAuthCapabilities();
     }
 
     Component.onCompleted: {
-        if (!isGreeterMode) {
-            Processes.settingsRoot = root;
-            loadSettings();
-            initializeListModels();
-            refreshAuthAvailability();
-            Processes.checkPluginSettings();
-        }
+        Processes.settingsRoot = root;
+        loadSettings();
+        initializeListModels();
+        refreshAuthAvailability();
+        Processes.checkPluginSettings();
     }
 
     function applyStoredTheme() {
@@ -1519,8 +1513,6 @@ Singleton {
     }
 
     function checkIconThemeDrift() {
-        if (isGreeterMode)
-            return;
         if (resolveIconTheme() === "System Default")
             return;
         if (!lastAppliedIconTheme)
@@ -1676,8 +1668,6 @@ Singleton {
     }
 
     function scheduleAuthApply() {
-        if (isGreeterMode)
-            return;
         Qt.callLater(() => {
             Processes.settingsRoot = root;
             Processes.scheduleAuthApply();
@@ -1685,8 +1675,6 @@ Singleton {
     }
 
     function scheduleGreeterAutoLoginSync() {
-        if (isGreeterMode)
-            return;
         Qt.callLater(() => {
             Processes.settingsRoot = root;
             Processes.scheduleGreeterAutoLoginSync();
@@ -1694,8 +1682,6 @@ Singleton {
     }
 
     function markGreeterSyncPending(who, key, oldValue) {
-        if (isGreeterMode)
-            return;
         if (!(key in greeterSyncBaseline)) {
             var baseline = greeterSyncBaseline;
             baseline[key] = oldValue;
@@ -3634,7 +3620,7 @@ Singleton {
     FileView {
         id: settingsFile
 
-        path: isGreeterMode ? "" : StandardPaths.writableLocation(StandardPaths.ConfigLocation) + "/DankMaterialShell/settings.json"
+        path: StandardPaths.writableLocation(StandardPaths.ConfigLocation) + "/DankMaterialShell/settings.json"
         blockLoading: true
         blockWrites: true
         atomicWrites: true
@@ -3647,8 +3633,6 @@ Singleton {
             settingsFileReloadDebounce.restart();
         }
         onLoaded: {
-            if (isGreeterMode)
-                return;
             const wasLoaded = _hasLoaded;
             const prevFrameEnabled = frameEnabled;
             const prevFrameMode = frameMode;
@@ -3691,9 +3675,7 @@ Singleton {
                 updateFrameCompositorLayout();
         }
         onLoadFailed: error => {
-            if (!isGreeterMode) {
-                applyStoredTheme();
-            }
+            applyStoredTheme();
         }
         onSaveFailed: error => {
             root._isReadOnly = true;
@@ -3704,24 +3686,20 @@ Singleton {
     FileView {
         id: pluginSettingsFile
 
-        path: isGreeterMode ? "" : pluginSettingsPath
+        path: pluginSettingsPath
         blockLoading: true
         blockWrites: true
         atomicWrites: true
         printErrors: false
-        watchChanges: !isGreeterMode
+        watchChanges: true
         onLoaded: {
-            if (!isGreeterMode) {
-                parsePluginSettings(pluginSettingsFile.text());
-            }
+            parsePluginSettings(pluginSettingsFile.text());
         }
         onLoadFailed: error => {
-            if (!isGreeterMode) {
-                const msg = String(error || "");
-                if (!_isMissingPluginSettingsError(error))
-                    log.warn("Failed to load plugin_settings.json. Error:", msg);
-                _resetPluginSettings();
-            }
+            const msg = String(error || "");
+            if (!_isMissingPluginSettingsError(error))
+                log.warn("Failed to load plugin_settings.json. Error:", msg);
+            _resetPluginSettings();
         }
     }
 

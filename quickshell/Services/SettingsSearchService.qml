@@ -42,9 +42,10 @@ Singleton {
             "keybindsAvailable": () => KeybindsService.available,
             "soundsAvailable": () => AudioService.soundsAvailable,
             "cupsAvailable": () => CupsService.cupsAvailable,
-            "networkNotLegacy": () => !NetworkService.usingLegacy,
+            "networkAvailable": () => NetworkService.networkAvailable,
             "dmsConnected": () => DMSService.isConnected && DMSService.apiVersion >= 23,
-            "matugenAvailable": () => Theme.matugenAvailable
+            "matugenAvailable": () => Theme.matugenAvailable,
+            "greeterAvailable": () => GreeterService.available
         })
 
     Component.onCompleted: indexFile.reload()

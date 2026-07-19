@@ -33,14 +33,25 @@ type DeviceUpdate struct {
 	Device Device `json:"device"`
 }
 
+type Backend interface {
+	Rescan() error
+	GetDevices() ([]Device, error)
+	SetBrightnessWithExponent(id string, percent int, exponential bool, exponent float64) error
+}
+
+type deviceMonitor interface {
+	Close()
+}
+
 type Manager struct {
 	logindBackend *LogindBackend
 	sysfsBackend  *SysfsBackend
+	nativeBackend Backend
 	ddcBackend    *DDCBackend
-	udevMonitor   *UdevMonitor
+	monitor       deviceMonitor
 
 	logindReady bool
-	sysfsReady  bool
+	nativeReady bool
 	ddcReady    bool
 
 	exponential bool
@@ -170,8 +181,8 @@ func (m *Manager) Close() {
 		return true
 	})
 
-	if m.udevMonitor != nil {
-		m.udevMonitor.Close()
+	if m.monitor != nil {
+		m.monitor.Close()
 	}
 
 	if m.logindBackend != nil {

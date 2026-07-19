@@ -27,7 +27,11 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        arch: [amd64, arm64]
+        include:
+          - { goos: linux, arch: amd64 }
+          - { goos: linux, arch: arm64 }
+          - { goos: freebsd, arch: amd64 }
+          - { goos: freebsd, arch: arm64 }
 
     defaults:
       run:
@@ -35,6 +39,8 @@ jobs:
 
     env:
       TAG: ${{ inputs.tag }}
+      # linux assets keep their historical arch-only names
+      ASSET: ${{ matrix.goos == 'linux' && matrix.arch || format('{0}-{1}', matrix.goos, matrix.arch) }}
 
     steps:
       - name: Checkout
@@ -50,6 +56,7 @@ jobs:
           go-version-file: ./core/go.mod
 
       - name: Format check
+        if: matrix.goos == 'linux'
         run: |
           if [ "$(gofmt -s -l . | wc -l)" -gt 0 ]; then
             echo "The following files are not formatted:"
@@ -58,41 +65,43 @@ jobs:
           fi
 
       - name: Run tests
+        if: matrix.goos == 'linux'
         run: go test -v ./...
 
-      - name: Build dankinstall (${{ matrix.arch }})
+      - name: Build dankinstall (${{ env.ASSET }})
+        if: matrix.goos == 'linux'
         env:
-          GOOS: linux
+          GOOS: ${{ matrix.goos }}
           CGO_ENABLED: 0
           GOARCH: ${{ matrix.arch }}
         run: |
           set -eux
           cd cmd/dankinstall
           go build -trimpath -ldflags "-s -w -X main.Version=${TAG}" \
-            -o ../../dankinstall-${{ matrix.arch }}
+            -o ../../dankinstall-${{ env.ASSET }}
           cd ../..
-          gzip -9 -k dankinstall-${{ matrix.arch }}
-          sha256sum dankinstall-${{ matrix.arch }}.gz > dankinstall-${{ matrix.arch }}.gz.sha256
+          gzip -9 -k dankinstall-${{ env.ASSET }}
+          sha256sum dankinstall-${{ env.ASSET }}.gz > dankinstall-${{ env.ASSET }}.gz.sha256
 
       - name: Sync embedded shell
         run: make sync-shell
 
-      - name: Build dms (${{ matrix.arch }})
+      - name: Build dms (${{ env.ASSET }})
         env:
-          GOOS: linux
+          GOOS: ${{ matrix.goos }}
           CGO_ENABLED: 0
           GOARCH: ${{ matrix.arch }}
         run: |
           set -eux
           cd cmd/dms
           go build -trimpath -tags withshell -ldflags "-s -w -X main.Version=${TAG}" \
-            -o ../../dms-${{ matrix.arch }}
+            -o ../../dms-${{ env.ASSET }}
           cd ../..
-          gzip -9 -k dms-${{ matrix.arch }}
-          sha256sum dms-${{ matrix.arch }}.gz > dms-${{ matrix.arch }}.gz.sha256
+          gzip -9 -k dms-${{ env.ASSET }}
+          sha256sum dms-${{ env.ASSET }}.gz > dms-${{ env.ASSET }}.gz.sha256
 
       - name: Generate shell completions
-        if: matrix.arch == 'amd64'
+        if: matrix.goos == 'linux' && matrix.arch == 'amd64'
         run: |
           set -eux
           chmod +x dms-amd64
@@ -100,46 +109,58 @@ jobs:
           ./dms-amd64 completion fish > completion.fish
           ./dms-amd64 completion zsh > completion.zsh
 
-      - name: Build dms-distropkg (${{ matrix.arch }})
+      - name: Build dms-distropkg (${{ env.ASSET }})
         env:
-          GOOS: linux
+          GOOS: ${{ matrix.goos }}
           CGO_ENABLED: 0
           GOARCH: ${{ matrix.arch }}
         run: |
           set -eux
           cd cmd/dms
           go build -trimpath -tags 'distro_binary withshell' -ldflags "-s -w -X main.Version=${TAG}" \
-            -o ../../dms-distropkg-${{ matrix.arch }}
+            -o ../../dms-distropkg-${{ env.ASSET }}
           cd ../..
-          gzip -9 -k dms-distropkg-${{ matrix.arch }}
-          sha256sum dms-distropkg-${{ matrix.arch }}.gz > dms-distropkg-${{ matrix.arch }}.gz.sha256
+          gzip -9 -k dms-distropkg-${{ env.ASSET }}
+          sha256sum dms-distropkg-${{ env.ASSET }}.gz > dms-distropkg-${{ env.ASSET }}.gz.sha256
 
-      - name: Upload artifacts (${{ matrix.arch }})
-        if: matrix.arch == 'arm64'
+      - name: Upload artifacts (${{ env.ASSET }})
+        if: matrix.goos == 'linux' && matrix.arch == 'arm64'
         uses: actions/upload-artifact@v5
         with:
-          name: core-assets-${{ matrix.arch }}
+          name: core-assets-${{ env.ASSET }}
           path: |
-            core/dankinstall-${{ matrix.arch }}.gz
-            core/dankinstall-${{ matrix.arch }}.gz.sha256
-            core/dms-${{ matrix.arch }}.gz
-            core/dms-${{ matrix.arch }}.gz.sha256
-            core/dms-distropkg-${{ matrix.arch }}.gz
-            core/dms-distropkg-${{ matrix.arch }}.gz.sha256
+            core/dankinstall-${{ env.ASSET }}.gz
+            core/dankinstall-${{ env.ASSET }}.gz.sha256
+            core/dms-${{ env.ASSET }}.gz
+            core/dms-${{ env.ASSET }}.gz.sha256
+            core/dms-distropkg-${{ env.ASSET }}.gz
+            core/dms-distropkg-${{ env.ASSET }}.gz.sha256
+          if-no-files-found: error
+
+      - name: Upload artifacts (${{ env.ASSET }}, no installer)
+        if: matrix.goos != 'linux'
+        uses: actions/upload-artifact@v5
+        with:
+          name: core-assets-${{ env.ASSET }}
+          path: |
+            core/dms-${{ env.ASSET }}.gz
+            core/dms-${{ env.ASSET }}.gz.sha256
+            core/dms-distropkg-${{ env.ASSET }}.gz
+            core/dms-distropkg-${{ env.ASSET }}.gz.sha256
           if-no-files-found: error
 
       - name: Upload artifacts with completions
-        if: matrix.arch == 'amd64'
+        if: matrix.goos == 'linux' && matrix.arch == 'amd64'
         uses: actions/upload-artifact@v5
         with:
-          name: core-assets-${{ matrix.arch }}
+          name: core-assets-${{ env.ASSET }}
           path: |
-            core/dankinstall-${{ matrix.arch }}.gz
-            core/dankinstall-${{ matrix.arch }}.gz.sha256
-            core/dms-${{ matrix.arch }}.gz
-            core/dms-${{ matrix.arch }}.gz.sha256
-            core/dms-distropkg-${{ matrix.arch }}.gz
-            core/dms-distropkg-${{ matrix.arch }}.gz.sha256
+            core/dankinstall-${{ env.ASSET }}.gz
+            core/dankinstall-${{ env.ASSET }}.gz.sha256
+            core/dms-${{ env.ASSET }}.gz
+            core/dms-${{ env.ASSET }}.gz.sha256
+            core/dms-distropkg-${{ env.ASSET }}.gz
+            core/dms-distropkg-${{ env.ASSET }}.gz.sha256
             core/completion.bash
             core/completion.fish
             core/completion.zsh
@@ -248,12 +269,18 @@ jobs:
           ### Complete Packages
           - **`dms-full-amd64.tar.gz`** - Complete package for x86_64 systems (CLI binaries + QML source + shell completions + installation guide)
           - **`dms-full-arm64.tar.gz`** - Complete package for ARM64 systems (CLI binaries + QML source + shell completions + installation guide)
+          - **`dms-full-freebsd-amd64.tar.gz`** - Complete package for FreeBSD x86_64 systems
+          - **`dms-full-freebsd-arm64.tar.gz`** - Complete package for FreeBSD ARM64 systems
 
           ### Individual Components
           - **`dms-cli-amd64.gz`** - DMS CLI binary for x86_64 systems
           - **`dms-cli-arm64.gz`** - DMS CLI binary for ARM64 systems
+          - **`dms-cli-freebsd-amd64.gz`** - DMS CLI binary for FreeBSD x86_64 systems
+          - **`dms-cli-freebsd-arm64.gz`** - DMS CLI binary for FreeBSD ARM64 systems
           - **`dms-distropkg-amd64.gz`** - DMS CLI binary built with distro_package tag for AMD64 systems
           - **`dms-distropkg-arm64.gz`** - DMS CLI binary built with distro_package tag for ARM64 systems
+          - **`dms-distropkg-freebsd-amd64.gz`** - DMS CLI binary built with distro_package tag for FreeBSD x86_64 systems
+          - **`dms-distropkg-freebsd-arm64.gz`** - DMS CLI binary built with distro_package tag for FreeBSD ARM64 systems
           - **`dankinstall-amd64.gz`** - Installer binary for x86_64 systems
           - **`dankinstall-arm64.gz`** - Installer binary for ARM64 systems
           - **`dms-cli-<version>.tar.gz`** - Go source code with vendored modules (for distro packaging)
@@ -338,8 +365,8 @@ jobs:
           # Generate checksum for QML package
           (cd _release_assets && sha256sum dms-qml.tar.gz > dms-qml.tar.gz.sha256)
 
-          # Create full packages for each architecture
-          for arch in amd64 arm64; do
+          # Create full packages for each os/architecture
+          for arch in amd64 arm64 freebsd-amd64 freebsd-arm64; do
             mkdir -p _temp_full/dms
             mkdir -p _temp_full/bin
             mkdir -p _temp_full/completions

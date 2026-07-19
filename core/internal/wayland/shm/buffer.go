@@ -43,9 +43,9 @@ type Buffer struct {
 func CreateBuffer(width, height, stride int) (*Buffer, error) {
 	size := stride * height
 
-	fd, err := unix.MemfdCreate("dms-shm", 0)
+	fd, err := CreateAnonFd("dms-shm")
 	if err != nil {
-		return nil, fmt.Errorf("memfd_create: %w", err)
+		return nil, fmt.Errorf("create shm fd: %w", err)
 	}
 
 	if err := unix.Ftruncate(fd, int64(size)); err != nil {

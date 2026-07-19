@@ -2,6 +2,7 @@ package network
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/godbus/dbus/v5"
 )
@@ -14,6 +15,7 @@ const (
 	BackendIwd
 	BackendConnMan
 	BackendNetworkd
+	BackendWpaSupplicant
 )
 
 func nameHasOwner(bus *dbus.Conn, name string) (bool, error) {
@@ -35,10 +37,24 @@ type DetectResult struct {
 	ChosenReason string
 }
 
+func wpaSupplicantCtrlDirPresent() bool {
+	info, err := os.Stat(wpaSupplicantCtrlDir)
+	return err == nil && info.IsDir()
+}
+
 func DetectNetworkStack() (*DetectResult, error) {
 	bus, err := dbus.ConnectSystemBus()
 	if err != nil {
-		return nil, fmt.Errorf("connect system bus: %w", err)
+		// FreeBSD and minimal Linux systems may run wpa_supplicant with no
+		// system bus at all; the control directory is the only signal there.
+		if !wpaSupplicantCtrlDirPresent() {
+			return nil, fmt.Errorf("connect system bus: %w", err)
+		}
+		return &DetectResult{
+			Backend:      BackendWpaSupplicant,
+			HasWpaSupp:   true,
+			ChosenReason: "System bus unreachable; wpa_supplicant control directory present. Using wpa_ctrl interface.",
+		}, nil
 	}
 	defer bus.Close()
 
@@ -76,10 +92,14 @@ func DetectNetworkStack() (*DetectResult, error) {
 	case hasNetworkd:
 		res.Backend = BackendNetworkd
 		res.ChosenReason = "systemd-networkd detected (no NM/ConnMan). Using networkd for L3 and wired."
+	case wpaSupplicantCtrlDirPresent():
+		res.Backend = BackendWpaSupplicant
+		res.HasWpaSupp = true
+		res.ChosenReason = "No NM/ConnMan/iwd/networkd; wpa_supplicant control directory present. Using wpa_ctrl interface."
 	default:
 		res.Backend = BackendNone
 		if hasWpa {
-			res.ChosenReason = "No NM/ConnMan/iwd; wpa_supplicant present. Consider a wpa_supplicant path."
+			res.ChosenReason = "No NM/ConnMan/iwd; wpa_supplicant D-Bus name present but control directory missing."
 		} else {
 			res.ChosenReason = "No known network manager bus names found."
 		}

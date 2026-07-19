@@ -948,8 +948,12 @@ Singleton {
     // systemd user environment from previous sessions and lie. Unset
     // WAYLAND_DISPLAY falls back to "wayland-0", mirroring wl_display_connect.
     // /proc/net/unix: field 6 is state (01 = listening), 7 inode, 8 bound path.
+    // The BSDs have no /proc/net; sockstat(1) -l -u lists listening unix
+    // sockets as USER COMMAND PID FD PROTO LOCAL-ADDRESS.
     function detectCompositor() {
-        const script = 'sock="${WAYLAND_DISPLAY:-wayland-0}"; case "$sock" in /*) ;; *) sock="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/$sock" ;; esac; inode=$(awk -v p="$sock" \'$8 == p && $6 == 1 {print $7; exit}\' /proc/net/unix); [ -n "$inode" ] || exit 1; fd=$(find /proc/[0-9]*/fd/ -mindepth 1 -maxdepth 1 -lname "socket:\\[$inode\\]" 2>/dev/null | head -n1); [ -n "$fd" ] || exit 1; pid="${fd#/proc/}"; cat "/proc/${pid%%/*}/comm"';
+        const procScript = 'sock="${WAYLAND_DISPLAY:-wayland-0}"; case "$sock" in /*) ;; *) sock="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/$sock" ;; esac; inode=$(awk -v p="$sock" \'$8 == p && $6 == 1 {print $7; exit}\' /proc/net/unix); [ -n "$inode" ] || exit 1; fd=$(find /proc/[0-9]*/fd/ -mindepth 1 -maxdepth 1 -lname "socket:\\[$inode\\]" 2>/dev/null | head -n1); [ -n "$fd" ] || exit 1; pid="${fd#/proc/}"; cat "/proc/${pid%%/*}/comm"';
+        const sockstatScript = 'sock="${WAYLAND_DISPLAY:-wayland-0}"; case "$sock" in /*) ;; *) sock="${XDG_RUNTIME_DIR:-/var/run/user/$(id -u)}/$sock" ;; esac; sockstat -l -u | awk -v p="$sock" \'$6 == p {print $2; exit}\'';
+        const script = Qt.platform.os === "unix" ? sockstatScript : procScript;
         Proc.runCommand("waylandSocketOwner", ["sh", "-c", script], (output, exitCode) => {
             const comm = (exitCode === 0 && output) ? output.trim().toLowerCase() : "";
             const name = _compositorNameFromComm(comm);
@@ -1037,7 +1041,7 @@ Singleton {
             {
                 name: "labwc",
                 present: !!labwcPid,
-                test: ["sh", "-c", "[ \"$(cat /proc/\"$LABWC_PID\"/comm 2>/dev/null)\" = labwc ]"],
+                test: ["sh", "-c", "[ \"$(ps -p \"$LABWC_PID\" -o comm= 2>/dev/null)\" = labwc ]"],
                 detail: "LABWC_PID " + labwcPid
             },
             {

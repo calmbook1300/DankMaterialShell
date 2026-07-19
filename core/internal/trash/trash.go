@@ -275,39 +275,16 @@ func allTrashDirs() []string {
 	return dirs
 }
 
-// readMountPoints returns user-visible mount points from /proc/self/mountinfo,
-// skipping pseudo and system filesystems.
-func readMountPoints() []string {
-	data, err := os.ReadFile("/proc/self/mountinfo")
-	if err != nil {
-		return nil
+func skipMountPoint(mp string, seen map[string]bool) bool {
+	if mp == "/" || seen[mp] {
+		return true
 	}
-	skipPrefixes := []string{"/proc", "/sys", "/dev"}
-	var out []string
-	seen := map[string]bool{}
-	for line := range strings.SplitSeq(string(data), "\n") {
-		fields := strings.Fields(line)
-		if len(fields) < 5 {
-			continue
+	for _, p := range []string{"/proc", "/sys", "/dev"} {
+		if mp == p || strings.HasPrefix(mp, p+"/") {
+			return true
 		}
-		mp := fields[4]
-		if mp == "/" {
-			continue
-		}
-		skip := false
-		for _, p := range skipPrefixes {
-			if mp == p || strings.HasPrefix(mp, p+"/") {
-				skip = true
-				break
-			}
-		}
-		if skip || seen[mp] {
-			continue
-		}
-		seen[mp] = true
-		out = append(out, mp)
 	}
-	return out
+	return false
 }
 
 func List() ([]Entry, error) {

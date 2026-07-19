@@ -23,6 +23,14 @@ BUILD_LDFLAGS=-ldflags='-s -w -X main.Version=$(VERSION) -X main.buildTime=$(BUI
 
 # Architecture to build for dist target (amd64, arm64, or all)
 ARCH ?= all
+# Target OSes for dist builds
+DIST_OSES ?= linux freebsd
+
+ifeq ($(ARCH),all)
+DIST_ARCHS = amd64 arm64
+else
+DIST_ARCHS = $(ARCH)
+endif
 
 .PHONY: all build sync-shell dankinstall dist clean install install-all install-dankinstall uninstall uninstall-all uninstall-dankinstall install-config uninstall-config test fmt vet deps print-version help
 
@@ -57,26 +65,18 @@ dankinstall:
 	CGO_ENABLED=0 $(GO) build $(BUILD_LDFLAGS) -o $(BUILD_DIR)/$(BINARY_NAME_INSTALL) ./$(SOURCE_DIR_INSTALL)
 	@echo "Build complete: $(BUILD_DIR)/$(BINARY_NAME_INSTALL)"
 
-# Build distro binaries for amd64 and arm64 (Linux only, no update/greeter support)
+# Build distro binaries (no update/greeter support) for each DIST_OSES/DIST_ARCHS pair
 dist: sync-shell
-ifeq ($(ARCH),all)
-	@echo "Building $(BINARY_NAME) for distribution (amd64 and arm64)..."
+	@echo "Building $(BINARY_NAME) for distribution ($(DIST_OSES) x $(DIST_ARCHS))..."
 	@mkdir -p $(BUILD_DIR)
-	@echo "Building for linux/amd64..."
-	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 $(GO) build -tags 'distro_binary withshell' $(BUILD_LDFLAGS) -o $(BUILD_DIR)/$(BINARY_NAME)-linux-amd64 ./$(SOURCE_DIR)
-	@echo "Building for linux/arm64..."
-	CGO_ENABLED=0 GOOS=linux GOARCH=arm64 $(GO) build -tags 'distro_binary withshell' $(BUILD_LDFLAGS) -o $(BUILD_DIR)/$(BINARY_NAME)-linux-arm64 ./$(SOURCE_DIR)
-	@echo "Distribution builds complete:"
-	@echo "  $(BUILD_DIR)/$(BINARY_NAME)-linux-amd64"
-	@echo "  $(BUILD_DIR)/$(BINARY_NAME)-linux-arm64"
-else
-	@echo "Building $(BINARY_NAME) for distribution ($(ARCH))..."
-	@mkdir -p $(BUILD_DIR)
-	@echo "Building for linux/$(ARCH)..."
-	CGO_ENABLED=0 GOOS=linux GOARCH=$(ARCH) $(GO) build -tags 'distro_binary withshell' $(BUILD_LDFLAGS) -o $(BUILD_DIR)/$(BINARY_NAME)-linux-$(ARCH) ./$(SOURCE_DIR)
-	@echo "Distribution build complete:"
-	@echo "  $(BUILD_DIR)/$(BINARY_NAME)-linux-$(ARCH)"
-endif
+	@for os in $(DIST_OSES); do \
+		for arch in $(DIST_ARCHS); do \
+			echo "Building for $$os/$$arch..."; \
+			CGO_ENABLED=0 GOOS=$$os GOARCH=$$arch $(GO) build -tags 'distro_binary withshell' $(BUILD_LDFLAGS) -o $(BUILD_DIR)/$(BINARY_NAME)-$$os-$$arch ./$(SOURCE_DIR) || exit 1; \
+			echo "  $(BUILD_DIR)/$(BINARY_NAME)-$$os-$$arch"; \
+		done; \
+	done
+	@echo "Distribution builds complete"
 
 build-all: build dankinstall
 
@@ -161,8 +161,8 @@ help:
 	@echo "  build               - Build the main binary (dms) with the embedded UI"
 	@echo "  sync-shell          - Copy quickshell/ into the embed dir (runs before tagged builds)"
 	@echo "  dankinstall         - Build dankinstall binary"
-	@echo "  dist                - Build dms for linux amd64/arm64 (no update/greeter)"
-	@echo "                        Use ARCH=amd64 or ARCH=arm64 to build only one"
+	@echo "  dist                - Build dms for linux/freebsd amd64/arm64 (no update/greeter)"
+	@echo "                        Use ARCH=amd64 or ARCH=arm64 and/or DIST_OSES=linux to narrow"
 	@echo "  build-all           - Build both binaries"
 	@echo "  install             - Install dms to $(INSTALL_DIR)"
 	@echo "  install-all         - Install both dms and dankinstall to $(INSTALL_DIR)"

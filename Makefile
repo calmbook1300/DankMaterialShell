@@ -72,6 +72,9 @@ install-completions:
 	@echo "Shell completions installed"
 
 install-systemd:
+ifneq ($(shell uname),Linux)
+	@echo "Skipping systemd user service (non-Linux); start the shell from your compositor config with 'dms run'"
+else
 	@echo "Installing systemd user service..."
 	@mkdir -p $(SYSTEMD_USER_DIR)
 	@if [ -n "$(SUDO_USER)" ]; then chown -R $(SUDO_USER):"$(id -gn $SUDO_USER)" $(SYSTEMD_USER_DIR); fi
@@ -79,6 +82,7 @@ install-systemd:
 	@chmod 644 $(SYSTEMD_USER_DIR)/dms.service
 	@if [ -n "$(SUDO_USER)" ]; then chown $(SUDO_USER):"$(id -gn $SUDO_USER)" $(SYSTEMD_USER_DIR)/dms.service; fi
 	@echo "Systemd service installed to $(SYSTEMD_USER_DIR)/dms.service"
+endif
 
 install-icon:
 	@echo "Installing icon..."

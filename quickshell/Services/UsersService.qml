@@ -10,6 +10,9 @@ Singleton {
 
     readonly property var log: Log.scoped("UsersService")
 
+    // Qt.platform.os is "unix" on the BSDs; user management goes through pw(8)
+    readonly property bool isBSD: Qt.platform.os === "unix"
+
     property var users: []
     property string adminGroup: "wheel"
     property string greeterGroup: "greeter"
@@ -286,7 +289,7 @@ Singleton {
             property string op: "passwd"
             property var cb: null
             property string capturedErr: ""
-            command: ["pkexec", "sh", "-c", "head -n1 | chpasswd"]
+            command: root.isBSD ? ["pkexec", "pw", "usermod", "-n", targetUser, "-h", "0"] : ["pkexec", "sh", "-c", "head -n1 | chpasswd"]
             stdinEnabled: true
             running: false
             stdout: StdioCollector {}
@@ -294,7 +297,10 @@ Singleton {
                 onStreamFinished: chpasswdProc.capturedErr = text || ""
             }
             onStarted: {
-                chpasswdProc.write(chpasswdProc.targetUser + ":" + chpasswdProc.targetPassword + "\n");
+                if (root.isBSD)
+                    chpasswdProc.write(chpasswdProc.targetPassword + "\n");
+                else
+                    chpasswdProc.write(chpasswdProc.targetUser + ":" + chpasswdProc.targetPassword + "\n");
             }
             onExited: exitCode => {
                 const op = chpasswdProc.op;
@@ -414,7 +420,7 @@ Singleton {
 
     function _runUseradd(username, password, addToAdmin, addToGreeter, callback) {
         const proc = useraddComp.createObject(root, {
-            command: ["pkexec", "useradd", "-m", "-s", "/bin/bash", username],
+            command: root.isBSD ? ["pkexec", "pw", "useradd", "-n", username, "-m", "-s", "/bin/sh"] : ["pkexec", "useradd", "-m", "-s", "/bin/bash", username],
             targetUser: username,
             targetPassword: password,
             addAdmin: addToAdmin,
@@ -436,15 +442,21 @@ Singleton {
 
     function _runUserdel(username, callback) {
         const proc = userdelComp.createObject(root, {
-            command: ["pkexec", "userdel", "-r", username],
+            command: root.isBSD ? ["pkexec", "pw", "userdel", "-n", username, "-r"] : ["pkexec", "userdel", "-r", username],
             targetUser: username,
             cb: callback
         });
         proc.running = true;
     }
 
+    function _groupMemberCmd(group, username, add) {
+        if (root.isBSD)
+            return ["pkexec", "pw", "groupmod", group, add ? "-m" : "-d", username];
+        return add ? ["pkexec", "usermod", "-aG", group, username] : ["pkexec", "gpasswd", "-d", username, group];
+    }
+
     function _runAdminToggle(username, makeAdmin, callback) {
-        const cmd = makeAdmin ? ["pkexec", "usermod", "-aG", root.adminGroup, username] : ["pkexec", "gpasswd", "-d", username, root.adminGroup];
+        const cmd = _groupMemberCmd(root.adminGroup, username, makeAdmin);
         const proc = adminToggleComp.createObject(root, {
             command: cmd,
             targetUser: username,
@@ -455,7 +467,7 @@ Singleton {
     }
 
     function _runGreeterToggle(username, enableGreeter, callback) {
-        const cmd = enableGreeter ? ["pkexec", "usermod", "-aG", root.greeterGroup, username] : ["pkexec", "gpasswd", "-d", username, root.greeterGroup];
+        const cmd = _groupMemberCmd(root.greeterGroup, username, enableGreeter);
         const proc = greeterToggleComp.createObject(root, {
             command: cmd,
             targetUser: username,

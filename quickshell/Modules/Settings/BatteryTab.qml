@@ -184,6 +184,8 @@ done
                 }
 
                 Row {
+                    // charge_control_* live in Linux sysfs; no BSD equivalent
+                    visible: Qt.platform.os === "linux"
                     width: parent.width
                     height: applyButton.height
                     layoutDirection: I18n.isRtl ? Qt.LeftToRight : Qt.RightToLeft

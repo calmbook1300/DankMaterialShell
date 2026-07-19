@@ -382,7 +382,8 @@ Rectangle {
                     "id": "greeter",
                     "text": I18n.tr("Greeter"),
                     "icon": "login",
-                    "tabIndex": 31
+                    "tabIndex": 31,
+                    "greeterOnly": true
                 },
                 {
                     "id": "power_sleep",
@@ -411,7 +412,7 @@ Rectangle {
     ]
 
     function isItemVisible(item) {
-        if (item.dmsOnly && NetworkService.usingLegacy)
+        if (item.dmsOnly && !NetworkService.networkAvailable)
             return false;
         if (item.cupsOnly && !CupsService.cupsAvailable)
             return false;
@@ -430,6 +431,8 @@ Rectangle {
         if (item.clipboardOnly && (!DMSService.isConnected || DMSService.apiVersion < 23))
             return false;
         if (item.updaterOnly && !SystemUpdateService.sysupdateAvailable)
+            return false;
+        if (item.greeterOnly && !GreeterService.available)
             return false;
         if (item.autostartOnly && !DesktopService.autostartAvailable)
             return false;
@@ -637,6 +640,7 @@ Rectangle {
     Component.onCompleted: {
         root._expandedIds = SessionData.settingsSidebarExpandedIds;
         root._collapsedIds = SessionData.settingsSidebarCollapsedIds;
+        GreeterService.refresh();
     }
 
     StyledTextMetrics {
