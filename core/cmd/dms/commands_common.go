@@ -9,6 +9,7 @@ import (
 	"github.com/AvengeMedia/DankMaterialShell/core/internal/log"
 	"github.com/AvengeMedia/DankMaterialShell/core/internal/plugins"
 	"github.com/AvengeMedia/DankMaterialShell/core/internal/server"
+	"github.com/AvengeMedia/DankMaterialShell/core/internal/shellembed"
 	"github.com/spf13/cobra"
 )
 
@@ -206,27 +207,39 @@ func formatVersion(version string) string {
 	return fmt.Sprintf("dms %s", version)
 }
 
+var baseVersionRe = regexp.MustCompile(`^([\d.]+)`)
+
+// Installed UI trees, for builds without an embedded UI.
+var shellVersionPaths = []string{
+	"/usr/share/quickshell/dms/VERSION",
+	"/usr/local/share/quickshell/dms/VERSION",
+	"/etc/xdg/quickshell/dms/VERSION",
+}
+
 func getBaseVersion() string {
-	paths := []string{
-		"/usr/share/quickshell/dms/VERSION",
-		"/usr/local/share/quickshell/dms/VERSION",
-		"/etc/xdg/quickshell/dms/VERSION",
+	if ver := parseBaseVersion(shellembed.Version()); ver != "" {
+		return ver
 	}
 
-	for _, path := range paths {
-		if content, err := os.ReadFile(path); err == nil {
-			ver := strings.TrimSpace(string(content))
-			ver = strings.TrimPrefix(ver, "v")
-			if re := regexp.MustCompile(`^([\d.]+)`); re.MatchString(ver) {
-				if matches := re.FindStringSubmatch(ver); matches != nil {
-					return matches[1]
-				}
-			}
+	for _, path := range shellVersionPaths {
+		content, err := os.ReadFile(path)
+		if err != nil {
+			continue
+		}
+		if ver := parseBaseVersion(string(content)); ver != "" {
+			return ver
 		}
 	}
 
-	// Fallback
 	return "1.0.2"
+}
+
+func parseBaseVersion(raw string) string {
+	matches := baseVersionRe.FindStringSubmatch(strings.TrimPrefix(strings.TrimSpace(raw), "v"))
+	if matches == nil {
+		return ""
+	}
+	return matches[1]
 }
 
 func startDebugServer() error {

@@ -47,6 +47,7 @@ type WiFiDevice struct {
 	HwAddress string        `json:"hwAddress"`
 	State     string        `json:"state"`
 	Connected bool          `json:"connected"`
+	APCapable bool          `json:"apCapable"`
 	SSID      string        `json:"ssid,omitempty"`
 	BSSID     string        `json:"bssid,omitempty"`
 	Signal    uint8         `json:"signal,omitempty"`
@@ -114,6 +115,16 @@ type NetworkState struct {
 	WiFiNetworks           []WiFiNetwork        `json:"wifiNetworks"`
 	SavedWiFiNetworks      []WiFiNetwork        `json:"savedWifiNetworks"`
 	WiFiDevices            []WiFiDevice         `json:"wifiDevices"`
+	HotspotSupported       bool                 `json:"hotspotSupported"`
+	HotspotAvailable       bool                 `json:"hotspotAvailable"`
+	HotspotConfigured      bool                 `json:"hotspotConfigured"`
+	HotspotEnabled         bool                 `json:"hotspotEnabled"`
+	HotspotActivating      bool                 `json:"hotspotActivating"`
+	HotspotSecured         bool                 `json:"hotspotSecured"`
+	HotspotSSID            string               `json:"hotspotSSID"`
+	HotspotDevice          string               `json:"hotspotDevice"`
+	HotspotBand            string               `json:"hotspotBand"`
+	HotspotLastError       string               `json:"hotspotLastError"`
 	WiredConnections       []WiredConnection    `json:"wiredConnections"`
 	VPNProfiles            []VPNProfile         `json:"vpnProfiles"`
 	VPNActive              []VPNActive          `json:"vpnActive"`
@@ -140,6 +151,13 @@ type ConnectionRequest struct {
 	ClientCertPath    string `json:"clientCertPath,omitempty"`
 	PrivateKeyPath    string `json:"privateKeyPath,omitempty"`
 	UseSystemCACerts  *bool  `json:"useSystemCACerts,omitempty"`
+}
+
+type HotspotRequest struct {
+	SSID     string `json:"ssid"`
+	Password string `json:"password,omitempty"`
+	Device   string `json:"device,omitempty"`
+	Band     string `json:"band,omitempty"`
 }
 
 type WiredConnection struct {

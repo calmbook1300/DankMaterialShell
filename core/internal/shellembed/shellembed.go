@@ -7,13 +7,15 @@ package shellembed
 import (
 	"io/fs"
 	"path"
+	"strings"
 
 	"github.com/AvengeMedia/dankgo/shellapp/shellfs"
 )
 
 const (
-	distRoot   = "dist"
-	shellEntry = "shell.qml"
+	distRoot    = "dist"
+	shellEntry  = "shell.qml"
+	versionFile = "VERSION"
 )
 
 // Available reports whether this binary was built with the embedded UI
@@ -21,6 +23,15 @@ const (
 func Available() bool {
 	info, err := fs.Stat(distFS, path.Join(distRoot, shellEntry))
 	return err == nil && !info.IsDir()
+}
+
+// Version reports the embedded UI's VERSION, empty when unavailable.
+func Version() string {
+	data, err := fs.ReadFile(distFS, path.Join(distRoot, versionFile))
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(data))
 }
 
 func Extract(baseDir string) (string, error) {

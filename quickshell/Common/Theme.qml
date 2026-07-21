@@ -142,7 +142,9 @@ Singleton {
 
     Component.onCompleted: {
         Quickshell.execDetached(["mkdir", "-p", stateDir]);
-        Quickshell.execDetached([shellDir + "/scripts/gtk.sh", configDir, "", shellDir, "assets-only"]);
+        // shellDir may be an embedded-UI extraction, which is read-only and
+        // unexecutable (dankgo shellapp/shellfs makeReadOnly chmods 0444)
+        Quickshell.execDetached(["bash", shellDir + "/scripts/gtk.sh", configDir, "", shellDir, "assets-only"]);
         Proc.runCommand("matugenCheck", ["sh", "-c", "command -v matugen"], (output, code) => {
             matugenAvailable = (code === 0) && !envDisableMatugen;
 
@@ -1933,7 +1935,7 @@ Singleton {
         }
 
         const isLight = (typeof SessionData !== "undefined" && SessionData.isLightMode) ? "true" : "false";
-        Proc.runCommand("gtkApplier", [shellDir + "/scripts/gtk.sh", configDir, isLight, shellDir], (output, exitCode) => {
+        Proc.runCommand("gtkApplier", ["bash", shellDir + "/scripts/gtk.sh", configDir, isLight, shellDir], (output, exitCode) => {
             if (exitCode === 0) {
                 if (typeof ToastService !== "undefined" && typeof NiriService !== "undefined" && !NiriService.matugenSuppression) {
                     ToastService.showInfo(I18n.tr("GTK colors applied successfully"));
@@ -1954,7 +1956,7 @@ Singleton {
             return;
         }
 
-        Proc.runCommand("qtApplier", [shellDir + "/scripts/qt.sh", configDir], (output, exitCode) => {
+        Proc.runCommand("qtApplier", ["bash", shellDir + "/scripts/qt.sh", configDir], (output, exitCode) => {
             if (exitCode === 0) {
                 if (typeof ToastService !== "undefined") {
                     ToastService.showInfo(I18n.tr("Qt colors applied successfully"));
