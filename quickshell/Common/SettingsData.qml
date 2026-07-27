@@ -15,7 +15,7 @@ Singleton {
     id: root
     readonly property var log: Log.scoped("SettingsData")
 
-    readonly property int settingsConfigVersion: 12
+    readonly property int settingsConfigVersion: 13
 
     enum Position {
         Top,
@@ -792,11 +792,6 @@ Singleton {
     property bool fadeToDpmsEnabled: true
     property int fadeToDpmsGracePeriod: 5
     property string launchPrefix: ""
-    property var brightnessDevicePins: ({})
-    property var wifiNetworkPins: ({})
-    property var bluetoothDevicePins: ({})
-    property var audioInputDevicePins: ({})
-    property var audioOutputDevicePins: ({})
 
     property bool gtkThemingEnabled: false
     property bool qtThemingEnabled: false
@@ -936,6 +931,7 @@ Singleton {
     property int notificationTimeoutLow: 5000
     property int notificationTimeoutNormal: 5000
     property int notificationTimeoutCritical: 0
+    property bool notificationIgnoreAppTimeout: false
     property bool notificationCompactMode: false
     property bool notificationShowTimeoutBar: false
     property bool notificationDedupeEnabled: true
@@ -1758,6 +1754,7 @@ Singleton {
             let obj = (txt && txt.trim()) ? JSON.parse(txt) : null;
 
             const oldVersion = obj?.configVersion ?? 0;
+            const legacyPins = oldVersion < 13 ? Store.extractPins(obj) : null;
             if (oldVersion < settingsConfigVersion) {
                 const migrated = Store.migrateToVersion(obj, settingsConfigVersion);
                 if (migrated) {
@@ -1765,6 +1762,8 @@ Singleton {
                     obj = migrated;
                 }
             }
+            if (legacyPins)
+                Qt.callLater(() => CacheData.migratePins(legacyPins));
 
             if (obj?.lockScreenActiveMonitor !== undefined) {
                 var oldVal = obj.lockScreenActiveMonitor;
@@ -2741,6 +2740,35 @@ Singleton {
         for (var i = 0; i < barConfigs.length; i++) {
             var bc = barConfigs[i];
             if (!bc.enabled)
+                continue;
+            var prefs = bc.screenPreferences || ["all"];
+            if (!prefs.includes("all") && !isScreenInPreferences(screen, prefs))
+                continue;
+            switch (bc.position ?? 0) {
+            case SettingsData.Position.Top:
+                edges.push("top");
+                break;
+            case SettingsData.Position.Bottom:
+                edges.push("bottom");
+                break;
+            case SettingsData.Position.Left:
+                edges.push("left");
+                break;
+            case SettingsData.Position.Right:
+                edges.push("right");
+                break;
+            }
+        }
+        return edges;
+    }
+
+    function getOverlayBarEdgesForScreen(screen) {
+        if (!screen)
+            return [];
+        var edges = [];
+        for (var i = 0; i < barConfigs.length; i++) {
+            var bc = barConfigs[i];
+            if (!bc.enabled || !(bc.useOverlayLayer ?? false))
                 continue;
             var prefs = bc.screenPreferences || ["all"];
             if (!prefs.includes("all") && !isScreenInPreferences(screen, prefs))

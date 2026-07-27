@@ -633,7 +633,7 @@ Singleton {
             configGenerationAction.schedule();
         configReloaded();
 
-        if (hasInitialConnection && !suppressConfigToast && !suppressNextConfigToast && !matugenSuppression) {
+        if (hasInitialConnection && !suppressConfigToast && !suppressNextConfigToast && !matugenSuppression && SessionData.showConfigReloadToast) {
             ToastService.showInfo(I18n.tr("niri: config reloaded"), "", "", "niri-config");
         } else if (suppressNextConfigToast) {
             suppressNextConfigToast = false;
@@ -1511,8 +1511,6 @@ window-rule {
 
             if (outputSettings.disabled) {
                 kdlContent += `    off\n`;
-                kdlContent += `}\n\n`;
-                continue;
             }
 
             if (output.configured_mode) {

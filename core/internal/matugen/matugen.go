@@ -386,8 +386,8 @@ func buildOnce(opts *Options) (bool, error) {
 		default:
 			syncAccentColor(primaryDark)
 		}
-		refreshGTK(opts.Mode)
-		refreshGTK4()
+		refreshGTKTheme(opts.Mode)
+		refreshGTKColorScheme()
 	}
 
 	if isDMSKDEColorSchemeActive(opts.ConfigDir) {
@@ -911,7 +911,7 @@ func generateDank16Variants(primaryDark, primaryLight, surface string, mode Colo
 }
 
 func isDMSGTKActive(configDir string) bool {
-	gtkCSS := filepath.Join(configDir, "gtk-3.0", "gtk.css")
+	gtkCSS := filepath.Join(configDir, "gtk-4.0", "gtk.css")
 
 	info, err := os.Lstat(gtkCSS)
 	if err != nil {
@@ -968,11 +968,32 @@ func applyKDEColorScheme(mode ColorMode) {
 	}
 }
 
-func refreshGTK(mode ColorMode) {
+func gtkThemeInstalled(theme string) bool {
+	home, _ := os.UserHomeDir()
+	candidates := []string{
+		filepath.Join(home, ".local/share/themes", theme),
+		filepath.Join(home, ".themes", theme),
+		filepath.Join("/usr/share/themes", theme),
+		filepath.Join("/usr/local/share/themes", theme),
+	}
+	for _, dir := range candidates {
+		if info, err := os.Stat(dir); err == nil && info.IsDir() {
+			return true
+		}
+	}
+	return false
+}
+
+func refreshGTKTheme(mode ColorMode) {
+	theme := mode.GTKTheme()
+	if !gtkThemeInstalled(theme) {
+		log.Infof("Skipping gtk-theme refresh: %s is not installed", theme)
+		return
+	}
 	if err := utils.GsettingsSet("org.gnome.desktop.interface", "gtk-theme", ""); err != nil {
 		log.Warnf("Failed to reset gtk-theme: %v", err)
 	}
-	if err := utils.GsettingsSet("org.gnome.desktop.interface", "gtk-theme", mode.GTKTheme()); err != nil {
+	if err := utils.GsettingsSet("org.gnome.desktop.interface", "gtk-theme", theme); err != nil {
 		log.Warnf("Failed to set gtk-theme: %v", err)
 	}
 }
@@ -993,8 +1014,8 @@ func expectColorSchemeEcho(scheme string) {
 // apps reload ~/.config/gtk-4.0 CSS (a gtk-theme flip does not). But apps
 // following the portal color-scheme (Chromium) can drop the restore signal
 // mid-repaint and latch the wrong mode, so this is opt-in.
-func refreshGTK4() {
-	if os.Getenv("DMS_ENABLE_GTK4_REFRESH") != "1" {
+func refreshGTKColorScheme() {
+	if os.Getenv("DMS_ENABLE_GTK_REFRESH") != "1" {
 		return
 	}
 	output, err := utils.GsettingsGet("org.gnome.desktop.interface", "color-scheme")
@@ -1012,13 +1033,13 @@ func refreshGTK4() {
 
 	expectColorSchemeEcho(toggle)
 	if err := utils.GsettingsSet("org.gnome.desktop.interface", "color-scheme", toggle); err != nil {
-		log.Warnf("Failed to toggle color-scheme for GTK4 refresh: %v", err)
+		log.Warnf("Failed to toggle color-scheme for GTK refresh: %v", err)
 		return
 	}
-	time.Sleep(400 * time.Millisecond)
+	time.Sleep(50 * time.Millisecond)
 	expectColorSchemeEcho(current)
 	if err := utils.GsettingsSet("org.gnome.desktop.interface", "color-scheme", current); err != nil {
-		log.Warnf("Failed to restore color-scheme for GTK4 refresh: %v", err)
+		log.Warnf("Failed to restore color-scheme for GTK refresh: %v", err)
 	}
 }
 
