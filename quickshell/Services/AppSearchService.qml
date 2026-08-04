@@ -210,6 +210,19 @@ Singleton {
                 defaultTrigger: "",
                 isLauncher: false
             },
+            "dms_qr_generator": {
+                id: "dms_qr_generator",
+                name: I18n.tr("QR Generator"),
+                icon: "svg+corner:" + dmsLogoPath + "|qr_code",
+                cornerIcon: "qr_code",
+                comment: "DMS",
+                action: "ipc:qr-generator",
+                categories: ["Utility"],
+                defaultTrigger: "qrg",
+                isLauncher: true,
+                viewMode: "list",
+                viewModeEnforced: true
+            },
             "dms_settings_search": {
                 id: "dms_settings_search",
                 name: I18n.tr("Settings Search"),
@@ -244,7 +257,7 @@ Singleton {
             if (!SettingsData.getBuiltInPluginSetting(pluginId, "enabled", true))
                 continue;
             const plugin = builtInPlugins[pluginId];
-            if (plugin.isLauncher)
+            if (plugin.isLauncher && !plugin.action)
                 continue;
             apps.push({
                 name: plugin.name,
@@ -309,6 +322,20 @@ Singleton {
                     }));
         }
 
+        if (pluginId === "dms_qr_generator") {
+            const text = (query || "").toString().trim();
+            return [
+                {
+                    name: text.length > 0 ? text : I18n.tr("Enter text to encode"),
+                    icon: "material:qr_code",
+                    comment: I18n.tr("QR Generator"),
+                    action: "qr_generate:" + text,
+                    isBuiltInLauncher: true,
+                    builtInPluginId: pluginId
+                }
+            ];
+        }
+
         if (pluginId !== "dms_settings_search")
             return [];
 
@@ -340,14 +367,20 @@ Singleton {
             return false;
 
         const parts = item.action.split(":");
-        if (parts[0] !== "settings_nav")
-            return false;
-
-        const tabIndex = parseInt(parts[1]);
-        const section = parts.slice(2).join(":");
-        SettingsSearchService.navigateToSection(section);
-        PopoutService.openSettingsWithTabIndex(tabIndex);
-        return true;
+        switch (parts[0]) {
+        case "settings_nav":
+            {
+                const tabIndex = parseInt(parts[1]);
+                const section = parts.slice(2).join(":");
+                SettingsSearchService.navigateToSection(section);
+                PopoutService.openSettingsWithTabIndex(tabIndex);
+                return true;
+            }
+        case "qr_generate":
+            PopoutService.showQRGeneratorModal(parts.slice(1).join(":"));
+            return true;
+        }
+        return false;
     }
 
     function getCoreApps(query) {
@@ -377,6 +410,9 @@ Singleton {
             return true;
         case "color-picker":
             PopoutService.showColorPicker();
+            return true;
+        case "qr-generator":
+            PopoutService.showQRGeneratorModal();
             return true;
         }
         return false;
@@ -749,14 +785,22 @@ Singleton {
         if (category === I18n.tr("All"))
             return visibleApps;
 
-        const pluginItems = getPluginItems(category, "");
-        if (pluginItems.length > 0)
-            return pluginItems;
-
         return visibleApps.filter(app => {
             const appCategories = getCategoriesForApp(app);
             return appCategories.includes(category);
         });
+    }
+
+    function getPluginIdForCategory(category) {
+        if (typeof PluginService === "undefined")
+            return null;
+
+        const launchers = PluginService.getLauncherPlugins();
+        for (const pluginId in launchers) {
+            if ((launchers[pluginId].name || pluginId) === category)
+                return pluginId;
+        }
+        return null;
     }
 
     // Plugin launcher support functions
@@ -778,48 +822,19 @@ Singleton {
     }
 
     function getPluginCategoryIcon(category) {
-        if (typeof PluginService === "undefined")
+        const pluginId = getPluginIdForCategory(category);
+        if (!pluginId)
             return null;
 
-        const launchers = PluginService.getLauncherPlugins();
-        for (const pluginId in launchers) {
-            const plugin = launchers[pluginId];
-            if ((plugin.name || pluginId) === category) {
-                return plugin.icon || "extension";
-            }
-        }
-        return null;
-    }
-
-    function getAllPluginItems() {
-        if (typeof PluginService === "undefined") {
-            return [];
-        }
-
-        let allItems = [];
-        const launchers = PluginService.getLauncherPlugins();
-
-        for (const pluginId in launchers) {
-            const categoryName = launchers[pluginId].name || pluginId;
-            const items = getPluginItems(categoryName, "");
-            allItems = allItems.concat(items);
-        }
-
-        return allItems;
+        return PluginService.getLauncherPlugins()[pluginId].icon || "extension";
     }
 
     function getPluginItems(category, query) {
-        if (typeof PluginService === "undefined")
+        const pluginId = getPluginIdForCategory(category);
+        if (!pluginId)
             return [];
 
-        const launchers = PluginService.getLauncherPlugins();
-        for (const pluginId in launchers) {
-            const plugin = launchers[pluginId];
-            if ((plugin.name || pluginId) === category) {
-                return getPluginItemsForPlugin(pluginId, query);
-            }
-        }
-        return [];
+        return getPluginItemsForPlugin(pluginId, query);
     }
 
     function getPluginItemsForPlugin(pluginId, query) {
@@ -915,21 +930,6 @@ Singleton {
         return false;
     }
 
-    function getPluginPasteText(pluginId, item) {
-        if (typeof PluginService === "undefined")
-            return null;
-
-        const instance = PluginService.pluginInstances[pluginId];
-        if (!instance)
-            return null;
-
-        if (typeof instance.getPasteText === "function") {
-            return instance.getPasteText(item);
-        }
-
-        return null;
-    }
-
     function getPluginPasteArgs(pluginId, item) {
         if (typeof PluginService === "undefined")
             return null;
@@ -948,21 +948,6 @@ Singleton {
         }
 
         return null;
-    }
-
-    function searchPluginItems(query) {
-        if (typeof PluginService === "undefined")
-            return [];
-
-        let allItems = [];
-        const launchers = PluginService.getLauncherPlugins();
-
-        for (const pluginId in launchers) {
-            const items = getPluginItemsForPlugin(pluginId, query);
-            allItems = allItems.concat(items);
-        }
-
-        return allItems;
     }
 
     function getPluginLauncherCategories(pluginId) {
@@ -1000,16 +985,5 @@ Singleton {
         } catch (e) {
             log.warn("Error setting category on plugin", pluginId, ":", e);
         }
-    }
-
-    function pluginHasCategories(pluginId) {
-        if (typeof PluginService === "undefined")
-            return false;
-
-        const instance = PluginService.pluginInstances[pluginId];
-        if (!instance)
-            return false;
-
-        return typeof instance.getCategories === "function";
     }
 }

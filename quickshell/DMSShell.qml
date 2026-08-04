@@ -233,6 +233,11 @@ Item {
         PolkitService.polkitAvailable;
         DisplayConfigState.hasOutputBackend;
         PortalService.systemColorScheme;
+        IconThemeService.revision;
+        DesktopService.isSystemd;
+        TrashService.count;
+        WallpaperCyclingService.cyclingActive;
+        ThemeAutoService.active;
     }
 
     Loader {
@@ -436,6 +441,23 @@ Item {
 
             Component.onCompleted: {
                 PopoutService.wifiQRCodeModal = wifiQRCodeModalItem;
+            }
+        }
+    }
+
+    LazyLoader {
+        id: qrGeneratorModalLoader
+        active: false
+
+        Component.onCompleted: {
+            PopoutService.qrGeneratorModalLoader = qrGeneratorModalLoader;
+        }
+
+        QRGeneratorModal {
+            id: qrGeneratorModalItem
+
+            Component.onCompleted: {
+                PopoutService.qrGeneratorModal = qrGeneratorModalItem;
             }
         }
     }

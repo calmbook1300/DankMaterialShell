@@ -217,7 +217,7 @@ Item {
                 iconName: "label"
                 title: I18n.tr("Named Workspace Icons")
                 settingKey: "workspaceIcons"
-                visible: SettingsData.hasNamedWorkspaces()
+                visible: NiriService.hasNamedWorkspaces()
 
                 StyledText {
                     width: parent.width
@@ -228,7 +228,7 @@ Item {
                 }
 
                 Repeater {
-                    model: SettingsData.getNamedWorkspaces()
+                    model: NiriService.getNamedWorkspaces()
 
                     Rectangle {
                         width: parent.width

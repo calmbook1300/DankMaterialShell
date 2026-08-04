@@ -11,7 +11,7 @@ Singleton {
     id: root
     readonly property var log: Log.scoped("DMSService")
 
-    property bool dmsAvailable: false
+    readonly property bool dmsAvailable: isConnected
     property var capabilities: []
     property int apiVersion: 0
     property string cliVersion: ""
@@ -21,7 +21,7 @@ Singleton {
     property var availableThemes: []
     property var installedThemes: []
     property bool isConnected: false
-    property bool isConnecting: false
+    readonly property bool isConnecting: requestSocket.connected && !requestSocket.linkUp
     property bool subscribeConnected: false
 
     readonly property string socketPath: Quickshell.env("DMS_SOCKET")
@@ -72,20 +72,15 @@ Singleton {
     property var activeSubscriptions: ["network", "network.credentials", "loginctl", "freedesktop", "freedesktop.screensaver", "gamma", "theme.auto", "wallpaper", "bluetooth", "bluetooth.pairing", "brightness", "wlroutput", "evdev", "browser", "dbus", "clipboard", "sysupdate"]
 
     Component.onCompleted: {
-        if (socketPath && socketPath.length > 0) {
-            detectUpdateCommand();
-        }
+        if (!socketPath || socketPath.length === 0)
+            return;
+        detectUpdateCommand();
+        requestSocket.connected = true;
     }
 
     function detectUpdateCommand() {
         checkingUpdateCommand = true;
         checkAurHelper.running = true;
-    }
-
-    function startSocketConnection() {
-        if (socketPath && socketPath.length > 0) {
-            testProcess.running = true;
-        }
     }
 
     Process {
@@ -105,7 +100,6 @@ Singleton {
                 } else {
                     updateCommand = "dms update";
                     checkingUpdateCommand = false;
-                    startSocketConnection();
                 }
             }
         }
@@ -114,7 +108,6 @@ Singleton {
             if (exitCode !== 0) {
                 updateCommand = "dms update";
                 checkingUpdateCommand = false;
-                startSocketConnection();
             }
         }
     }
@@ -135,7 +128,6 @@ Singleton {
                     updateCommand = "dms update";
                 }
                 checkingUpdateCommand = false;
-                startSocketConnection();
             }
         }
 
@@ -143,32 +135,8 @@ Singleton {
             if (exitCode !== 0) {
                 updateCommand = "dms update";
                 checkingUpdateCommand = false;
-                startSocketConnection();
             }
         }
-    }
-
-    Process {
-        id: testProcess
-        command: ["test", "-S", root.socketPath]
-
-        onExited: exitCode => {
-            if (exitCode === 0) {
-                root.dmsAvailable = true;
-                connectSocket();
-            } else {
-                root.dmsAvailable = false;
-            }
-        }
-    }
-
-    function connectSocket() {
-        if (!dmsAvailable || isConnected || isConnecting) {
-            return;
-        }
-
-        isConnecting = true;
-        requestSocket.connected = true;
     }
 
     DankSocket {
@@ -177,18 +145,17 @@ Singleton {
         connected: false
 
         onConnectionStateChanged: {
-            if (connected) {
+            if (linkUp) {
                 root.isConnected = true;
-                root.isConnecting = false;
                 root.connectionStateChanged();
                 subscribeSocket.connected = true;
-            } else {
-                root.isConnected = false;
-                root.isConnecting = false;
-                root.apiVersion = 0;
-                root.capabilities = [];
-                root.connectionStateChanged();
+                return;
             }
+            root.isConnected = false;
+            root.apiVersion = 0;
+            root.capabilities = [];
+            root.failPendingRequests();
+            root.connectionStateChanged();
         }
 
         parser: SplitParser {
@@ -219,10 +186,10 @@ Singleton {
         connected: false
 
         onConnectionStateChanged: {
-            root.subscribeConnected = connected;
-            if (connected) {
-                sendSubscribeRequest();
-            }
+            root.subscribeConnected = linkUp;
+            if (!linkUp)
+                return;
+            sendSubscribeRequest();
         }
 
         parser: SplitParser {
@@ -299,20 +266,6 @@ Singleton {
             }
             subscribe(filtered);
         }
-    }
-
-    function subscribeAll() {
-        subscribe(["all"]);
-    }
-
-    function subscribeAllExcept(excludeServices) {
-        if (!Array.isArray(excludeServices)) {
-            excludeServices = [excludeServices];
-        }
-
-        const allServices = ["network", "loginctl", "freedesktop", "gamma", "theme.auto", "bluetooth", "cups", "brightness", "browser", "dbus", "location"];
-        const filtered = allServices.filter(s => !excludeServices.includes(s));
-        subscribe(filtered);
     }
 
     function handleSubscriptionEvent(response) {
@@ -446,15 +399,21 @@ Singleton {
 
     function handleResponse(response) {
         const callback = pendingRequests[response.id];
-
-        if (callback) {
-            delete pendingRequests[response.id];
-            callback(response);
-        }
+        if (!callback)
+            return;
+        delete pendingRequests[response.id];
+        callback(response);
     }
 
-    function ping(callback) {
-        sendRequest("ping", null, callback);
+    function failPendingRequests() {
+        const pending = pendingRequests;
+        pendingRequests = {};
+        clipboardRequestIds = {};
+        for (const id in pending) {
+            pending[id]({
+                "error": "not connected to DMS socket"
+            });
+        }
     }
 
     function listPlugins(callback) {
@@ -474,30 +433,6 @@ Singleton {
             if (response.result) {
                 installedPlugins = response.result;
                 installedPluginsReceived(response.result);
-            }
-            if (callback) {
-                callback(response);
-            }
-        });
-    }
-
-    function search(query, category, compositor, capability, callback) {
-        const params = {
-            "query": query
-        };
-        if (category) {
-            params.category = category;
-        }
-        if (compositor) {
-            params.compositor = compositor;
-        }
-        if (capability) {
-            params.capability = capability;
-        }
-
-        sendRequest("plugins.search", params, response => {
-            if (response.result) {
-                searchResultsReceived(response.result);
             }
             if (callback) {
                 callback(response);
@@ -568,19 +503,6 @@ Singleton {
         });
     }
 
-    function searchThemes(query, callback) {
-        sendRequest("themes.search", {
-            "query": query
-        }, response => {
-            if (response.result) {
-                themeSearchResultsReceived(response.result);
-            }
-            if (callback) {
-                callback(response);
-            }
-        });
-    }
-
     function installTheme(themeName, callback) {
         sendRequest("themes.install", {
             "name": themeName
@@ -596,19 +518,6 @@ Singleton {
 
     function uninstallTheme(themeName, callback) {
         sendRequest("themes.uninstall", {
-            "name": themeName
-        }, response => {
-            if (callback) {
-                callback(response);
-            }
-            if (!response.error) {
-                listInstalledThemes();
-            }
-        });
-    }
-
-    function updateTheme(themeName, callback) {
-        sendRequest("themes.update", {
             "name": themeName
         }, response => {
             if (callback) {
@@ -640,26 +549,8 @@ Singleton {
         }, callback);
     }
 
-    function bluetoothConnect(devicePath, callback) {
-        sendRequest("bluetooth.connect", {
-            "device": devicePath
-        }, callback);
-    }
-
-    function bluetoothDisconnect(devicePath, callback) {
-        sendRequest("bluetooth.disconnect", {
-            "device": devicePath
-        }, callback);
-    }
-
     function bluetoothRemove(devicePath, callback) {
         sendRequest("bluetooth.remove", {
-            "device": devicePath
-        }, callback);
-    }
-
-    function bluetoothTrust(devicePath, callback) {
-        sendRequest("bluetooth.trust", {
             "device": devicePath
         }, callback);
     }

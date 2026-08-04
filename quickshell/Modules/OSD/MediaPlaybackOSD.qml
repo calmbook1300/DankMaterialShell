@@ -156,9 +156,10 @@ DankOSD {
             if (MprisController.isFirefoxYoutubeHoverPreview(player))
                 return;
 
-            const newTitle = player.trackTitle || "";
-            const newArtist = player.trackArtist || "";
-            const newAlbum = player.trackAlbum || "";
+            const metaPlayer = MprisController.bestMetadataPlayer(player);
+            const newTitle = MprisController.displayTrackTitle(metaPlayer);
+            const newArtist = metaPlayer.trackArtist || "";
+            const newAlbum = metaPlayer.trackAlbum || "";
             const trackChanged = newTitle !== root._displayTitle || newArtist !== root._displayArtist || newAlbum !== root._displayAlbum;
 
             root._displayTitle = newTitle;
@@ -263,37 +264,102 @@ DankOSD {
                 }
             }
 
-            Rectangle {
-                width: Theme.iconSize
-                height: Theme.iconSize
-                radius: Theme.iconSize / 2
-                color: "transparent"
+            Row {
+                id: transportControls
+
                 x: parent.gap
                 anchors.verticalCenter: parent.verticalCenter
+                spacing: Theme.spacingXXS
 
-                DankIcon {
-                    anchors.centerIn: parent
-                    name: root._displayIcon
-                    size: Theme.iconSize
-                    color: playPauseButton.containsMouse ? Theme.primary : Theme.surfaceText
+                Rectangle {
+                    width: Theme.iconSize - 4
+                    height: Theme.iconSize - 4
+                    radius: (Theme.iconSize - 4) / 2
+                    anchors.verticalCenter: parent.verticalCenter
+                    color: prevButton.containsMouse ? Theme.surfaceTextHover : "transparent"
+                    opacity: (root.player?.canGoPrevious ?? false) ? 1 : 0.3
+
+                    DankIcon {
+                        anchors.centerIn: parent
+                        name: "skip_previous"
+                        size: Theme.iconSize - 10
+                        color: prevButton.containsMouse ? Theme.primary : Theme.surfaceText
+                    }
+
+                    MouseArea {
+                        id: prevButton
+
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        enabled: root.player?.canGoPrevious ?? false
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: {
+                            MprisController.previousOrRewind();
+                            root.hide();
+                        }
+                    }
                 }
 
-                MouseArea {
-                    id: playPauseButton
+                Rectangle {
+                    width: Theme.iconSize
+                    height: Theme.iconSize
+                    radius: Theme.iconSize / 2
+                    anchors.verticalCenter: parent.verticalCenter
+                    color: "transparent"
 
-                    anchors.fill: parent
-                    hoverEnabled: true
-                    cursorShape: Qt.PointingHandCursor
-                    onClicked: {
-                        togglePlaying();
-                        root.hide();
+                    DankIcon {
+                        anchors.centerIn: parent
+                        name: root._displayIcon
+                        size: Theme.iconSize
+                        color: playPauseButton.containsMouse ? Theme.primary : Theme.surfaceText
+                    }
+
+                    MouseArea {
+                        id: playPauseButton
+
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: {
+                            togglePlaying();
+                            root.hide();
+                        }
+                    }
+                }
+
+                Rectangle {
+                    width: Theme.iconSize - 4
+                    height: Theme.iconSize - 4
+                    radius: (Theme.iconSize - 4) / 2
+                    anchors.verticalCenter: parent.verticalCenter
+                    color: nextButton.containsMouse ? Theme.surfaceTextHover : "transparent"
+                    opacity: (root.player?.canGoNext ?? false) ? 1 : 0.3
+
+                    DankIcon {
+                        anchors.centerIn: parent
+                        name: "skip_next"
+                        size: Theme.iconSize - 10
+                        color: nextButton.containsMouse ? Theme.primary : Theme.surfaceText
+                    }
+
+                    MouseArea {
+                        id: nextButton
+
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        enabled: root.player?.canGoNext ?? false
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: {
+                            MprisController.next();
+                            root.hide();
+                        }
                     }
                 }
             }
 
             Column {
-                x: parent.gap * 2 + Theme.iconSize
-                width: parent.width - Theme.iconSize - parent.gap * 3
+                x: parent.gap * 2 + transportControls.width
+                width: parent.width - transportControls.width - parent.gap * 3
                 anchors.verticalCenter: parent.verticalCenter
                 spacing: Theme.spacingXXS
 

@@ -451,6 +451,9 @@ Item {
                     height: width
                     anchors.centerIn: parent
                     activePlayer: root.activePlayer
+                    artUrl: TrackArtService.resolvedArtUrl
+                    accentColor: MediaAccentService.accent
+                    cavaService: CavaService
                 }
             }
 
@@ -490,7 +493,7 @@ Item {
                     }
 
                     StyledText {
-                        text: activePlayer?.trackAlbum || ""
+                        text: MprisController.stableAlbum
                         font.pixelSize: Theme.fontSizeSmall
                         color: Theme.surfaceTextSecondary
                         width: parent.width
@@ -522,6 +525,10 @@ Item {
                             height: 20
                             anchors.horizontalCenter: parent.horizontalCenter
                             activePlayer: root.activePlayer
+                            stableLength: MprisController.activePlayerStableLength
+                            accentColor: MediaAccentService.accent
+                            accentTrackColor: MediaAccentService.accentTrack
+                            accentSubtleColor: MediaAccentService.accentSubtle
                             isSeeking: root.isSeeking
                             onIsSeekingChanged: root.isSeeking = isSeeking
                         }

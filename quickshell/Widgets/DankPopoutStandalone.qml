@@ -93,14 +93,8 @@ Item {
         "label": "popouts"
     })
 
-    function _frameEdgeInset(side) {
-        if (!screen)
-            return 0;
-        return SettingsData.frameEdgeInsetForSide(screen, side);
-    }
-
     function _frameGapMargin(side) {
-        return _frameEdgeInset(side) + Theme.popupDistance;
+        return SettingsData.frameEdgeInsetForSide(screen, side) + Theme.popupDistance;
     }
 
     function _edgeClearance(side, popupGap, adjacentInset) {
@@ -385,6 +379,9 @@ Item {
 
         animationsEnabled = true;
         shouldBeVisible = true;
+        // Content-sized popouts lay out when contentWindow maps, while the geometry
+        // handlers are still gated off. Re-snapshot so the surface isn't left short.
+        _setSettledSurfaceGeometry();
         if (screen) {
             PopoutManager.showPopout(popoutHandle);
             opened();

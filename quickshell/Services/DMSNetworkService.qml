@@ -793,6 +793,13 @@ Singleton {
         autoRefreshEnabled = false;
     }
 
+    Timer {
+        interval: 10000
+        repeat: true
+        running: root.autoScan && root.networkAvailable && root.wifiEnabled
+        onTriggered: root.scanWifi()
+    }
+
     function fetchWiredNetworkInfo(uuid) {
         if (!networkAvailable)
             return;
@@ -1047,10 +1054,6 @@ Singleton {
 
     function isActiveVpnUuid(uuid) {
         return activeUuids && activeUuids.indexOf(uuid) !== -1;
-    }
-
-    function isActiveUuid(uuid) {
-        return isActiveVpnUuid(uuid);
     }
 
     function refreshNetworkState() {
