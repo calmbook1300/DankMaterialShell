@@ -327,6 +327,13 @@ Rectangle {
                     "niriOnly": true
                 },
                 {
+                    "id": "keyboard",
+                    "text": I18n.tr("Keyboard"),
+                    "icon": "keyboard",
+                    "tabIndex": 45,
+                    "niriOnly": true
+                },
+                {
                     "id": "locale",
                     "text": I18n.tr("Locale"),
                     "icon": "language",
@@ -641,7 +648,7 @@ Rectangle {
     implicitWidth: __calculatedWidth
     width: __calculatedWidth
     height: parent.height
-    color: Theme.surfaceContainer
+    color: "transparent"
     radius: Theme.cornerRadius
 
     Component.onCompleted: {
@@ -742,12 +749,9 @@ Rectangle {
                 id: searchField
                 width: parent.width - parent.leftPadding - parent.rightPadding
                 placeholderText: I18n.tr("Search...")
-                normalBorderColor: Theme.outlineMedium
-                focusedBorderColor: Theme.primary
                 leftIconName: "search"
                 leftIconSize: Theme.iconSize - 4
                 showClearButton: text.length > 0
-                usePopupTransparency: false
                 onTextChanged: {
                     SettingsSearchService.search(text);
                     root.searchSelectedIndex = 0;

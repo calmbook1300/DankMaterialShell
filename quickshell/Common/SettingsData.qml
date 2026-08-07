@@ -164,6 +164,11 @@ Singleton {
     property string matugenTargetMonitor: ""
     property real popupTransparency: 1.0
     property real dockTransparency: 1
+    property bool floatingWindowSyncGlobal: true
+    property real floatingWindowTransparency: 1.0
+    property bool floatingWindowForegroundLayers: true
+    property real floatingWindowForegroundTransparency: 1.0
+    property bool dmsWindowsFloating: true
     property string widgetBackgroundColor: "sch"
     property string widgetBackgroundCustomColor: "#6750A4"
     property real widgetBackgroundCustomStrength: 0.50
@@ -202,6 +207,16 @@ Singleton {
     property string touchpadScrollMethod: "default"
     property bool touchpadTapAndDrag: true
     property bool touchpadTapToClick: true
+
+    property string keyboardLayouts: ""
+    property string keyboardVariants: ""
+    property string keyboardModel: ""
+    property string keyboardOptions: ""
+    property string keyboardKeymapFile: ""
+    property string keyboardTrackLayout: ""
+    property int keyboardRepeatDelay: 0
+    property int keyboardRepeatRate: 0
+    property bool keyboardNumlock: false
 
     property int firstDayOfWeek: -1
     property bool showWeekNumber: false
@@ -254,6 +269,7 @@ Singleton {
     onBlurEnabledChanged: saveSettings()
     property bool blurForegroundLayers: true
     onBlurForegroundLayersChanged: saveSettings()
+    property real foregroundLayerTransparency: 1.0
     property real blurLayerOutlineOpacity: 0.12
     onBlurLayerOutlineOpacityChanged: saveSettings()
     property bool blurBorderEnabled: true
@@ -481,6 +497,7 @@ Singleton {
     property bool mediaHideWhenIdleEnabled: false
     property bool audioVisualizerEnabled: true
     property bool mediaUseAlbumArtAccent: false
+    property bool appleMusicAnimatedArtEnabled: false
     property string audioScrollMode: "volume"
     property int audioWheelScrollAmount: 5
     property bool audioDeviceScrollVolumeEnabled: false
@@ -975,6 +992,7 @@ Singleton {
     property string customPowerActionHibernate: ""
     property string customPowerActionReboot: ""
     property string customPowerActionPowerOff: ""
+    property var customPowerButtons: []
 
     property bool updaterHideWidget: false
     property bool updaterCheckOnStart: false

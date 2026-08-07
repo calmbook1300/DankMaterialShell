@@ -17,6 +17,11 @@ var SPEC = {
 
     popupTransparency: { def: 1.0, coerce: percentToUnit },
     dockTransparency: { def: 1.0, coerce: percentToUnit },
+    floatingWindowSyncGlobal: { def: true },
+    floatingWindowTransparency: { def: 1.0, coerce: percentToUnit },
+    floatingWindowForegroundLayers: { def: true },
+    floatingWindowForegroundTransparency: { def: 1.0, coerce: percentToUnit },
+    dmsWindowsFloating: { def: true },
 
     widgetBackgroundColor: { def: "sch" },
     widgetBackgroundCustomColor: { def: "#6750A4" },
@@ -57,6 +62,16 @@ var SPEC = {
     touchpadTapAndDrag: { def: true, onChange: "updateCompositorInput" },
     touchpadTapToClick: { def: true, onChange: "updateCompositorInput" },
 
+    keyboardLayouts: { def: "", onChange: "updateCompositorInput" },
+    keyboardVariants: { def: "", onChange: "updateCompositorInput" },
+    keyboardModel: { def: "", onChange: "updateCompositorInput" },
+    keyboardOptions: { def: "", onChange: "updateCompositorInput" },
+    keyboardKeymapFile: { def: "", onChange: "updateCompositorInput" },
+    keyboardTrackLayout: { def: "", onChange: "updateCompositorInput" },
+    keyboardRepeatDelay: { def: 0, onChange: "updateCompositorInput" },
+    keyboardRepeatRate: { def: 0, onChange: "updateCompositorInput" },
+    keyboardNumlock: { def: false, onChange: "updateCompositorInput" },
+
     firstDayOfWeek: { def: -1 },
     showWeekNumber: { def: false },
     calendarBackend: { def: "auto" },
@@ -87,6 +102,7 @@ var SPEC = {
     barElevationEnabled: { def: true },
     blurEnabled: { def: false },
     blurForegroundLayers: { def: true },
+    foregroundLayerTransparency: { def: 1.0, coerce: percentToUnit },
     blurLayerOutlineOpacity: { def: 0.12, coerce: percentToUnit },
     blurBorderEnabled: { def: true },
     blurBorderColor: { def: "outline" },
@@ -207,6 +223,7 @@ var SPEC = {
     mediaHideWhenIdleEnabled: { def: false },
     audioVisualizerEnabled: { def: true },
     mediaUseAlbumArtAccent: { def: false },
+    appleMusicAnimatedArtEnabled: { def: false },
     audioScrollMode: { def: "volume" },
     audioWheelScrollAmount: { def: 5 },
     audioDeviceScrollVolumeEnabled: { def: false },
@@ -528,6 +545,7 @@ var SPEC = {
     customPowerActionHibernate: { def: "" },
     customPowerActionReboot: { def: "" },
     customPowerActionPowerOff: { def: "" },
+    customPowerButtons: { def: [] },
 
     updaterHideWidget: { def: false },
     updaterCheckOnStart: { def: false },

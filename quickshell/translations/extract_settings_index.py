@@ -135,10 +135,14 @@ TAB_INDEX_MAP = {
     "UsersTab.qml": 35,
     "AutoStartTab.qml": 36,
     "BatteryTab.qml": 42,
+    "MouseTouchpadTab.qml": 44,
+    "KeyboardTab.qml": 45,
 }
 
 FILE_CONDITION_MAP = {
     "GreeterTab.qml": "greeterAvailable",
+    "MouseTouchpadTab.qml": "isNiri",
+    "KeyboardTab.qml": "isNiri",
 }
 
 TAB_CATEGORY_MAP = {
@@ -185,6 +189,8 @@ TAB_CATEGORY_MAP = {
     41: "Network",
     42: "Power & Security",
     43: "Dank Dash",
+    44: "System",
+    45: "System",
 }
 
 SEARCHABLE_COMPONENTS = [
@@ -391,7 +397,9 @@ def find_settings_components(content, filename, wrappers):
             visible_raw = extract_property(block, "visible")
             condition_key = FILE_CONDITION_MAP.get(filename)
             if visible_raw:
-                if "CompositorService.isNiri" in visible_raw:
+                if all(c in visible_raw for c in ("CompositorService.isNiri", "CompositorService.isHyprland", "CompositorService.isMango")):
+                    condition_key = "windowRulesCapable"
+                elif "CompositorService.isNiri" in visible_raw:
                     condition_key = "isNiri"
                 elif "CompositorService.isHyprland" in visible_raw:
                     condition_key = "isHyprland"
