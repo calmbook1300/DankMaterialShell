@@ -1,5 +1,7 @@
 .pragma library
 
+    .import "./SpecUtil.js" as Util
+
 function percentToUnit(v) {
     if (v === undefined || v === null) return undefined;
     return v > 1 ? v / 100 : v;
@@ -272,16 +274,12 @@ var SPEC = {
     greeterFontFamily: { def: "", onChange: "markGreeterSyncPending" },
     greeterWallpaperFillMode: { def: "", onChange: "markGreeterSyncPending" },
     greeterPamExternallyManaged: { def: false, onChange: "markGreeterSyncPending" },
-    greeterSyncPending: { def: false },
-    greeterSyncBaseline: { def: {} },
     mediaSize: { def: 1 },
 
     appLauncherViewMode: { def: "list" },
     spotlightModalViewMode: { def: "list" },
     browserPickerViewMode: { def: "grid" },
-    browserUsageHistory: { def: {} },
     appPickerViewMode: { def: "grid" },
-    filePickerUsageHistory: { def: {} },
     sortAppsAlphabetically: { def: false },
     appLauncherGridColumns: { def: 4 },
     spotlightCloseNiriOverview: { def: true },
@@ -314,7 +312,6 @@ var SPEC = {
     iconThemeDark: { def: "System Default", onChange: "applyStoredIconTheme" },
     iconThemeLight: { def: "System Default", onChange: "applyStoredIconTheme" },
     iconThemePerMode: { def: false, onChange: "applyStoredIconTheme" },
-    lastAppliedIconTheme: { def: "" },
     availableIconThemes: { def: ["System Default"], persist: false },
     systemDefaultIconTheme: { def: "", persist: false },
 
@@ -436,6 +433,7 @@ var SPEC = {
     dockSmartAutoHide: { def: false },
     dockUseOverlayLayer: { def: false },
     dockGroupByApp: { def: false },
+    dockSeparatePinnedAndRunningApps: { def: false },
     dockRestoreSpecialWorkspaceOnClick: { def: false },
     dockOpenOnOverview: { def: false },
     dockPosition: { def: 1 },
@@ -560,11 +558,7 @@ var SPEC = {
     displayNameMode: { def: "system" },
     screenPreferences: { def: {} },
     showOnLastDisplay: { def: {} },
-    niriOutputSettings: { def: {} },
-    hyprlandOutputSettings: { def: {} },
     displayProfiles: { def: {} },
-    activeDisplayProfile: { def: {} },
-    activeDisplayProfileModes: { def: {} },
     displayPreviousRefreshModes: { def: {} },
     displayProfileAutoSelect: { def: false },
     displayShowDisconnected: { def: false },
@@ -670,7 +664,6 @@ var SPEC = {
     systemMonitorDisplayPreferences: { def: ["all"] },
     systemMonitorVariants: { def: [] },
     desktopWidgetPositions: { def: {} },
-    desktopWidgetGridSettings: { def: {} },
 
     desktopWidgetInstances: { def: [] },
 
@@ -680,6 +673,7 @@ var SPEC = {
     clipboardClickToPaste: { def: false },
     clipboardEnterToPaste: { def: false },
     clipboardRememberTypeFilter: { def: false },
+    clipboardUseOverlayLayer: { def: false },
     clipboardTypeFilter: { def: "all" },
     clipboardVisibleEntryActions: { def: ["pin", "edit", "delete"] },
 
@@ -711,7 +705,7 @@ function getValidKeys() {
 
 function set(root, key, value, saveFn, hooks) {
     if (!(key in SPEC)) return;
-    if (value === undefined || value === null) value = SPEC[key].def;
+    if (value === undefined || value === null) value = Util.cloneDef(SPEC[key].def);
     var oldValue = root[key];
     root[key] = value;
     var hookName = SPEC[key].onChange;
