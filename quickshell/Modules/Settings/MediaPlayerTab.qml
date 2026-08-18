@@ -228,7 +228,7 @@ Item {
                             buttonSize: 36
                             iconName: "apps"
                             iconSize: 20
-                            backgroundColor: Theme.surfaceContainer
+                            backgroundColor: Theme.floatingWindowFieldColor
                             iconColor: Theme.primary
                             onClicked: appBrowserPopup.show()
                         }
@@ -245,7 +245,7 @@ Item {
                                 width: parent.width
                                 height: 48
                                 radius: Theme.cornerRadius
-                                color: Theme.withAlpha(Theme.surfaceContainer, 0.5)
+                                color: Theme.floatingWindowFieldColor
 
                                 Row {
                                     anchors.fill: parent
