@@ -375,10 +375,6 @@ Item {
         Component.onDestruction: teardown()
     }
 
-    signal colorPickerRequested
-
-    onColorPickerRequested: rootWindow.colorPickerRequested()
-
     property alias axis: axis
 
     AxisContext {
@@ -1045,8 +1041,8 @@ Item {
             }
             readonly property bool inOverview: CompositorService.isNiri && NiriService.inOverview && barWindow.effectiveOpenOnOverview
             hoverEnabled: (barConfig?.autoHide ?? false) && !inOverview && !topBarCore.popoutPinsReveal
-            acceptedButtons: Qt.NoButton
-            enabled: (barConfig?.autoHide ?? false) && !inOverview
+            acceptedButtons: barWindow.clickThroughEnabled ? Qt.NoButton : Qt.RightButton
+            enabled: !inOverview && ((barConfig?.autoHide ?? false) || !barWindow.clickThroughEnabled)
             onPositionChanged: mouse => {
                 if (!topBarCore.gapEnterSuppressed)
                     return;

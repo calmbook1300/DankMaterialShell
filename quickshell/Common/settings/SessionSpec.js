@@ -4,6 +4,7 @@ var SPEC = {
     isLightMode: { def: false },
     doNotDisturb: { def: false },
     doNotDisturbUntil: { def: 0 },
+    idleInhibited: { def: false },
     terminalOverride: { def: "" },
 
     wallpaperPath: { def: "" },
@@ -23,6 +24,7 @@ var SPEC = {
     wallpaperCyclingMode: { def: "interval" },
     wallpaperCyclingInterval: { def: 300 },
     wallpaperCyclingTime: { def: "06:00" },
+    wallpaperCyclingFolderPath: { def: "" },
     monitorCyclingSettings: { def: {} },
 
     nightModeEnabled: { def: false },

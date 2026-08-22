@@ -1,6 +1,9 @@
 package screenshot
 
-import "fmt"
+import (
+	"fmt"
+	"math"
+)
 
 var fontGlyphs = map[rune][12]uint8{
 	'0': {0x3C, 0x66, 0x66, 0x6E, 0x76, 0x66, 0x66, 0x66, 0x66, 0x3C, 0x00, 0x00},
@@ -52,12 +55,13 @@ var DefaultOverlayStyle = OverlayStyle{
 }
 
 type selectionRenderBounds struct {
-	x int
-	y int
-	w int
-	h int
+	x, y, w, h  int
+	labelText   string
+	top, bottom bool
+	left, right bool
 }
 
+// dirtyRect is half-open in buffer pixels.
 type dirtyRect struct {
 	x1 int
 	y1 int
@@ -65,42 +69,146 @@ type dirtyRect struct {
 	y2 int
 }
 
-func (d dirtyRect) union(o dirtyRect) dirtyRect {
+func (d dirtyRect) empty() bool {
+	return d.x2 <= d.x1 || d.y2 <= d.y1
+}
+
+func (d dirtyRect) intersect(o dirtyRect) dirtyRect {
 	return dirtyRect{
-		x1: min(d.x1, o.x1),
-		y1: min(d.y1, o.y1),
-		x2: max(d.x2, o.x2),
-		y2: max(d.y2, o.y2),
+		x1: max(d.x1, o.x1),
+		y1: max(d.y1, o.y1),
+		x2: min(d.x2, o.x2),
+		y2: min(d.y2, o.y2),
+	}
+}
+
+func (d dirtyRect) grow(n int) dirtyRect {
+	return dirtyRect{x1: d.x1 - n, y1: d.y1 - n, x2: d.x2 + n, y2: d.y2 + n}
+}
+
+func (d dirtyRect) clampTo(w, h int) dirtyRect {
+	return d.intersect(dirtyRect{0, 0, w, h})
+}
+
+// minus returns d with o cut out, as up to four strips.
+func (d dirtyRect) minus(o dirtyRect) []dirtyRect {
+	if d.empty() {
+		return nil
+	}
+	i := d.intersect(o)
+	if i.empty() {
+		return []dirtyRect{d}
+	}
+	var out []dirtyRect
+	for _, s := range []dirtyRect{
+		{d.x1, d.y1, d.x2, i.y1},
+		{d.x1, i.y2, d.x2, d.y2},
+		{d.x1, i.y1, i.x1, i.y2},
+		{i.x2, i.y1, d.x2, i.y2},
+	} {
+		if !s.empty() {
+			out = append(out, s)
+		}
+	}
+	return out
+}
+
+// overlay is what a frame draws on top of the dimmed background: the bright
+// selection interior with its border ring, and the dimensions label.
+type overlay struct {
+	interior dirtyRect
+	label    dirtyRect
+	text     string
+	top      bool
+	bottom   bool
+	left     bool
+	right    bool
+}
+
+func (o *overlay) full() dirtyRect {
+	return o.interior.grow(borderThickness - 1)
+}
+
+func (o *overlay) inner() dirtyRect {
+	return o.interior.grow(-1)
+}
+
+func (o *overlay) ring() []dirtyRect {
+	return o.full().minus(o.inner())
+}
+
+// overlayDelta returns the areas to re-dim and to re-brighten when prev is replaced by cur; nil means no overlay.
+func overlayDelta(prev, cur *overlay) (dim, bright []dirtyRect) {
+	var curInterior, prevInner dirtyRect
+	if cur != nil {
+		curInterior = cur.interior
+	}
+	if prev != nil {
+		dim = append(prev.full().minus(curInterior), prev.label.minus(curInterior)...)
+		prevInner = prev.inner()
+	}
+	if cur != nil {
+		bright = cur.interior.minus(prevInner)
+	}
+	return dim, bright
+}
+
+var dimLUT = func() (t [256]uint8) {
+	for i := range t {
+		t[i] = uint8(i * 3 / 5)
+	}
+	return t
+}()
+
+func dimRow(p []byte) {
+	for i := 0; i+3 < len(p); i += 4 {
+		p[i], p[i+1], p[i+2], p[i+3] = dimLUT[p[i]], dimLUT[p[i+1]], dimLUT[p[i+2]], 255
+	}
+}
+
+func opaqueRow(p []byte) {
+	for i := 3; i < len(p); i += 4 {
+		p[i] = 255
 	}
 }
 
 func (r *RegionSelector) dimBackground(renderBuf *ShmBuffer) {
 	data := renderBuf.Data()
-	r.dimRegion(data, renderBuf.Stride, renderBuf.Width, renderBuf.Height, 0, 0, renderBuf.Width, renderBuf.Height)
+	for y := range renderBuf.Height {
+		dimRow(data[y*renderBuf.Stride:][:renderBuf.Width*4])
+	}
 }
 
-func (r *RegionSelector) dimRegion(data []byte, stride, bufW, bufH, x1, y1, x2, y2 int) {
-	x1 = clamp(x1, 0, bufW)
-	y1 = clamp(y1, 0, bufH)
-	x2 = clamp(x2, 0, bufW)
-	y2 = clamp(y2, 0, bufH)
-	for y := y1; y < y2; y++ {
-		off := y * stride
-		for x := x1; x < x2; x++ {
-			i := off + x*4
-			if i+3 >= len(data) {
-				continue
-			}
-			data[i+0] = uint8(int(data[i+0]) * 3 / 5)
-			data[i+1] = uint8(int(data[i+1]) * 3 / 5)
-			data[i+2] = uint8(int(data[i+2]) * 3 / 5)
-			data[i+3] = 255
+// paintRect copies area from the capture into dst, dimmed or bright.
+func (r *RegionSelector) paintRect(os *OutputSurface, dst *ShmBuffer, area dirtyRect, dim bool) {
+	src := r.getSourceBuffer(os)
+	if src == nil {
+		return
+	}
+	area = area.clampTo(min(src.Width, dst.Width), min(src.Height, dst.Height))
+	if area.empty() {
+		return
+	}
+	rowLen := (area.x2 - area.x1) * 4
+	for y := area.y1; y < area.y2; y++ {
+		s := src.Data()[y*src.Stride+area.x1*4:][:rowLen]
+		d := dst.Data()[y*dst.Stride+area.x1*4:][:rowLen]
+		copy(d, s)
+		if dim {
+			dimRow(d)
+		} else {
+			opaqueRow(d)
 		}
 	}
 }
 
 func (r *RegionSelector) selectionRenderBounds(os *OutputSurface) (selectionRenderBounds, bool) {
-	if !r.selection.hasSelection || r.selection.surface != os {
+	if os == nil || os.output == nil {
+		return selectionRenderBounds{}, false
+	}
+
+	ext, ok := r.selectionExtent()
+	if !ok || !ext.intersects(os) {
 		return selectionRenderBounds{}, false
 	}
 
@@ -108,104 +216,111 @@ func (r *RegionSelector) selectionRenderBounds(os *OutputSurface) (selectionRend
 	if srcBuf == nil {
 		return selectionRenderBounds{}, false
 	}
+
+	selectionMinX := math.Min(r.selection.anchorX, r.selection.currentX)
+	selectionMinY := math.Min(r.selection.anchorY, r.selection.currentY)
+	selectionMaxX := math.Max(r.selection.anchorX, r.selection.currentX)
+	selectionMaxY := math.Max(r.selection.anchorY, r.selection.currentY)
+	outputMinX := float64(os.output.x)
+	outputMinY := float64(os.output.y)
+	outputMaxX := outputMinX + float64(os.logicalW)
+	outputMaxY := outputMinY + float64(os.logicalH)
 
 	scaleX, scaleY := 1.0, 1.0
 	if os.logicalW > 0 && os.logicalH > 0 {
 		scaleX = float64(srcBuf.Width) / float64(os.logicalW)
 		scaleY = float64(srcBuf.Height) / float64(os.logicalH)
 	}
-	x1 := int(r.selection.anchorX * scaleX)
-	y1 := int(r.selection.anchorY * scaleY)
-	x2 := int(r.selection.currentX * scaleX)
-	y2 := int(r.selection.currentY * scaleY)
-	if x1 > x2 {
-		x1, x2 = x2, x1
-	}
-	if y1 > y2 {
-		y1, y2 = y2, y1
-	}
-
-	x1 = clamp(x1, 0, srcBuf.Width-1)
-	y1 = clamp(y1, 0, srcBuf.Height-1)
-	x2 = clamp(x2, 0, srcBuf.Width-1)
-	y2 = clamp(y2, 0, srcBuf.Height-1)
+	x1 := clamp(int(math.Floor((selectionMinX-outputMinX)*scaleX)), 0, srcBuf.Width-1)
+	y1 := clamp(int(math.Floor((selectionMinY-outputMinY)*scaleY)), 0, srcBuf.Height-1)
+	x2 := clamp(int(math.Floor((selectionMaxX-outputMinX)*scaleX)), 0, srcBuf.Width-1)
+	y2 := clamp(int(math.Floor((selectionMaxY-outputMinY)*scaleY)), 0, srcBuf.Height-1)
 	w, h := x2-x1+1, y2-y1+1
-	if r.shiftHeld && w != h {
-		if w < h {
-			h = w
-		} else {
-			w = h
-		}
+	labelW, labelH := ext.width(), ext.height()
+	if r.shiftHeld && ext.within(os) {
+		w = min(w, h)
+		h = w
+		labelW, labelH = w, h
 	}
-	return selectionRenderBounds{x: x1, y: y1, w: w, h: h}, true
+	labelText := ""
+	if os == ext.surface {
+		labelText = fmt.Sprintf("%dx%d", labelW, labelH)
+	}
+	return selectionRenderBounds{
+		x: x1, y: y1, w: w, h: h, labelText: labelText,
+		top:    selectionMinY >= outputMinY && selectionMinY < outputMaxY,
+		bottom: selectionMaxY > outputMinY && selectionMaxY <= outputMaxY,
+		left:   selectionMinX >= outputMinX && selectionMinX < outputMaxX,
+		right:  selectionMaxX > outputMinX && selectionMaxX <= outputMaxX,
+	}, true
 }
 
-func (r *RegionSelector) restoreSourceRect(os *OutputSurface, renderBuf *ShmBuffer, d dirtyRect) {
-	srcBuf := r.getSourceBuffer(os)
-	if srcBuf == nil {
-		return
-	}
-
-	maxW := min(srcBuf.Width, renderBuf.Width)
-	maxH := min(srcBuf.Height, renderBuf.Height)
-	x1 := clamp(d.x1, 0, maxW)
-	y1 := clamp(d.y1, 0, maxH)
-	x2 := clamp(d.x2, 0, maxW)
-	y2 := clamp(d.y2, 0, maxH)
-	if x2 <= x1 || y2 <= y1 {
-		return
-	}
-
-	width := (x2 - x1) * 4
-	for y := y1; y < y2; y++ {
-		srcStart := y*srcBuf.Stride + x1*4
-		dstStart := y*renderBuf.Stride + x1*4
-		if srcStart+width > len(srcBuf.Data()) || dstStart+width > len(renderBuf.Data()) {
-			continue
-		}
-		copy(renderBuf.Data()[dstStart:dstStart+width], srcBuf.Data()[srcStart:srcStart+width])
-	}
-	r.dimRegion(renderBuf.Data(), renderBuf.Stride, renderBuf.Width, renderBuf.Height, x1, y1, x2, y2)
-}
-
-func (r *RegionSelector) drawOverlay(os *OutputSurface, renderBuf *ShmBuffer) *dirtyRect {
+func (r *RegionSelector) overlayFor(os *OutputSurface, buf *ShmBuffer) *overlay {
 	bounds, ok := r.selectionRenderBounds(os)
 	if !ok {
 		return nil
 	}
+	var label dirtyRect
+	if bounds.labelText != "" {
+		label, _ = labelRect(bounds, buf.Width, buf.Height)
+	}
+	return &overlay{
+		interior: dirtyRect{bounds.x, bounds.y, bounds.x + bounds.w, bounds.y + bounds.h},
+		label:    label,
+		text:     bounds.labelText,
+		top:      bounds.top,
+		bottom:   bounds.bottom,
+		left:     bounds.left,
+		right:    bounds.right,
+	}
+}
 
-	data := renderBuf.Data()
-	stride := renderBuf.Stride
-	w, h := renderBuf.Width, renderBuf.Height
-	format := os.screenFormat
-
-	srcBuf := r.getSourceBuffer(os)
-	srcData := srcBuf.Data()
-	for y := bounds.y; y < bounds.y+bounds.h; y++ {
-		rowOff := y * stride
-		for x := bounds.x; x < bounds.x+bounds.w; x++ {
-			si := y*srcBuf.Stride + x*4
-			di := rowOff + x*4
-			if si+3 >= len(srcData) || di+3 >= len(data) {
-				continue
-			}
-			data[di+0] = srcData[si+0]
-			data[di+1] = srcData[si+1]
-			data[di+2] = srcData[si+2]
-			data[di+3] = 255
-		}
+// drawOverlay brings a buffer holding prev up to cur, touching only what changed.
+func (r *RegionSelector) drawOverlay(os *OutputSurface, renderBuf *ShmBuffer, prev, cur *overlay) {
+	dim, bright := overlayDelta(prev, cur)
+	for _, d := range dim {
+		r.paintRect(os, renderBuf, d, true)
+	}
+	for _, b := range bright {
+		r.paintRect(os, renderBuf, b, false)
+	}
+	if cur == nil {
+		return
 	}
 
-	r.drawBorder(data, stride, w, h, bounds.x, bounds.y, bounds.w, bounds.h, format)
-	labelRect := r.drawDimensions(data, stride, w, h, bounds.x, bounds.y, bounds.w, bounds.h, format)
+	data, stride, w, h := renderBuf.Data(), renderBuf.Stride, renderBuf.Width, renderBuf.Height
+	in := cur.interior
+	r.drawSelectionBorder(data, stride, w, h, in, cur, os.screenFormat)
+	if cur.text != "" {
+		r.drawLabel(data, stride, w, h, cur, os.screenFormat)
+	}
+}
 
-	dirty := dirtyRect{
-		x1: bounds.x - borderThickness,
-		y1: bounds.y - borderThickness,
-		x2: bounds.x + bounds.w + borderThickness,
-		y2: bounds.y + bounds.h + borderThickness,
-	}.union(labelRect)
-	return &dirty
+func (r *RegionSelector) drawSelectionBorder(data []byte, stride, bufW, bufH int, in dirtyRect, o *overlay, format uint32) {
+	for i := range borderThickness {
+		if o.top {
+			r.drawHLine(data, stride, bufW, bufH, in.x1, in.y1-i, in.x2-in.x1, format)
+		}
+		if o.bottom {
+			r.drawHLine(data, stride, bufW, bufH, in.x1, in.y2+i-1, in.x2-in.x1, format)
+		}
+		if o.left {
+			r.drawVLine(data, stride, bufW, bufH, in.x1-i, in.y1, in.y2-in.y1, format)
+		}
+		if o.right {
+			r.drawVLine(data, stride, bufW, bufH, in.x2+i-1, in.y1, in.y2-in.y1, format)
+		}
+	}
+}
+
+// overlayDamage lists the buffer areas that differ between a frame showing prev and one showing cur.
+func overlayDamage(prev, cur *overlay) []dirtyRect {
+	dim, bright := overlayDelta(prev, cur)
+	damage := append(dim, bright...)
+	if cur == nil {
+		return damage
+	}
+	return append(append(damage, cur.ring()...), cur.label)
 }
 
 func (r *RegionSelector) drawScrollOverlay(os *OutputSurface, renderBuf *ShmBuffer) {
@@ -384,24 +499,29 @@ func (r *RegionSelector) drawVLine(data []byte, stride, bufW, bufH, x, y, length
 	}
 }
 
-func (r *RegionSelector) drawDimensions(data []byte, stride, bufW, bufH, x, y, w, h int, format uint32) dirtyRect {
-	text := fmt.Sprintf("%dx%d", w, h)
+func labelRect(b selectionRenderBounds, bufW, bufH int) (dirtyRect, string) {
+	text := b.labelText
 
 	const charW, charH = 8, 12
 	textW := len(text) * (charW + 1)
-	textH := charH
 
-	tx := x + (w-textW)/2
-	ty := y + h + 8
-
-	if ty+textH > bufH {
-		ty = y - textH - 8
+	tx := b.x + (b.w-textW)/2
+	ty := b.y + b.h + 8
+	if ty+charH > bufH {
+		ty = b.y - charH - 8
 	}
 	tx = clamp(tx, 0, bufW-textW)
+	return dirtyRect{x1: tx - 4, y1: ty - 2, x2: tx + textW + 4, y2: ty + charH + 2}, text
+}
 
-	r.fillRect(data, stride, bufW, bufH, tx-4, ty-2, textW+8, textH+4, 0, 0, 0, 200, format)
-	r.drawText(data, stride, bufW, bufH, tx, ty, text, 255, 255, 255, format)
-	return dirtyRect{x1: tx - 4, y1: ty - 2, x2: tx + textW + 4, y2: ty + textH + 2}
+func (r *RegionSelector) drawLabel(data []byte, stride, bufW, bufH int, o *overlay, format uint32) {
+	l := o.label
+	r.fillRect(data, stride, bufW, bufH, l.x1, l.y1, l.x2-l.x1, l.y2-l.y1, 0, 0, 0, 200, format)
+	r.drawText(data, stride, bufW, bufH, l.x1+4, l.y1+2, o.text, 255, 255, 255, format)
+}
+
+func formatIsBGR(format uint32) bool {
+	return format == uint32(FormatABGR8888) || format == uint32(FormatXBGR8888)
 }
 
 func (r *RegionSelector) fillRect(data []byte, stride, bufW, bufH, x, y, w, h int, cr, cg, cb, ca uint8, format uint32) {
@@ -409,7 +529,7 @@ func (r *RegionSelector) fillRect(data []byte, stride, bufW, bufH, x, y, w, h in
 	invAlpha := 1.0 - alpha
 
 	c0, c2 := cb, cr
-	if format == uint32(FormatABGR8888) || format == uint32(FormatXBGR8888) {
+	if formatIsBGR(format) {
 		c0, c2 = cr, cb
 	}
 
@@ -446,7 +566,7 @@ func (r *RegionSelector) drawChar(data []byte, stride, bufW, bufH, x, y int, ch 
 	}
 
 	c0, c2 := cb, cr
-	if format == uint32(FormatABGR8888) || format == uint32(FormatXBGR8888) {
+	if formatIsBGR(format) {
 		c0, c2 = cr, cb
 	}
 

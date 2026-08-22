@@ -1,6 +1,7 @@
 pragma ComponentBehavior: Bound
 
 import QtQuick
+import Quickshell.Widgets
 import Quickshell.Wayland
 import qs.Common
 import qs.Services
@@ -77,12 +78,11 @@ Rectangle {
         anchors.fill: parent
         anchors.margins: 4
 
-        Rectangle {
+        ClippingRectangle {
             id: imageContainer
             anchors.fill: parent
             radius: Theme.cornerRadius - 2
             color: Theme.surfaceContainerHigh
-            clip: true
 
             ScreencopyView {
                 id: screencopyView
@@ -101,6 +101,7 @@ Rectangle {
                 anchors.fill: parent
                 iconValue: root.iconValue
                 iconSize: Math.min(parent.width, parent.height)
+                animate: root.item?.data?.animated === true
                 fallbackText: (root.item?.name?.length > 0) ? root.item.name.charAt(0).toUpperCase() : "?"
                 materialIconSizeAdjustment: iconSize * 0.3
                 visible: !root.hasScreencopy

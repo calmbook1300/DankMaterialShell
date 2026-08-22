@@ -3,8 +3,6 @@ package screenshot
 import (
 	"encoding/binary"
 	"hash/crc32"
-	"image"
-	"io"
 
 	"github.com/AvengeMedia/DankMaterialShell/core/internal/proto/wp_color_management"
 )
@@ -77,49 +75,18 @@ func cicpFromNamed(primaries, tf uint32) *CICP {
 	return &CICP{Primaries: p, TF: t}
 }
 
+func (c *CICP) chunks() [][]byte {
+	if c == nil {
+		return nil
+	}
+	return [][]byte{c.chunk()}
+}
+
 func (c *CICP) chunk() []byte {
 	payload := []byte{'c', 'I', 'C', 'P', c.Primaries, c.TF, 0, 1} // matrix=RGB, full range
 	chunk := binary.BigEndian.AppendUint32(make([]byte, 0, 16), 4)
 	chunk = append(chunk, payload...)
 	return binary.BigEndian.AppendUint32(chunk, crc32.ChecksumIEEE(payload))
-}
-
-// cicpInjector inserts a cICP chunk after IHDR (PNG signature + IHDR = 33 bytes).
-type cicpInjector struct {
-	w       io.Writer
-	chunk   []byte
-	written int
-}
-
-func (ci *cicpInjector) Write(p []byte) (int, error) {
-	const ihdrEnd = 33
-	if ci.written >= ihdrEnd {
-		return ci.w.Write(p)
-	}
-
-	n := min(ihdrEnd-ci.written, len(p))
-	if _, err := ci.w.Write(p[:n]); err != nil {
-		return 0, err
-	}
-	ci.written += n
-	if ci.written == ihdrEnd {
-		if _, err := ci.w.Write(ci.chunk); err != nil {
-			return n, err
-		}
-	}
-	if n < len(p) {
-		if _, err := ci.w.Write(p[n:]); err != nil {
-			return n, err
-		}
-	}
-	return len(p), nil
-}
-
-func EncodePNGTagged(w io.Writer, img image.Image, cicp *CICP) error {
-	if cicp != nil {
-		w = &cicpInjector{w: w, chunk: cicp.chunk()}
-	}
-	return EncodePNG(w, img)
 }
 
 // outputCICP queries the output's image description via wp_color_management_v1.

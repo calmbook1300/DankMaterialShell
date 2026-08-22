@@ -23,6 +23,8 @@ Singleton {
     property var batteryPopoutLoader: null
     property var vpnPopout: null
     property var vpnPopoutLoader: null
+    property var colorPickerPopout: null
+    property var colorPickerPopoutLoader: null
     property var systemUpdatePopout: null
     property var systemUpdateLoader: null
     property var layoutPopout: null
@@ -52,6 +54,7 @@ Singleton {
     property var polkitAuthModal: null
     property var polkitAuthModalLoader: null
     property var bluetoothPairingModal: null
+    property var bluetoothPairingModalLoader: null
     property var networkInfoModal: null
     property var windowRuleModalLoader: null
     property var powerProfileModal: null
@@ -116,6 +119,7 @@ Singleton {
             "processList": () => _unloadPopoutNow("processListPopout", "processListPopoutLoader"),
             "battery": () => _unloadPopoutNow("batteryPopout", "batteryPopoutLoader"),
             "vpn": () => _unloadPopoutNow("vpnPopout", "vpnPopoutLoader"),
+            "colorPicker": () => _unloadPopoutNow("colorPickerPopout", "colorPickerPopoutLoader"),
             "systemUpdate": () => _unloadPopoutNow("systemUpdatePopout", "systemUpdateLoader"),
             "layout": () => _unloadPopoutNow("layoutPopout", "layoutPopoutLoader"),
             "clipboardHistory": () => _unloadPopoutNow("clipboardHistoryPopout", "clipboardHistoryPopoutLoader"),
@@ -395,7 +399,29 @@ Singleton {
         }
     }
 
-    function openSettingsWithTab(tabName: string) {
+    property var _settingsReturnOrigin: null
+    property var _settingsReturnReopen: null
+
+    Connections {
+        target: root.settingsModal
+        function onClosingModal() {
+            root._restoreSettingsOrigin();
+        }
+    }
+
+    function _restoreSettingsOrigin() {
+        const origin = _settingsReturnOrigin;
+        const reopen = _settingsReturnReopen;
+        _settingsReturnOrigin = null;
+        _settingsReturnReopen = null;
+        if (!origin || !reopen)
+            return;
+        reopen();
+    }
+
+    function openSettingsWithTab(tabName: string, returnOrigin, reopen) {
+        _settingsReturnOrigin = returnOrigin ?? null;
+        _settingsReturnReopen = reopen ?? null;
         if (settingsModal) {
             settingsModal.showWithTabName(tabName);
             return;
@@ -858,6 +884,19 @@ Singleton {
 
     function hideColorPicker() {
         colorPickerModal?.close();
+    }
+
+    function unloadColorPicker() {
+        _scheduleUnload("colorPicker");
+    }
+
+    function ensureBluetoothPairingModal() {
+        if (bluetoothPairingModal)
+            return bluetoothPairingModal;
+        if (!bluetoothPairingModalLoader)
+            return null;
+        bluetoothPairingModalLoader.active = true;
+        return bluetoothPairingModalLoader.item;
     }
 
     function showNotificationModal() {
