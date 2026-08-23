@@ -23,7 +23,7 @@ Item {
     property string _barLayoutStateJson: {
         if (!barSurfacesLoaded)
             return "[]";
-        const configs = SettingsData.barConfigs;
+        const configs = SettingsData.getBarKindConfigs();
         const mapped = configs.map(c => ({
                     id: c.id,
                     position: c.position,
@@ -117,7 +117,7 @@ Item {
         property var hyprlandOverviewLoaderRef: hyprlandOverviewLoader
 
         // Horizontal bars must claim their exclusive zones first, so vertical bars wait for every enabled horizontal bar to load
-        readonly property int horizontalWanted: SettingsData.barConfigs.filter(c => (c.enabled ?? false) && c.position !== SettingsData.Position.Left && c.position !== SettingsData.Position.Right).length
+        readonly property int horizontalWanted: SettingsData.getBarKindConfigs().filter(c => (c.enabled ?? false) && c.position !== SettingsData.Position.Left && c.position !== SettingsData.Position.Right).length
         property int horizontalReady: 0
 
         function recountHorizontalReady() {
@@ -226,6 +226,12 @@ Item {
         screenReconnectDebounce.restart();
     }
 
+    function refreshScreenSurfaces() {
+        log.info("Refreshing layer surfaces, screens:", Quickshell.screens.length, Quickshell.screens.map(s => s.name).join(","));
+        SurfaceRecovery.refreshAll();
+        surfaceRefreshVerifyTimer.restart();
+    }
+
     Timer {
         id: screenReconnectDebounce
         // Wide enough to collapse the output-remove + output-re-add pair that one
@@ -236,15 +242,27 @@ Item {
             root._screenRecoveryCooldown = true;
             root._screenRecoveryPending = false;
             screenReconnectCooldown.restart();
-            root.triggerSurfaceRecovery("screen-reconnect");
+            root.refreshScreenSurfaces();
+        }
+    }
+
+    Timer {
+        id: surfaceRefreshVerifyTimer
+        interval: 800
+        repeat: false
+        onTriggered: {
+            const stale = SurfaceRecovery.staleWindows();
+            if (stale.length === 0)
+                return;
+            log.warn("Layer surfaces still stale after refresh:", stale.map(w => (w.screen?.name ?? "?") + ":" + w.width + "x" + w.height).join(","));
+            root.triggerSurfaceRecovery("stale-surfaces");
         }
     }
 
     Timer {
         id: screenReconnectCooldown
-        // Must exceed the full two-pass surfaceResumeRecoveryTimer sequence
-        // (800 + 2000 ms) so the cooldown still covers an in-flight recovery;
-        // raise this if those passes are lengthened.
+        // Must exceed surfaceRefreshVerifyTimer plus the two-pass
+        // surfaceResumeRecoveryTimer sequence (800 + 800 + 2000 ms).
         interval: 4000
         repeat: false
         onTriggered: {
@@ -295,6 +313,7 @@ Item {
             // its cooldown expires.
             screenReconnectDebounce.stop();
             screenReconnectCooldown.stop();
+            surfaceRefreshVerifyTimer.stop();
             root._screenRecoveryCooldown = false;
             root._screenRecoveryPending = false;
 
