@@ -42,6 +42,8 @@ Singleton {
     property var spotlightBarModalLoader: null
     property var powerMenuModal: null
     property var powerMenuModalLoader: null
+    property var powerMenuPopout: null
+    property var powerMenuPopoutLoader: null
     property var processListModal: null
     property var processListModalLoader: null
     property var colorPickerModal: null
@@ -121,6 +123,7 @@ Singleton {
             "battery": () => _unloadPopoutNow("batteryPopout", "batteryPopoutLoader"),
             "vpn": () => _unloadPopoutNow("vpnPopout", "vpnPopoutLoader"),
             "colorPicker": () => _unloadPopoutNow("colorPickerPopout", "colorPickerPopoutLoader"),
+            "powerMenuPopout": () => _unloadPopoutNow("powerMenuPopout", "powerMenuPopoutLoader"),
             "systemUpdate": () => _unloadPopoutNow("systemUpdatePopout", "systemUpdateLoader"),
             "layout": () => _unloadPopoutNow("layoutPopout", "layoutPopoutLoader"),
             "clipboardHistory": () => _unloadPopoutNow("clipboardHistoryPopout", "clipboardHistoryPopoutLoader"),
@@ -141,84 +144,21 @@ Singleton {
     }
 
     readonly property bool islandControlCenterOpen: dankIslandRouter?.controlCenterOpen ?? false
-    readonly property bool islandMediaOpen: dankIslandRouter?.mediaOpen ?? false
-    readonly property bool islandWallpaperOpen: dankIslandRouter?.wallpaperOpen ?? false
-    readonly property bool islandWeatherOpen: dankIslandRouter?.weatherOpen ?? false
-    readonly property bool islandHomeOpen: dankIslandRouter?.homeOpen ?? false
-    readonly property bool islandNotificationCenterOpen: dankIslandRouter?.notificationCenterOpen ?? false
 
-    // Shared triggers use the island only when it owns that screen; false lets callers keep the popout path.
-    function routeControlCenterToIsland(screen, section, shouldToggle) {
+    function routeToIsland(activityId, screen, shouldToggle, section) {
         if (!_islandOwnsSharedTrigger(screen))
             return false;
         if (shouldToggle === true)
-            return dankIslandRouter.toggleControlCenter(section || "", screen ?? null);
-        return dankIslandRouter.openControlCenter(section || "", screen ?? null);
+            return dankIslandRouter.toggleActivity(activityId, screen ?? null, section || "") === true;
+        return dankIslandRouter.openActivity(activityId, screen ?? null, section || "") === true;
     }
 
-    // A missing media session is a deliberate fallback signal, not a handled request.
-    function routeMediaToIsland(screen, shouldToggle) {
-        if (!_islandOwnsSharedTrigger(screen))
-            return false;
-        if (shouldToggle === true)
-            return dankIslandRouter.toggleMedia(screen ?? null) === true;
-        return dankIslandRouter.openMedia(screen ?? null) === true;
-    }
-
-    function routeWallpaperToIsland(screen, shouldToggle) {
-        if (!_islandOwnsSharedTrigger(screen))
-            return false;
-        if (shouldToggle === true)
-            return dankIslandRouter.toggleWallpaper(screen ?? null) === true;
-        return dankIslandRouter.openWallpaper(screen ?? null) === true;
-    }
-
-    function routeWeatherToIsland(screen, shouldToggle) {
-        if (!_islandOwnsSharedTrigger(screen))
-            return false;
-        if (shouldToggle === true)
-            return dankIslandRouter.toggleWeather(screen ?? null) === true;
-        return dankIslandRouter.openWeather(screen ?? null) === true;
-    }
-
-    function routeOverviewToIsland(screen, shouldToggle) {
-        if (!_islandOwnsSharedTrigger(screen))
-            return false;
-        if (shouldToggle === true)
-            return dankIslandRouter.toggleHome(screen ?? null) === true;
-        return dankIslandRouter.openHome(screen ?? null) === true;
-    }
-
-    function routeNotificationCenterToIsland(screen, shouldToggle) {
-        if (!_islandOwnsSharedTrigger(screen))
-            return false;
-        if (shouldToggle === true)
-            return dankIslandRouter.toggleNotifications(screen ?? null) === true;
-        return dankIslandRouter.openNotifications(screen ?? null) === true;
-    }
-
-    function closeIslandNotificationCenter() {
-        return dankIslandRouter?.closeNotifications?.() === true;
-    }
-
-    function closeIslandMedia() {
-        return dankIslandRouter?.closeMedia?.() === true;
-    }
-
-    function closeIslandWallpaper() {
-        return dankIslandRouter?.closeWallpaper?.() === true;
-    }
-
-    function closeIslandWeather() {
-        return dankIslandRouter?.closeWeather?.() === true;
-    }
-
-    function closeIslandHome() {
-        return dankIslandRouter?.closeHome?.() === true;
+    function closeIslandActivity(activityId) {
+        return dankIslandRouter?.closeActivity?.(activityId) === true;
     }
 
     function openControlCenter(x, y, width, section, screen) {
-        if (_islandOwnsSharedTrigger(screen) && dankIslandRouter.openControlCenter(section || "", screen ?? null))
+        if (routeToIsland("controlcenter", screen, false, section))
             return;
         if (controlCenterPopout) {
             setPosition(controlCenterPopout, x, y, width, section, screen);
@@ -227,7 +167,7 @@ Singleton {
     }
 
     function closeControlCenter() {
-        if (dankIslandRouter?.closeControlCenter?.() === true)
+        if (closeIslandActivity("controlcenter"))
             return;
         controlCenterPopout?.close();
     }
@@ -237,7 +177,7 @@ Singleton {
     }
 
     function toggleControlCenter(x, y, width, section, screen) {
-        if (_islandOwnsSharedTrigger(screen) && dankIslandRouter.toggleControlCenter(section || "", screen ?? null))
+        if (routeToIsland("controlcenter", screen, true, section))
             return;
         if (controlCenterPopout) {
             setPosition(controlCenterPopout, x, y, width, section, screen);
@@ -246,7 +186,7 @@ Singleton {
     }
 
     function openNotificationCenter(x, y, width, section, screen) {
-        if (routeNotificationCenterToIsland(screen, false))
+        if (routeToIsland("notificationcenter", screen, false))
             return;
         if (notificationCenterPopout) {
             setPosition(notificationCenterPopout, x, y, width, section, screen);
@@ -255,7 +195,7 @@ Singleton {
     }
 
     function closeNotificationCenter() {
-        if (closeIslandNotificationCenter())
+        if (closeIslandActivity("notificationcenter"))
             return;
         notificationCenterPopout?.close();
     }
@@ -265,7 +205,7 @@ Singleton {
     }
 
     function toggleNotificationCenter(x, y, width, section, screen) {
-        if (routeNotificationCenterToIsland(screen, true))
+        if (routeToIsland("notificationcenter", screen, true))
             return;
         if (notificationCenterPopout) {
             setPosition(notificationCenterPopout, x, y, width, section, screen);
@@ -486,8 +426,40 @@ Singleton {
     property string _settingsPendingTab: ""
     property int _settingsPendingTabIndex: -1
 
+    property double _settingsShownAt: 0
+
+    function _settingsWindowDead() {
+        if (!settingsModal?.visible)
+            return false;
+        // toplevel registration is async; a freshly shown window looks dead
+        if (Date.now() - _settingsShownAt < 2000)
+            return false;
+        const settingsTitle = I18n.tr("Settings", "settings window title");
+        for (const toplevel of ToplevelManager.toplevels.values) {
+            if (toplevel.title === "Settings" || toplevel.title === settingsTitle)
+                return false;
+        }
+        return true;
+    }
+
+    function _rebuildDeadSettings() {
+        settingsModal.visible = false;
+        settingsModal = null;
+        settingsModalLoader.active = false;
+        _settingsWantsOpen = true;
+        _settingsWantsToggle = false;
+        Qt.callLater(() => {
+            if (settingsModalLoader)
+                settingsModalLoader.activeAsync = true;
+        });
+    }
+
     function openSettings() {
         if (settingsModal) {
+            if (_settingsWindowDead()) {
+                _rebuildDeadSettings();
+                return;
+            }
             settingsModal.show();
         } else if (settingsModalLoader) {
             _settingsWantsOpen = true;
@@ -503,6 +475,10 @@ Singleton {
         target: root.settingsModal
         function onClosingModal() {
             root._restoreSettingsOrigin();
+        }
+        function onVisibleChanged() {
+            if (root.settingsModal?.visible)
+                root._settingsShownAt = Date.now();
         }
     }
 
@@ -520,6 +496,11 @@ Singleton {
         _settingsReturnOrigin = returnOrigin ?? null;
         _settingsReturnReopen = reopen ?? null;
         if (settingsModal) {
+            if (_settingsWindowDead()) {
+                _settingsPendingTab = tabName;
+                _rebuildDeadSettings();
+                return;
+            }
             settingsModal.showWithTabName(tabName);
             return;
         }
@@ -533,6 +514,11 @@ Singleton {
 
     function openSettingsWithTabIndex(tabIndex: int) {
         if (settingsModal) {
+            if (_settingsWindowDead()) {
+                _settingsPendingTabIndex = tabIndex;
+                _rebuildDeadSettings();
+                return;
+            }
             settingsModal.showWithTab(tabIndex);
             return;
         }
@@ -985,6 +971,10 @@ Singleton {
 
     function unloadColorPicker() {
         _scheduleUnload("colorPicker");
+    }
+
+    function unloadPowerMenuPopout() {
+        _scheduleUnload("powerMenuPopout");
     }
 
     function ensureBluetoothPairingModal() {

@@ -55,6 +55,16 @@ Rectangle {
         autoExpandForTab(keyboardHighlightIndex);
     }
 
+    function ensureRowVisible(item) {
+        if (!item || sidebarFlickable.height <= 0)
+            return;
+        const itemY = item.mapToItem(sidebarFlickable.contentItem, 0, 0).y;
+        const viewH = sidebarFlickable.height;
+        if (itemY >= sidebarFlickable.contentY && itemY + item.height <= sidebarFlickable.contentY + viewH)
+            return;
+        sidebarFlickable.contentY = Math.max(0, Math.min(itemY - viewH / 4, sidebarFlickable.contentHeight - viewH));
+    }
+
     function selectHighlighted() {
         if (keyboardHighlightIndex < 0)
             return;
@@ -269,6 +279,12 @@ Rectangle {
                     "text": I18n.tr("WiFi"),
                     "icon": "wifi",
                     "tabIndex": 40
+                },
+                {
+                    "id": "network_cellular",
+                    "text": I18n.tr("Cellular"),
+                    "icon": "network_cell",
+                    "tabIndex": 47
                 },
                 {
                     "id": "network_vpn",
@@ -720,9 +736,29 @@ Rectangle {
         if (SettingsSearchService.results.length === 0)
             return;
         searchSelectedIndex = Math.max(0, Math.min(searchSelectedIndex + delta, SettingsSearchService.results.length - 1));
+        Qt.callLater(ensureSearchResultVisible);
+    }
+
+    function ensureSearchResultVisible() {
+        const result = searchResultsRepeater.itemAt(searchSelectedIndex);
+        const contentItem = sidebarFlickable.contentItem;
+        if (!result || !contentItem)
+            return;
+
+        const mapped = result.mapToItem(contentItem, 0, 0);
+        const margin = Theme.spacingS;
+        const top = mapped.y;
+        const bottom = top + result.height;
+        const maxContentY = Math.max(0, sidebarFlickable.contentHeight - sidebarFlickable.height);
+        if (top < sidebarFlickable.contentY + margin) {
+            sidebarFlickable.contentY = Math.max(0, top - margin);
+        } else if (bottom > sidebarFlickable.contentY + sidebarFlickable.height - margin) {
+            sidebarFlickable.contentY = Math.min(maxContentY, bottom - sidebarFlickable.height + margin);
+        }
     }
 
     DankFlickable {
+        id: sidebarFlickable
         anchors.fill: parent
         clip: true
         contentHeight: sidebarColumn.height
@@ -763,6 +799,8 @@ Rectangle {
                 onTextChanged: {
                     SettingsSearchService.search(text);
                     root.searchSelectedIndex = 0;
+                    sidebarFlickable.contentY = 0;
+                    Qt.callLater(root.ensureSearchResultVisible);
                 }
                 keyForwardTargets: [keyHandler]
 
@@ -833,6 +871,7 @@ Rectangle {
                 }
 
                 Repeater {
+                    id: searchResultsRepeater
                     model: ScriptModel {
                         values: SettingsSearchService.results
                     }
@@ -974,6 +1013,10 @@ Rectangle {
                         readonly property bool hasTab: categoryDelegate.modelData.tabIndex !== undefined && !categoryDelegate.modelData.children
                         readonly property bool isActive: hasTab && root.currentIndex === categoryDelegate.modelData.tabIndex
                         readonly property bool isHighlighted: hasTab && root.keyboardHighlightIndex === categoryDelegate.modelData.tabIndex
+                        onIsHighlightedChanged: {
+                            if (isHighlighted)
+                                Qt.callLater(root.ensureRowVisible, categoryRow);
+                        }
 
                         color: {
                             if (isActive)
@@ -1069,6 +1112,10 @@ Rectangle {
 
                                 readonly property bool isActive: root.currentIndex === modelData.tabIndex
                                 readonly property bool isHighlighted: root.keyboardHighlightIndex === modelData.tabIndex
+                                onIsHighlightedChanged: {
+                                    if (isHighlighted)
+                                        Qt.callLater(root.ensureRowVisible, childDelegate);
+                                }
 
                                 width: childrenColumn.width
                                 height: Math.max(Theme.iconSize - 4, Theme.fontSizeSmall + 1) + Theme.spacingS * 2

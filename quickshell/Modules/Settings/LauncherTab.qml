@@ -69,7 +69,7 @@ Item {
                 title: I18n.tr("Default Launcher")
                 settingKey: "launcherStyle"
 
-                SettingsControlledByFrame {
+                SettingsControlledBy {
                     visible: SettingsData.connectedFrameModeActive
                     parentModal: root.parentModal
                     settingLabel: I18n.tr("Default Launcher")
@@ -753,7 +753,7 @@ Item {
                 settingKey: "modalBackground"
                 tags: ["modal", "darken", "background", "overlay", "launcher"]
 
-                SettingsControlledByFrame {
+                SettingsControlledBy {
                     visible: SettingsData.frameEnabled
                     parentModal: root.parentModal
                     settingLabel: I18n.tr("Darken Modal Background")
@@ -813,7 +813,7 @@ Item {
                     spacing: Theme.spacingS
 
                     Repeater {
-                        model: ["dms_settings", "dms_notepad", "dms_sysmon", "dms_settings_search", "dms_clipboard_search", "dms_colorpicker", "dms_qr_generator"]
+                        model: ["dms_settings", "dms_notepad", "dms_sysmon", "dms_settings_search", "dms_clipboard_search", "dms_power", "dms_colorpicker", "dms_qr_generator"]
 
                         delegate: Rectangle {
                             id: pluginDelegate

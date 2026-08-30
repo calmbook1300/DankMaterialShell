@@ -2,6 +2,7 @@ import QtQuick
 import Quickshell
 import qs.Common
 import qs.Modules.DankBar
+import qs.Modules.DankIsland
 import qs.Modules.Frame
 import qs.Modules.WorkspaceOverlays
 import qs.Services
@@ -146,6 +147,14 @@ Item {
         }
     }
 
+    Loader {
+        active: SettingsData.dankIslandEnabled
+        asynchronous: false
+        sourceComponent: DankIsland {
+            screenModel: SettingsData.getIslandScreens()
+        }
+    }
+
     property bool hadRealScreen: true
     property var previousRealScreenNames: []
     // Guards for the screen-reconnect recovery path (see scheduleScreenReconnectRecovery).
@@ -227,6 +236,10 @@ Item {
     }
 
     function refreshScreenSurfaces() {
+        if (!_hasRealScreen()) {
+            log.info("Surface refresh skipped: no real screen");
+            return;
+        }
         log.info("Refreshing layer surfaces, screens:", Quickshell.screens.length, Quickshell.screens.map(s => s.name).join(","));
         SurfaceRecovery.refreshAll();
         surfaceRefreshVerifyTimer.restart();
@@ -280,6 +293,14 @@ Item {
         repeat: false
         property int pass: 0
         onTriggered: {
+            // Rebuilding against a placeholder-only screen list feeds a dangling screen to the per-screen delegate models and segfaults (#3057); onScreensChanged reschedules once outputs return.
+            if (!root._hasRealScreen()) {
+                log.info("Surface recovery skipped: no real screen");
+                pass = 0;
+                interval = 800;
+                return;
+            }
+
             pass++;
             log.info("Surface recovery pass", pass, "screens:", Quickshell.screens.length, Quickshell.screens.map(s => s.name).join(","));
 

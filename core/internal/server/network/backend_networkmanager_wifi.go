@@ -139,7 +139,7 @@ func (b *NetworkManagerBackend) GetWiFiNetworkDetails(ssid string) (*NetworkInfo
 		maxBitrate, _ := ap.GetPropertyMaxBitrate()
 		bssid, _ := ap.GetPropertyHWAddress()
 
-		secured := flags != uint32(gonetworkmanager.Nm80211APFlagsNone) ||
+		secured := flags&uint32(gonetworkmanager.Nm80211APFlagsPrivacy) != 0 ||
 			wpaFlags != uint32(gonetworkmanager.Nm80211APSecNone) ||
 			rsnFlags != uint32(gonetworkmanager.Nm80211APSecNone)
 
@@ -301,6 +301,11 @@ func (b *NetworkManagerBackend) ConnectWiFi(req ConnectionRequest) error {
 
 	existingConn, err := b.findConnection(req.SSID)
 	if err == nil && existingConn != nil {
+		if req.Password != "" || req.Username != "" {
+			if err := updateConnectionCredentials(existingConn, req); err != nil {
+				log.Warnf("[ConnectWiFi] Failed to update credentials on existing profile: %v", err)
+			}
+		}
 		b.stateMutex.Lock()
 		b.state.ConnectingPreExisting = true
 		b.stateMutex.Unlock()
@@ -340,11 +345,10 @@ func (b *NetworkManagerBackend) ConnectWiFi(req ConnectionRequest) error {
 }
 
 func (b *NetworkManagerBackend) DisconnectWiFi() error {
-	if b.wifiDevice == nil {
+	dev, _ := b.wifiDeviceForState()
+	if dev == nil {
 		return fmt.Errorf("no WiFi device available")
 	}
-
-	dev := b.wifiDevice.(gonetworkmanager.Device)
 
 	err := dev.Disconnect()
 	if err != nil {
@@ -550,7 +554,7 @@ func (b *NetworkManagerBackend) updateWiFiNetworks() ([]WiFiNetwork, error) {
 		maxBitrate, _ := ap.GetPropertyMaxBitrate()
 		bssid, _ := ap.GetPropertyHWAddress()
 
-		secured := flags != uint32(gonetworkmanager.Nm80211APFlagsNone) ||
+		secured := flags&uint32(gonetworkmanager.Nm80211APFlagsPrivacy) != 0 ||
 			wpaFlags != uint32(gonetworkmanager.Nm80211APSecNone) ||
 			rsnFlags != uint32(gonetworkmanager.Nm80211APSecNone)
 
@@ -743,11 +747,15 @@ func (b *NetworkManagerBackend) createAndConnectWiFiOnDevice(req ConnectionReque
 		rsnFlags, _ = targetAP.GetPropertyRSNFlags()
 	}
 
-	const KeyMgmt8021x = uint32(512)
-	const KeyMgmtPsk = uint32(256)
-	const KeyMgmtSae = uint32(1024)
+	const (
+		keyMgmt8021x = uint32(gonetworkmanager.Nm80211APSecKeyMgmt8021X)
+		keyMgmtPsk   = uint32(gonetworkmanager.Nm80211APSecKeyMgmtPSK)
+		keyMgmtSae   = uint32(gonetworkmanager.Nm80211APSecKeyMgmtSAE)
+		// OWE_TM sits on the open BSS of a mixed network, which still wants key-mgmt=owe.
+		keyMgmtOwe = uint32(gonetworkmanager.Nm80211APSecKeyMgmtOWE) | uint32(gonetworkmanager.Nm80211APSecKeyMgmtOWETM)
+	)
 
-	var isEnterprise, isPsk, isSae, secured bool
+	var isEnterprise, isPsk, isSae, isOwe, secured bool
 
 	switch {
 	case req.Hidden:
@@ -755,10 +763,11 @@ func (b *NetworkManagerBackend) createAndConnectWiFiOnDevice(req ConnectionReque
 		isEnterprise = req.Username != ""
 		isPsk = req.Password != "" && !isEnterprise
 	default:
-		isEnterprise = (wpaFlags&KeyMgmt8021x) != 0 || (rsnFlags&KeyMgmt8021x) != 0
-		isPsk = (wpaFlags&KeyMgmtPsk) != 0 || (rsnFlags&KeyMgmtPsk) != 0
-		isSae = (wpaFlags&KeyMgmtSae) != 0 || (rsnFlags&KeyMgmtSae) != 0
-		secured = flags != uint32(gonetworkmanager.Nm80211APFlagsNone) ||
+		isEnterprise = (wpaFlags&keyMgmt8021x) != 0 || (rsnFlags&keyMgmt8021x) != 0
+		isPsk = (wpaFlags&keyMgmtPsk) != 0 || (rsnFlags&keyMgmtPsk) != 0
+		isSae = (wpaFlags&keyMgmtSae) != 0 || (rsnFlags&keyMgmtSae) != 0
+		isOwe = (wpaFlags&keyMgmtOwe) != 0 || (rsnFlags&keyMgmtOwe) != 0
+		secured = flags&uint32(gonetworkmanager.Nm80211APFlagsPrivacy) != 0 ||
 			wpaFlags != uint32(gonetworkmanager.Nm80211APSecNone) ||
 			rsnFlags != uint32(gonetworkmanager.Nm80211APSecNone)
 	}
@@ -871,8 +880,14 @@ func (b *NetworkManagerBackend) createAndConnectWiFiOnDevice(req ConnectionReque
 			}
 			settings["802-11-wireless-security"] = sec
 
+		case isOwe:
+			// No pmf unlike the sae case: OWE mandates PMF and NM applies it itself.
+			settings["802-11-wireless-security"] = map[string]any{
+				"key-mgmt": "owe",
+			}
+
 		default:
-			return fmt.Errorf("secured network but not SAE/PSK/802.1X (rsn=0x%x wpa=0x%x)", rsnFlags, wpaFlags)
+			return fmt.Errorf("secured network but not OWE/SAE/PSK/802.1X (rsn=0x%x wpa=0x%x)", rsnFlags, wpaFlags)
 		}
 	} else {
 		wifiSettings := map[string]any{
@@ -930,6 +945,60 @@ func (b *NetworkManagerBackend) createAndConnectWiFiOnDevice(req ConnectionReque
 	}
 
 	return nil
+}
+
+// updateConnectionCredentials applies user-supplied credentials to a saved
+// profile before activation; without this a retype after a password change is
+// silently ignored in favor of the stored (stale) secret.
+func updateConnectionCredentials(conn gonetworkmanager.Connection, req ConnectionRequest) error {
+	settings, err := conn.GetSettings()
+	if err != nil {
+		return fmt.Errorf("failed to get connection settings: %w", err)
+	}
+
+	for _, section := range []string{"ipv4", "ipv6"} {
+		ipCfg, ok := settings[section]
+		if !ok {
+			continue
+		}
+		delete(ipCfg, "addresses")
+		delete(ipCfg, "routes")
+		delete(ipCfg, "dns")
+	}
+
+	mergeStoredSecrets(conn, settings)
+
+	if dot1x, ok := settings["802-1x"]; ok {
+		if req.Username != "" {
+			dot1x["identity"] = req.Username
+		}
+		if req.Password != "" {
+			dot1x["password"] = req.Password
+			dot1x["password-flags"] = uint32(0)
+		}
+		if req.AnonymousIdentity != "" {
+			dot1x["anonymous-identity"] = req.AnonymousIdentity
+		}
+		if req.DomainSuffixMatch != "" {
+			dot1x["domain-suffix-match"] = req.DomainSuffixMatch
+		}
+		return conn.Update(settings)
+	}
+
+	sec, ok := settings["802-11-wireless-security"]
+	if !ok || req.Password == "" {
+		return nil
+	}
+
+	keyMgmt, _ := sec["key-mgmt"].(string)
+	switch keyMgmt {
+	case "wpa-psk", "sae", "wpa-psk-sae":
+		sec["psk"] = req.Password
+		sec["psk-flags"] = uint32(0)
+	default:
+		return nil
+	}
+	return conn.Update(settings)
 }
 
 func (b *NetworkManagerBackend) SetWiFiAutoconnect(ssid string, autoconnect bool) error {
@@ -1131,7 +1200,7 @@ func (b *NetworkManagerBackend) updateAllWiFiDevices() {
 				maxBitrate, _ := ap.GetPropertyMaxBitrate()
 				apBSSID, _ := ap.GetPropertyHWAddress()
 
-				secured := flags != uint32(gonetworkmanager.Nm80211APFlagsNone) ||
+				secured := flags&uint32(gonetworkmanager.Nm80211APFlagsPrivacy) != 0 ||
 					wpaFlags != uint32(gonetworkmanager.Nm80211APSecNone) ||
 					rsnFlags != uint32(gonetworkmanager.Nm80211APSecNone)
 

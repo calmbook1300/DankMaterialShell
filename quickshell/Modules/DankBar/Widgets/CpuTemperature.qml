@@ -51,7 +51,8 @@ BasePill {
                     anchors.horizontalCenter: parent.horizontalCenter
                 }
 
-                StyledText {
+                NumericText {
+                    isMonospace: false
                     text: {
                         if (DgopService.cpuTemperature === undefined || DgopService.cpuTemperature === null || DgopService.cpuTemperature < 0) {
                             return "--";
@@ -89,46 +90,31 @@ BasePill {
                     anchors.verticalCenter: parent.verticalCenter
                 }
 
-                Item {
-                    id: textBox
-                    anchors.verticalCenter: parent.verticalCenter
-
-                    implicitWidth: root.minimumWidth ? Math.max(tempBaseline.width, cpuTempText.paintedWidth) : cpuTempText.paintedWidth
-                    implicitHeight: cpuTempText.implicitHeight
-
-                    width: implicitWidth
-                    height: implicitHeight
-
-                    StyledTextMetrics {
-                        id: tempBaseline
-                        font.pixelSize: Theme.barTextSize(root.barThickness, root.barConfig?.fontScale, root.barConfig?.maximizeWidgetText)
-                        text: "88°C"
-                    }
-
-                    StyledText {
-                        id: cpuTempText
-                        text: {
-                            if (DgopService.cpuTemperature === undefined || DgopService.cpuTemperature === null || DgopService.cpuTemperature < 0) {
-                                return "--°C";
-                            }
-
-                            return Math.round(DgopService.cpuTemperature) + "°C";
+                NumericText {
+                    isMonospace: false
+                    text: {
+                        if (DgopService.cpuTemperature === undefined || DgopService.cpuTemperature === null || DgopService.cpuTemperature < 0) {
+                            return "--°C";
                         }
-                        font.pixelSize: Theme.barTextSize(root.barThickness, root.barConfig?.fontScale, root.barConfig?.maximizeWidgetText)
-                        color: Theme.widgetTextColor
 
-                        anchors.fill: parent
-                        horizontalAlignment: Text.AlignHCenter
-                        verticalAlignment: Text.AlignVCenter
-                        elide: Text.ElideNone
+                        return Math.round(DgopService.cpuTemperature) + "°C";
                     }
+                    reserveText: root.minimumWidth ? "88°C" : ""
+                    width: Math.ceil(Math.max(implicitWidth, reservedWidth))
+                    horizontalAlignment: Text.AlignHCenter
+                    font.pixelSize: Theme.barTextSize(root.barThickness, root.barConfig?.fontScale, root.barConfig?.maximizeWidgetText)
+                    color: Theme.widgetTextColor
+                    anchors.verticalCenter: parent.verticalCenter
                 }
             }
         }
     }
 
     MouseArea {
-        anchors.fill: parent
+        x: -root.leftMargin
+        y: -root.topMargin
+        width: root.width + root.leftMargin + root.rightMargin
+        height: root.height + root.topMargin + root.bottomMargin
         cursorShape: Qt.PointingHandCursor
         acceptedButtons: Qt.LeftButton
         onPressed: mouse => {

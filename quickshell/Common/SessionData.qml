@@ -16,6 +16,8 @@ Singleton {
 
     readonly property int sessionConfigVersion: 4
 
+    readonly property bool isGreeterMode: Quickshell.env("DMS_RUN_GREETER") === "1" || Quickshell.env("DMS_RUN_GREETER") === "true"
+
     signal loaded
     signal brightnessDisplayHintChanged(string deviceName)
     signal loadErrorOccurred(string file, string message)
@@ -165,6 +167,7 @@ Singleton {
     property int nightModeStartMinute: 0
     property int nightModeEndHour: 6
     property int nightModeEndMinute: 0
+    property int nightModeTransitionMinutes: 60
     property real latitude: 0.0
     property real longitude: 0.0
     property bool nightModeUseIPLocation: false
@@ -257,6 +260,11 @@ Singleton {
         _hasUnsavedChanges = false;
         _pendingMigration = null;
 
+        if (isGreeterMode) {
+            parseSettings(greeterSessionFile.text());
+            return;
+        }
+
         try {
             const txt = settingsFile.text();
             let obj = (txt && txt.trim()) ? JSON.parse(txt) : null;
@@ -294,7 +302,7 @@ Singleton {
             _loadedSessionSnapshot = getCurrentSessionJson();
             _hasLoaded = true;
 
-            if (typeof Theme !== "undefined")
+            if (!isGreeterMode && typeof Theme !== "undefined")
                 Theme.generateSystemThemesFromCurrentTheme();
 
             loaded();
@@ -375,7 +383,7 @@ Singleton {
             _loadedSessionSnapshot = getCurrentSessionJson();
             _hasLoaded = true;
 
-            if (typeof Theme !== "undefined")
+            if (!isGreeterMode && typeof Theme !== "undefined")
                 Theme.generateSystemThemesFromCurrentTheme();
 
             loaded();
@@ -398,7 +406,7 @@ Singleton {
     }
 
     function saveSettings() {
-        if (_parseError || !_hasLoaded)
+        if (isGreeterMode || _parseError || !_hasLoaded)
             return;
         settingsFile.setText(getCurrentSessionJson());
         if (_isReadOnly)
@@ -611,9 +619,10 @@ Singleton {
         }
     }
 
-    function setLightMode(lightMode) {
+    function setLightMode(lightMode, skipWallpaperSync) {
         isSwitchingMode = true;
-        syncWallpaperForCurrentMode(lightMode);
+        if (!skipWallpaperSync)
+            syncWallpaperForCurrentMode(lightMode);
         isLightMode = lightMode;
         saveSettings();
         Qt.callLater(() => {
@@ -1074,6 +1083,11 @@ Singleton {
 
     function setNightModeEndMinute(minute) {
         nightModeEndMinute = minute;
+        saveSettings();
+    }
+
+    function setNightModeTransitionMinutes(minutes) {
+        nightModeTransitionMinutes = minutes;
         saveSettings();
     }
 
@@ -1587,18 +1601,53 @@ Singleton {
     FileView {
         id: settingsFile
 
-        path: StandardPaths.writableLocation(StandardPaths.GenericStateLocation) + "/DankMaterialShell/session.json"
+        path: isGreeterMode ? "" : StandardPaths.writableLocation(StandardPaths.GenericStateLocation) + "/DankMaterialShell/session.json"
         blockLoading: true
         blockWrites: true
         atomicWrites: true
-        watchChanges: true
+        watchChanges: !isGreeterMode
         onLoaded: {
+            if (isGreeterMode)
+                return;
             _hasUnsavedChanges = false;
             parseSettings(settingsFile.text());
         }
         onSaveFailed: error => {
             root._isReadOnly = true;
             root._hasUnsavedChanges = root._checkForUnsavedChanges();
+        }
+    }
+
+    readonly property string _greeterCacheDir: Quickshell.env("DMS_GREET_CFG_DIR") || "/var/cache/dms-greeter"
+
+    property string greeterSessionBaseDir: root._greeterCacheDir
+
+    function setGreeterSessionBaseDir(dir) {
+        const next = dir || root._greeterCacheDir;
+        if (greeterSessionBaseDir === next)
+            return;
+        greeterSessionBaseDir = next;
+        if (isGreeterMode)
+            greeterSessionFile.reload();
+    }
+
+    function resetGreeterSessionBaseDir() {
+        setGreeterSessionBaseDir(root._greeterCacheDir);
+    }
+
+    FileView {
+        id: greeterSessionFile
+
+        path: root.greeterSessionBaseDir ? (root.greeterSessionBaseDir + "/session.json") : ""
+        preload: isGreeterMode
+        blockLoading: false
+        blockWrites: true
+        watchChanges: false
+        printErrors: true
+        onLoaded: {
+            if (isGreeterMode) {
+                parseSettings(greeterSessionFile.text());
+            }
         }
     }
 

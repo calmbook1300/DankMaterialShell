@@ -3,6 +3,7 @@ pragma ComponentBehavior: Bound
 import QtQuick
 import Quickshell
 import qs.Common
+import qs.Modules.DankBar.Widgets
 import qs.Services
 import qs.Widgets
 
@@ -10,26 +11,33 @@ Item {
     id: root
 
     required property var controller
-    required property var mediaModel
 
     readonly property string timeText: systemClock.date.toLocaleTimeString(I18n.locale(), SettingsData.getEffectiveTimeFormat())
     readonly property string dateText: systemClock.date.toLocaleDateString(I18n.locale(), SettingsData.getEffectiveDateFormat("ddd MMM d"))
     readonly property bool tight: root.controller.homeCompactTight
-    readonly property real slotSize: root.tight ? 24 : 32
-    readonly property real slotSpacing: root.controller.homeSlotSpacing
+    readonly property real slotSize: root.tight ? Theme.iconSize : Theme.iconSizeLarge
+    readonly property real textSize: root.tight ? Theme.fontSizeSmall : Theme.fontSizeMedium
+    readonly property real iconSize: root.textSize + Theme.spacingXS
+    readonly property real statusIconSize: root.textSize + Theme.spacingXXS
+    readonly property real groupSpacing: root.controller.homeSlotMargin
+    readonly property real edgePad: Math.max(root.groupSpacing, (root.width - compactRow.width) / 2)
     readonly property bool weatherSlotEnabled: root.controller.homeWeatherSlot !== "hidden"
-    readonly property var leftActionIds: homeActionsForSide("left")
-    readonly property var rightActionIds: homeActionsForSide("right")
+    readonly property var groupIds: root.groupsForSide("left").concat(["clock"]).concat(root.groupsForSide("right"))
     property bool weatherRefHeld: false
 
-    function homeActionsForSide(side) {
+    function groupsForSide(side) {
         const ids = [];
-        if (root.controller.homeMediaSlot === side)
+        const media = root.controller.homeMediaSlot === side;
+        if (media && side === "left")
             ids.push("media");
-        if (root.controller.homeWeatherSlot === side)
+        if (root.controller.homeWeatherSlot === side && WeatherService.weather.available)
             ids.push("weather");
         if (root.controller.homeStatusSlot === side)
             ids.push("status");
+        if (side === "right" && root.controller.homeNotificationBadge)
+            ids.push("notifications");
+        if (media && side === "right")
+            ids.push("media");
         return ids;
     }
 
@@ -65,117 +73,189 @@ Item {
         precision: SettingsData.showSeconds ? SystemClock.Seconds : SystemClock.Minutes
     }
 
-    component HomeActionSlot: Item {
-        id: slot
+    component HoverBackdrop: Rectangle {
+        property bool hovered: false
 
-        required property string actionId
-        required property var controller
-        required property var mediaModel
-        property real slotSize: 32
-        property bool tight: false
+        anchors.centerIn: parent
+        width: parent.width + Theme.spacingS
+        height: root.slotSize
+        radius: height / 2
+        color: hovered ? Theme.surfaceTextHover : "transparent"
+    }
 
-        readonly property bool isMedia: actionId === "media"
-        readonly property bool isStatus: actionId === "status"
-        readonly property bool isWeather: actionId === "weather"
-        readonly property bool usesBattery: isStatus && BatteryService.batteryAvailable
-        readonly property string weatherTempText: {
-            if (!WeatherService.weather.available)
-                return "--°";
-            const temp = SettingsData.useFahrenheit ? WeatherService.weather.tempF : WeatherService.weather.temp;
-            return Math.round(Number(temp)) + "°";
-        }
+    component GroupItem: Item {
+        id: item
 
-        implicitWidth: {
-            if (usesBattery)
-                return statusPill.width + 8;
-            if (isWeather)
+        required property string groupId
+        required property int slotIndex
+
+        readonly property real leadPad: item.slotIndex === 0 ? root.edgePad : root.groupSpacing / 2
+        readonly property real trailPad: item.slotIndex === root.groupIds.length - 1 ? root.edgePad : root.groupSpacing / 2
+        readonly property bool isClock: item.groupId === "clock"
+        readonly property bool isMedia: item.groupId === "media"
+        readonly property bool isWeather: item.groupId === "weather"
+        readonly property bool isStatus: item.groupId === "status"
+        readonly property bool isNotifications: item.groupId === "notifications"
+        readonly property bool usesBattery: item.isStatus && BatteryService.batteryAvailable
+
+        width: {
+            if (item.isMedia)
+                return root.iconSize;
+            if (item.isWeather)
                 return weatherRow.implicitWidth;
-            return slot.slotSize;
+            if (item.isNotifications)
+                return notificationRow.implicitWidth;
+            if (item.isStatus)
+                return item.usesBattery ? batteryMeter.width : root.iconSize;
+            return clockRow.implicitWidth;
         }
-        implicitHeight: slot.slotSize
-        width: implicitWidth
-        height: implicitHeight
+        height: root.slotSize
 
-        Rectangle {
-            anchors.fill: parent
-            radius: height / 2
-            color: slotArea.containsMouse && !slot.usesBattery ? Theme.surfaceTextHover : "transparent"
+        HoverBackdrop {
+            visible: item.isMedia || item.isWeather || item.isNotifications || (item.isStatus && !item.usesBattery)
+            hovered: groupArea.containsMouse
         }
 
-        MediaCava {
+        AudioVisualization {
             anchors.centerIn: parent
-            width: slot.tight ? 16 : 20
-            height: slot.tight ? 16 : 20
-            visible: slot.isMedia && slot.controller.mediaAvailable
-            mediaModel: slot.mediaModel
+            width: root.iconSize + Theme.spacingXS
+            height: width
+            maxBarHeight: Math.max(3, height - 2)
+            idleIconName: "graphic_eq"
+            visible: item.isMedia && root.controller.mediaAvailable
         }
 
         DankIcon {
             anchors.centerIn: parent
-            visible: slot.isMedia && !slot.controller.mediaAvailable
+            visible: item.isMedia && !root.controller.mediaAvailable
             name: "search"
-            size: slot.tight ? 16 : Theme.iconSizeSmall
+            size: root.iconSize
             color: Theme.surfaceTextMedium
         }
 
-        BatteryPill {
-            id: statusPill
-
-            anchors.centerIn: parent
-            visible: slot.usesBattery
-            hovered: slotArea.containsMouse
-            outlined: SettingsData.dankIslandBatteryStyle === "outline"
-        }
-
-        DankIcon {
-            anchors.centerIn: parent
-            visible: slot.isStatus && !slot.usesBattery
-            name: "tune"
-            size: slot.tight ? 16 : Theme.iconSizeSmall
-            color: Theme.surfaceText
-        }
-
         Row {
-            id: weatherRow
+            id: clockRow
 
-            anchors.centerIn: parent
-            spacing: 2
-            visible: slot.isWeather
+            anchors.verticalCenter: parent.verticalCenter
+            visible: item.isClock
+            spacing: Theme.spacingS
 
-            DankIcon {
+            NumericText {
                 anchors.verticalCenter: parent.verticalCenter
-                name: WeatherService.getWeatherIcon(WeatherService.weather.wCode)
-                size: slot.tight ? 16 : Theme.iconSizeSmall
+                isMonospace: false
+                text: root.timeText
+                reserveText: root.timeText.replace(/\d/g, "0")
+                width: Math.ceil(Math.max(implicitWidth, reservedWidth))
+                color: Theme.surfaceText
+                font.pixelSize: root.textSize
+            }
+
+            Rectangle {
+                anchors.verticalCenter: parent.verticalCenter
+                width: Theme.spacingXS
+                height: Theme.spacingXS
+                radius: height / 2
                 color: Theme.primary
             }
 
             StyledText {
                 anchors.verticalCenter: parent.verticalCenter
-                text: slot.weatherTempText
-                color: Theme.surfaceTextSecondary
-                font.pixelSize: Theme.fontSizeSmall
-                font.weight: Font.Medium
+                text: root.dateText
+                color: Theme.surfaceTextMedium
+                font.pixelSize: root.textSize
             }
         }
 
-        IslandSlotHoverArea {
-            id: slotArea
+        Row {
+            id: notificationRow
 
-            anchors.fill: parent
-            controller: slot.controller
+            anchors.verticalCenter: parent.verticalCenter
+            visible: item.isNotifications
+            spacing: Theme.spacingXXS
+
+            DankIcon {
+                anchors.verticalCenter: parent.verticalCenter
+                name: "notifications"
+                size: root.statusIconSize
+                color: Theme.secondary
+            }
+
+            StyledText {
+                anchors.verticalCenter: parent.verticalCenter
+                text: root.controller.unreadNotificationCount
+                color: Theme.surfaceTextSecondary
+                font.pixelSize: root.textSize
+            }
+        }
+
+        Row {
+            id: weatherRow
+
+            anchors.verticalCenter: parent.verticalCenter
+            visible: item.isWeather
+            spacing: Theme.spacingXXS
+
+            DankIcon {
+                anchors.verticalCenter: parent.verticalCenter
+                name: WeatherService.getWeatherIcon(WeatherService.weather.wCode)
+                size: root.statusIconSize
+                color: Theme.surfaceTextSecondary
+            }
+
+            StyledText {
+                anchors.verticalCenter: parent.verticalCenter
+                text: WeatherService.currentTempText()
+                color: Theme.surfaceTextSecondary
+                font.pixelSize: root.textSize
+            }
+        }
+
+        BatteryMeter {
+            id: batteryMeter
+
+            anchors.centerIn: parent
+            visible: item.usesBattery
+            thickness: root.statusIconSize
+            fontSize: root.textSize
+            hovered: groupArea.containsMouse
+            outlined: SettingsData.dankIslandBatteryStyle === "outline"
+        }
+
+        DankIcon {
+            anchors.centerIn: parent
+            visible: item.isStatus && !item.usesBattery
+            name: "tune"
+            size: root.iconSize
+            color: Theme.surfaceText
+        }
+
+        IslandSlotHoverArea {
+            id: groupArea
+
+            anchors.verticalCenter: parent.verticalCenter
+            x: -item.leadPad
+            width: parent.width + item.leadPad + item.trailPad
+            height: root.height
+            enabled: !item.isClock
+            controller: root.controller
             onClicked: {
-                if (slot.isMedia) {
-                    if (slot.controller.mediaAvailable)
-                        slot.controller.requestActivity("media", false, false);
-                    else
-                        slot.controller.requestLauncher("", "", false);
+                if (item.isMedia && root.controller.mediaAvailable) {
+                    root.controller.requestActivity("media", false, false);
                     return;
                 }
-                if (slot.isWeather) {
-                    slot.controller.requestWeather(false);
+                if (item.isMedia) {
+                    root.controller.requestLauncher("", "", false);
                     return;
                 }
-                slot.controller.requestControlCenter("", false);
+                if (item.isWeather) {
+                    root.controller.requestWeather(false);
+                    return;
+                }
+                if (item.isNotifications) {
+                    root.controller.requestNotificationCenter(false);
+                    return;
+                }
+                root.controller.requestControlCenter("", false);
             }
         }
     }
@@ -184,105 +264,17 @@ Item {
         id: compactRow
 
         anchors.centerIn: parent
-        spacing: root.controller.homeClusterGap
+        height: root.slotSize
+        spacing: root.groupSpacing
 
-        Row {
-            id: leftActions
+        Repeater {
+            model: root.groupIds
 
-            anchors.verticalCenter: parent.verticalCenter
-            spacing: root.slotSpacing
-            visible: root.leftActionIds.length > 0
-
-            Repeater {
-                model: root.leftActionIds
-
-                HomeActionSlot {
-                    required property var modelData
-                    actionId: String(modelData)
-                    controller: root.controller
-                    mediaModel: root.mediaModel
-                    slotSize: root.slotSize
-                    tight: root.tight
-                }
-            }
-        }
-
-        Row {
-            id: clockRow
-
-            anchors.verticalCenter: parent.verticalCenter
-            spacing: root.tight ? Theme.spacingXS : Theme.spacingS
-
-            Text {
-                anchors.verticalCenter: parent.verticalCenter
-                text: root.timeText
-                color: Theme.surfaceText
-                font.family: Theme.fontFamily
-                font.pixelSize: root.tight ? Theme.fontSizeSmall : Theme.fontSizeMedium
-                font.weight: Font.DemiBold
-            }
-
-            Rectangle {
-                anchors.verticalCenter: parent.verticalCenter
-                width: root.tight ? 3 : 4
-                height: root.tight ? 3 : 4
-                radius: width / 2
-                color: Theme.primary
-            }
-
-            Text {
-                id: dateLabel
-
-                anchors.verticalCenter: parent.verticalCenter
-                text: root.dateText
-                color: Theme.surfaceTextMedium
-                font.family: Theme.fontFamily
-                font.pixelSize: Theme.fontSizeSmall
-                font.weight: Font.Medium
-            }
-
-            Item {
-                anchors.verticalCenter: parent.verticalCenter
-                visible: root.controller.homeNotificationBadge
-                width: visible ? 10 : 0
-                height: 16
-
-                Rectangle {
-                    anchors.horizontalCenter: parent.horizontalCenter
-                    anchors.top: parent.top
-                    anchors.topMargin: 1
-                    width: 5
-                    height: 5
-                    radius: 2.5
-                    color: Theme.secondary
-                }
-
-                IslandSlotHoverArea {
-                    anchors.fill: parent
-                    controller: root.controller
-                    onClicked: root.controller.requestNotificationCenter(false)
-                }
-            }
-        }
-
-        Row {
-            id: rightActions
-
-            anchors.verticalCenter: parent.verticalCenter
-            spacing: root.slotSpacing
-            visible: root.rightActionIds.length > 0
-
-            Repeater {
-                model: root.rightActionIds
-
-                HomeActionSlot {
-                    required property var modelData
-                    actionId: String(modelData)
-                    controller: root.controller
-                    mediaModel: root.mediaModel
-                    slotSize: root.slotSize
-                    tight: root.tight
-                }
+            GroupItem {
+                required property var modelData
+                required property int index
+                groupId: String(modelData)
+                slotIndex: index
             }
         }
     }

@@ -860,6 +860,46 @@ func TestSyncQtengineConfig(t *testing.T) {
 	}
 }
 
+func TestSyncQtengineConfigAtUsesExplicitConfigDir(t *testing.T) {
+	tempDir := t.TempDir()
+	xdgConfigDir := filepath.Join(tempDir, "xdg-config")
+	explicitConfigDir := filepath.Join(tempDir, "explicit-config")
+	dataHome := filepath.Join(tempDir, "data")
+	t.Setenv("XDG_CONFIG_HOME", xdgConfigDir)
+	t.Setenv("XDG_DATA_HOME", dataHome)
+
+	scheme := filepath.Join(dataHome, "color-schemes", "DankMatugen.colors")
+	if err := os.MkdirAll(filepath.Dir(scheme), 0o755); err != nil {
+		t.Fatalf("failed to create color-schemes dir: %v", err)
+	}
+	if err := os.WriteFile(scheme, []byte("[Colors:Window]\n"), 0o644); err != nil {
+		t.Fatalf("failed to write color scheme: %v", err)
+	}
+
+	if err := SyncQtengineConfigAt(explicitConfigDir, "Papirus-Dark"); err != nil {
+		t.Fatalf("sync with explicit config dir failed: %v", err)
+	}
+
+	explicitPath := filepath.Join(explicitConfigDir, "qtengine", "config.json")
+	data, err := os.ReadFile(explicitPath)
+	if err != nil {
+		t.Fatalf("failed to read config from explicit directory: %v", err)
+	}
+	var cfg map[string]any
+	if err := json.Unmarshal(data, &cfg); err != nil {
+		t.Fatalf("written config is not valid JSON: %v", err)
+	}
+	theme, ok := cfg["theme"].(map[string]any)
+	if !ok {
+		t.Fatalf("written config has no theme object: %#v", cfg["theme"])
+	}
+	assert.Equal(t, scheme, theme["colorScheme"])
+	assert.Equal(t, "Papirus-Dark", theme["iconTheme"])
+
+	_, err = os.Stat(filepath.Join(xdgConfigDir, "qtengine", "config.json"))
+	assert.ErrorIs(t, err, os.ErrNotExist, "explicit config dir must take precedence over XDG_CONFIG_HOME")
+}
+
 // The appended entry is the only thing driving the settings row's indicator.
 func TestCheckTemplatesIncludesQtengine(t *testing.T) {
 	tests := []struct {
@@ -929,4 +969,97 @@ func TestSyncQtengineConfigBumpsMtime(t *testing.T) {
 		t.Fatalf("failed to re-read config: %v", err)
 	}
 	assert.Equal(t, string(before), string(after))
+}
+
+func TestExtractTopLevelString(t *testing.T) {
+	tests := []struct {
+		name    string
+		jsonStr string
+		key     string
+		want    string
+	}{
+		{name: "returns top-level string key", jsonStr: `{"mode":"light","colors":{}}`, key: "mode", want: "light"},
+		{name: "empty for missing key", jsonStr: `{"mode":"dark"}`, key: "is_dark_mode", want: ""},
+		{name: "empty for non-string value", jsonStr: `{"mode":42}`, key: "mode", want: ""},
+		{name: "empty for invalid json", jsonStr: `{mode`, key: "mode", want: ""},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.want, extractTopLevelString(tc.jsonStr, tc.key))
+		})
+	}
+}
+
+func TestResolveSmartMode(t *testing.T) {
+	tests := []struct {
+		name        string
+		mode        ColorMode
+		matugenType string
+		kind        string
+		stockColors string
+		isV42       bool
+		wantErr     string
+		wantMode    ColorMode
+	}{
+		{
+			name:     "concrete mode passes through untouched",
+			mode:     ColorModeLight,
+			kind:     "image",
+			isV42:    true,
+			wantMode: ColorModeLight,
+		},
+		{
+			name:    "smart mode errors on old matugen",
+			mode:    ColorModeSmart,
+			kind:    "image",
+			isV42:   false,
+			wantErr: "smart mode requires matugen 4.2+",
+		},
+		{
+			name:        "scheme-smart errors on old matugen",
+			mode:        ColorModeDark,
+			matugenType: "scheme-smart",
+			kind:        "image",
+			isV42:       false,
+			wantErr:     "scheme-smart requires matugen 4.2+",
+		},
+		{
+			name:     "smart falls back to dark for non-image kind",
+			mode:     ColorModeSmart,
+			kind:     "hex",
+			isV42:    true,
+			wantMode: ColorModeDark,
+		},
+		{
+			name:        "smart falls back to dark for stock colors",
+			mode:        ColorModeSmart,
+			kind:        "image",
+			stockColors: `{"primary":{}}`,
+			isV42:       true,
+			wantMode:    ColorModeDark,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			opts := &Options{
+				Mode:        tc.mode,
+				MatugenType: tc.matugenType,
+				Kind:        tc.kind,
+				StockColors: tc.stockColors,
+			}
+			if opts.MatugenType == "" {
+				opts.MatugenType = "scheme-tonal-spot"
+			}
+
+			err := resolveSmartMode(opts, matugenFlags{isV42: tc.isV42})
+			if tc.wantErr != "" {
+				assert.ErrorContains(t, err, tc.wantErr)
+				return
+			}
+			assert.NoError(t, err)
+			assert.Equal(t, tc.wantMode, opts.Mode)
+		})
+	}
 }

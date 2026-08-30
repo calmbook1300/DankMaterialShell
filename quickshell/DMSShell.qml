@@ -13,7 +13,6 @@ import qs.Modals.DankLauncherV2
 import qs.Modules
 import qs.Modules.AppDrawer
 import qs.Modules.DankDash
-import qs.Modules.DankIsland
 import qs.Modules.ControlCenter
 import qs.Modules.Dock
 import qs.Modules.Lock
@@ -358,6 +357,7 @@ Item {
     LazyLoader {
         id: emptyTrashConfirmLoader
         active: false
+        readonly property ConfirmModal loadedModal: item as ConfirmModal
 
         ConfirmModal {
             id: emptyTrashConfirm
@@ -368,7 +368,9 @@ Item {
         target: TrashService
         function onEmptyTrashConfirmRequested(itemCount) {
             emptyTrashConfirmLoader.active = true;
-            emptyTrashConfirmLoader.item.showWithOptions({
+            if (!emptyTrashConfirmLoader.loadedModal)
+                return;
+            emptyTrashConfirmLoader.loadedModal.showWithOptions({
                 title: I18n.tr("Empty Trash"),
                 message: I18n.tr("Permanently delete %1 item(s)? This cannot be undone.").arg(itemCount),
                 confirmText: I18n.tr("Empty"),
@@ -402,22 +404,6 @@ Item {
         model: root.notificationPopupScreens
 
         delegate: NotificationPopupManager {}
-    }
-
-    Loader {
-        id: dankIslandLoader
-
-        property var modalRef: colorPickerModal
-        property LazyLoader powerModalLoaderRef: powerMenuModalLoader
-
-        active: SettingsData.dankIslandEnabled
-        asynchronous: false
-        sourceComponent: DankIsland {
-            screenModel: root.dankIslandScreens
-            colorPickerModal: dankIslandLoader.modalRef
-            powerMenuModalLoader: dankIslandLoader.powerModalLoaderRef
-            onLockRequested: lock.activate()
-        }
     }
 
     LazyLoader {
@@ -804,6 +790,7 @@ Item {
     LazyLoader {
         id: browserPickerModalLoader
         active: false
+        readonly property BrowserPickerModal loadedModal: item as BrowserPickerModal
 
         BrowserPickerModal {
             id: browserPickerModal
@@ -813,6 +800,7 @@ Item {
     LazyLoader {
         id: filePickerModalLoader
         active: false
+        readonly property AppPickerModal loadedModal: item as AppPickerModal
 
         AppPickerModal {
             id: filePickerModal
@@ -884,7 +872,9 @@ Item {
                 return;
             }
             browserPickerModalLoader.active = true;
-            const picker = browserPickerModalLoader.item;
+            const picker = browserPickerModalLoader.loadedModal;
+            if (!picker)
+                return;
             picker.url = url;
             picker.open();
         }
@@ -898,7 +888,9 @@ Item {
             }
 
             filePickerModalLoader.active = true;
-            const picker = filePickerModalLoader.item;
+            const picker = filePickerModalLoader.loadedModal;
+            if (!picker)
+                return;
             picker.targetData = data.target;
             picker.targetDataLabel = data.requestType || "file";
             picker.mimeType = data.mimeType || "";
@@ -1073,45 +1065,53 @@ Item {
         PowerMenuModal {
             id: powerMenuModal
 
-            onPowerActionRequested: (action, title, message) => {
-                PopoutService.closeControlCenter();
-                switch (action) {
-                case "logout":
-                    SessionService.logout();
-                    break;
-                case "suspend":
-                    SessionService.suspend();
-                    break;
-                case "hibernate":
-                    SessionService.hibernate();
-                    break;
-                case "reboot":
-                    SessionService.reboot();
-                    break;
-                case "softreboot":
-                    SessionService.softReboot();
-                    break;
-                case "poweroff":
-                    SessionService.poweroff();
-                    break;
-                }
-            }
-
-            onLockRequested: {
-                PopoutService.closeControlCenter();
-                lock.activate();
-            }
-
-            onSwitchUserRequested: {
-                switchUserModalLoader.active = true;
-                Qt.callLater(() => {
-                    if (switchUserModalLoader.loadedModal)
-                        switchUserModalLoader.loadedModal.showFromPowerMenu();
-                });
-            }
+            onPowerActionRequested: (action, title, message) => root._executePowerAction(action)
+            onLockRequested: root._lockFromPowerMenu()
+            onSwitchUserRequested: root._switchUserFromPowerMenu()
 
             Component.onCompleted: {
                 PopoutService.powerMenuModal = powerMenuModal;
+            }
+        }
+    }
+
+    function _executePowerAction(action) {
+        PopoutService.closeControlCenter();
+        SessionService.executePowerAction(action);
+    }
+
+    function _lockFromPowerMenu() {
+        PopoutService.closeControlCenter();
+        lock.activate();
+    }
+
+    function _switchUserFromPowerMenu() {
+        switchUserModalLoader.active = true;
+        Qt.callLater(() => {
+            if (switchUserModalLoader.loadedModal)
+                switchUserModalLoader.loadedModal.showFromPowerMenu();
+        });
+    }
+
+    LazyLoader {
+        id: powerMenuPopoutLoader
+
+        active: false
+
+        Component.onCompleted: {
+            PopoutService.powerMenuPopoutLoader = powerMenuPopoutLoader;
+        }
+
+        PowerMenuPopout {
+            id: powerMenuPopout
+
+            onPowerActionRequested: action => root._executePowerAction(action)
+            onLockRequested: root._lockFromPowerMenu()
+            onSwitchUserRequested: root._switchUserFromPowerMenu()
+            onPopoutClosed: PopoutService.unloadPowerMenuPopout()
+
+            Component.onCompleted: {
+                PopoutService.powerMenuPopout = powerMenuPopout;
             }
         }
     }

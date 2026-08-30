@@ -5,6 +5,7 @@ import qs.Common
 import qs.Modules.DankDash
 import qs.Modules.DankIsland.Activities
 import qs.Services
+import qs.Widgets
 
 Item {
     id: root
@@ -16,14 +17,11 @@ Item {
     required property var launcherController
     property var launcherTransientSurfaceTracker: null
     property var notificationTransientSurfaceTracker: null
-    property var colorPickerModal: null
-    property var powerMenuModalLoader: null
     property var effectiveScreen: null
     property bool reducedMotion: false
     property real springStiffness: 560
     property real springDamping: 37
     property real springMass: 1
-    // Screen-space Y of the host strip's local origin; non-zero only on the bottom edge.
     property real hostOriginY: 0
     property string palette: "default"
     property bool highContrast: false
@@ -31,32 +29,55 @@ Item {
     readonly property color surfaceColor: {
         if (root.highContrast)
             return Theme.surfaceContainerHighest;
-        if (root.palette === "bright")
+        switch (root.palette) {
+        case "bright":
             return Theme.surfaceBright;
-        if (root.palette === "dim")
+        case "dim":
             return Theme.surfaceDim;
+        }
         return Theme.surfaceContainerHigh;
     }
+    readonly property bool popupStyled: root.controller.expanded
+    readonly property real compactOpacity: Math.max(0, Math.min(1, SettingsData.dankIslandTransparency))
+    readonly property color effectiveSurfaceColor: {
+        if (root.highContrast)
+            return Theme.surfaceContainerHighest;
+        if (root.popupStyled)
+            return Theme.withAlpha(Theme.surfaceContainer, Theme.popupTransparency);
+        return Theme.withAlpha(root.surfaceColor, root.compactOpacity);
+    }
+    readonly property real surfaceOpacity: root.effectiveSurfaceColor.a
+    readonly property real currentSurfaceRadius: Math.max(0, motion.currentTopLeftRadius, motion.currentBottomLeftRadius)
+    readonly property color notificationAccentColor: {
+        if (!root.controller.notificationActive)
+            return "transparent";
+        if (root.notificationModel.critical)
+            return Theme.error;
+        if (root.notificationModel.important)
+            return Theme.warning;
+        return "transparent";
+    }
 
-    signal lockRequested
     signal scrollWheel(var wheel)
 
     readonly property alias inputMaskItem: inputEnvelope
+    readonly property alias fittsStripItem: fittsStrip
     readonly property bool motionRunning: motion.running
-    readonly property Item mediaDropdownMaskItem: mediaDropdowns.__activePanel
+    readonly property real springTimeConstantMs: motion.timeConstantMs
+    property real trackedHeight: 0
+    readonly property Item mediaDropdownMaskItem: mediaDropdowns.activePanel
     property real fadeCompactHeight: 48
     property real fadeExpandedHeight: 352
     property rect motionStartBounds: Qt.rect(0, 0, 0, 0)
     property int mediaDropdownType: 0
     property point mediaDropdownAnchor: Qt.point(0, 0)
-    readonly property real currentVisualX: (width - motion.currentWidth) / 2 + motion.currentOffsetX
     readonly property bool bottomEdge: SettingsData.dankIslandEdge === "bottom"
-    readonly property real currentVisualY: bottomEdge ? height - motion.currentOffsetY - motion.currentHeight : motion.currentOffsetY
     readonly property real currentVisualWidth: motion.currentWidth
     readonly property real currentVisualHeight: motion.currentHeight
-    readonly property real targetVisualX: (width - motion.targetWidth) / 2 + motion.targetOffsetX
-    readonly property real targetVisualY: bottomEdge ? height - motion.targetOffsetY - motion.targetHeight : motion.targetOffsetY
-    // Activity hosts hand alignedY to full-screen windows, which need screen space, not surface space.
+    readonly property real currentVisualX: (width - currentVisualWidth) / 2 + motion.currentOffsetX
+    readonly property real currentVisualY: bottomEdge ? height - motion.currentOffsetY - currentVisualHeight : motion.currentOffsetY
+    readonly property real targetVisualX: Math.round((width - motion.targetWidth) / 2 + motion.targetOffsetX)
+    readonly property real targetVisualY: bottomEdge ? height - Math.round(motion.targetOffsetY) - motion.targetHeight : Math.round(motion.targetOffsetY)
     readonly property real targetScreenY: targetVisualY + root.hostOriginY
     readonly property real targetVisualWidth: motion.targetWidth
     readonly property real targetVisualHeight: motion.targetHeight
@@ -72,29 +93,20 @@ Item {
             fadeExpandedHeight = controller.expandedTarget.height;
         else
             fadeCompactHeight = controller.compactTarget.height;
-        // A retarget leaves the frozen start stale, so widen it to cover where the island is now.
         if (motion.running)
             root.unionMotionStartBounds();
         motion.setTarget(controller.targetDescriptor);
         if (!motion.running)
-            root.releaseIdleVisuals();
+            root.controller.releaseIdleVisuals();
     }
 
     function unionMotionStartBounds() {
         const b = root.motionStartBounds;
         const left = Math.min(b.x, root.currentVisualX);
         const top = Math.min(b.y, root.currentVisualY);
-        const right = Math.max(b.x + b.width, root.currentVisualX + motion.currentWidth);
-        const bottom = Math.max(b.y + b.height, root.currentVisualY + motion.currentHeight);
+        const right = Math.max(b.x + b.width, root.currentVisualX + root.currentVisualWidth);
+        const bottom = Math.max(b.y + b.height, root.currentVisualY + root.currentVisualHeight);
         root.motionStartBounds = Qt.rect(left, top, right - left, bottom - top);
-    }
-
-    function releaseIdleVisuals() {
-        root.controller.releaseWallpaperVisuals();
-        root.controller.releaseWeatherVisuals();
-        root.controller.releaseNotificationCenterVisuals();
-        root.controller.releaseLauncherVisuals();
-        root.controller.releaseControlCenterVisuals();
     }
 
     function openMediaDropdown(type, pos) {
@@ -123,9 +135,19 @@ Item {
     }
 
     Component.onCompleted: {
+        trackedHeight = height;
         fadeCompactHeight = controller.compactTarget.height;
         fadeExpandedHeight = controller.expandedTarget.height;
         motion.snapTo(controller.targetDescriptor);
+    }
+
+    onHeightChanged: {
+        const delta = height - trackedHeight;
+        trackedHeight = height;
+        if (!bottomEdge || !motion.running || delta === 0)
+            return;
+        const b = motionStartBounds;
+        motionStartBounds = Qt.rect(b.x, b.y + delta, b.width, b.height);
     }
 
     Connections {
@@ -151,12 +173,12 @@ Item {
 
         function onRunningChanged() {
             if (motion.running) {
-                root.motionStartBounds = Qt.rect(root.currentVisualX, root.currentVisualY, motion.currentWidth, motion.currentHeight);
+                root.motionStartBounds = Qt.rect(root.currentVisualX, root.currentVisualY, root.currentVisualWidth, root.currentVisualHeight);
                 if (root.controller.activeActivity === "media")
                     root.hideMediaDropdowns();
                 return;
             }
-            root.releaseIdleVisuals();
+            root.controller.releaseIdleVisuals();
         }
     }
 
@@ -180,7 +202,6 @@ Item {
     Item {
         id: inputEnvelope
 
-        // Cover underdamped overshoot for the frozen flight, scaled to travel.
         readonly property real overshootBudget: {
             if (!motion.running)
                 return 0;
@@ -206,17 +227,30 @@ Item {
 
         x: root.currentVisualX
         y: root.currentVisualY
-        width: motion.currentWidth
-        height: motion.currentHeight
+        width: root.currentVisualWidth
+        height: root.currentVisualHeight
         topLeftRadius: Math.max(0, motion.currentTopLeftRadius)
         topRightRadius: Math.max(0, motion.currentTopRightRadius)
         bottomLeftRadius: Math.max(0, motion.currentBottomLeftRadius)
         bottomRightRadius: Math.max(0, motion.currentBottomRightRadius)
-        color: root.surfaceColor
-        border.width: root.highContrast ? 2 : 0
-        border.color: root.highContrast ? Theme.outlineStrong : "transparent"
+        color: root.effectiveSurfaceColor
+        border.width: root.notificationAccentColor !== "transparent" ? 1.5 : (root.highContrast ? 2 : (root.popupStyled ? BlurService.borderWidth : 0))
+        border.color: root.notificationAccentColor !== "transparent" ? root.notificationAccentColor : (root.highContrast ? Theme.outlineStrong : (root.popupStyled ? BlurService.borderColor : "transparent"))
 
-        // Full destinations keep blank clicks for their own content instead of collapsing.
+        Behavior on color {
+            ColorAnimation {
+                duration: root.reducedMotion ? 0 : Theme.shortDuration
+                easing.type: Easing.OutCubic
+            }
+        }
+
+        Behavior on border.color {
+            ColorAnimation {
+                duration: root.reducedMotion ? 0 : Theme.shortDuration
+                easing.type: Easing.OutCubic
+            }
+        }
+
         MouseArea {
             anchors.fill: parent
             acceptedButtons: Qt.LeftButton
@@ -235,7 +269,10 @@ Item {
         IslandContentHost {
             id: contentHost
 
-            anchors.fill: parent
+            controller: root.controller
+            islandX: root.currentVisualX
+            hostWidth: root.width
+            springTimeConstantMs: root.springTimeConstantMs
             morphProgress: root.morphProgress
             expanded: root.controller.expanded
             pointerInside: root.controller.pointerInside
@@ -246,31 +283,59 @@ Item {
             mediaExpandedComponent: expandedMediaComponent
             launcherCompactComponent: compactLauncherComponent
             launcherExpandedComponent: expandedLauncherComponent
-            launcherVisualsRequested: root.controller.launcherVisualsRequested
             controlCenterCompactComponent: compactControlCenterComponent
             controlCenterExpandedComponent: expandedControlCenterComponent
-            controlCenterVisualsRequested: root.controller.controlCenterVisualsRequested
             wallpaperCompactComponent: compactWallpaperComponent
             wallpaperExpandedComponent: expandedWallpaperComponent
-            wallpaperVisualsRequested: root.controller.wallpaperVisualsRequested
             weatherCompactComponent: compactWeatherComponent
             weatherExpandedComponent: expandedWeatherComponent
-            weatherVisualsRequested: root.controller.weatherVisualsRequested
             systemCompactComponent: compactSystemComponent
             systemExpandedComponent: expandedSystemComponent
             notificationCompactComponent: compactNotificationComponent
             notificationExpandedComponent: expandedNotificationComponent
             notificationCenterCompactComponent: compactNotificationCenterComponent
             notificationCenterExpandedComponent: expandedNotificationCenterComponent
-            notificationCenterVisualsRequested: root.controller.notificationCenterVisualsRequested
         }
 
         HoverHandler {
-            onHoveredChanged: {
-                if (hovered)
-                    root.controller.updatePointerInside(true);
-                else
-                    root.controller.updatePointerInside(false);
+            id: islandHover
+
+            onHoveredChanged: root.updateFittsPointerInside()
+        }
+    }
+
+    function updateFittsPointerInside() {
+        root.controller.updatePointerInside(islandHover.hovered || stripHover.hovered);
+    }
+
+    // Fitts zone from the island edge to the screen edge — hover/click count as island.
+    // Bounds follow the spring target, never the per-frame value, so the Wayland mask is not
+    // rewritten every frame and the strip never shrinks out from under the cursor mid-open.
+    Item {
+        id: fittsStrip
+
+        readonly property real spanWidth: Math.max(root.controller.compactTarget.width, motion.targetWidth)
+        readonly property real edgeGap: root.bottomEdge ? Math.max(0, root.height - (root.targetVisualY + motion.targetHeight)) : Math.max(0, root.targetVisualY)
+
+        x: Math.round((root.width - spanWidth) / 2 + motion.targetOffsetX)
+        y: root.bottomEdge ? root.targetVisualY + motion.targetHeight : 0
+        width: spanWidth
+        height: edgeGap
+        visible: edgeGap > 0 && spanWidth > 0
+
+        HoverHandler {
+            id: stripHover
+
+            onHoveredChanged: root.updateFittsPointerInside()
+        }
+
+        MouseArea {
+            anchors.fill: parent
+            acceptedButtons: Qt.LeftButton
+            onClicked: root.controller.requestToggle(true)
+            onWheel: wheel => {
+                root.scrollWheel(wheel);
+                wheel.accepted = true;
             }
         }
     }
@@ -306,7 +371,6 @@ Item {
 
         HomeCompact {
             controller: root.controller
-            mediaModel: root.mediaModel
         }
     }
 
@@ -314,7 +378,7 @@ Item {
         id: expandedHomeComponent
 
         HomeExpanded {
-            islandController: root.controller
+            controller: root.controller
         }
     }
 
@@ -331,11 +395,10 @@ Item {
         id: expandedMediaComponent
 
         MediaExpanded {
-            islandController: root.controller
+            controller: root.controller
             geometrySettled: !motion.running
             effectiveScreen: root.effectiveScreen
             alignedX: root.targetVisualX
-            // Surface-local on purpose: the media dropdowns it anchors live inside this surface.
             alignedY: root.targetVisualY
             alignedWidth: root.targetVisualWidth
             alignedHeight: root.targetVisualHeight
@@ -350,8 +413,25 @@ Item {
     Component {
         id: compactLauncherComponent
 
-        LauncherCompact {
+        DestinationCompact {
+            id: launcherFace
+
+            readonly property real logoSize: Math.max(12, Theme.iconSizeSmall + SettingsData.launcherLogoSizeOffset)
+            readonly property color logoColor: Theme.effectiveLogoColor !== "" ? Theme.effectiveLogoColor : Theme.surfaceText
+
             controller: root.controller
+            activityId: "launcher"
+            label: I18n.tr("Launcher", "island compact face: launcher label")
+            leading: LauncherLogo {
+                mode: SettingsData.launcherLogoMode
+                size: launcherFace.logoSize
+                appsIconColor: launcherFace.logoColor
+                colorOverride: String(launcherFace.logoColor)
+                brightness: SettingsData.launcherLogoBrightness
+                contrast: SettingsData.launcherLogoContrast
+                customPath: SettingsData.launcherLogoCustomPath
+                fallbackToApps: true
+            }
         }
     }
 
@@ -359,11 +439,10 @@ Item {
         id: expandedLauncherComponent
 
         LauncherExpanded {
-            islandController: root.controller
+            controller: root.controller
             launcherController: root.launcherController
             transientSurfaceTracker: root.launcherTransientSurfaceTracker
             effectiveScreen: root.effectiveScreen
-            // Settled bounds; animated values rebind the tree every frame.
             alignedX: root.targetVisualX
             alignedY: root.targetScreenY
         }
@@ -372,8 +451,11 @@ Item {
     Component {
         id: compactControlCenterComponent
 
-        ControlCenterCompact {
+        DestinationCompact {
             controller: root.controller
+            activityId: "controlcenter"
+            iconName: "tune"
+            label: I18n.tr("Control Center", "island compact face: control center label")
         }
     }
 
@@ -381,24 +463,23 @@ Item {
         id: expandedControlCenterComponent
 
         ControlCenterExpanded {
-            islandController: root.controller
+            controller: root.controller
             effectiveScreen: root.effectiveScreen
-            colorPickerModal: root.colorPickerModal
-            powerMenuModalLoader: root.powerMenuModalLoader
-            // Settled bounds; animated values rebind the tree every frame.
             alignedX: root.targetVisualX
             alignedY: root.targetScreenY
             alignedWidth: root.targetVisualWidth
             alignedHeight: root.targetVisualHeight
-            onLockRequested: root.lockRequested()
         }
     }
 
     Component {
         id: compactWallpaperComponent
 
-        WallpaperCompact {
+        DestinationCompact {
             controller: root.controller
+            activityId: "wallpaper"
+            iconName: "wallpaper"
+            label: I18n.tr("Wallpaper", "island compact face: wallpaper picker label")
         }
     }
 
@@ -406,7 +487,7 @@ Item {
         id: expandedWallpaperComponent
 
         WallpaperExpanded {
-            islandController: root.controller
+            controller: root.controller
             effectiveScreen: root.effectiveScreen
         }
     }
@@ -414,8 +495,11 @@ Item {
     Component {
         id: compactWeatherComponent
 
-        WeatherCompact {
+        DestinationCompact {
             controller: root.controller
+            activityId: "weather"
+            iconName: "partly_cloudy_day"
+            label: I18n.tr("Weather", "island compact face: weather label")
         }
     }
 
@@ -423,7 +507,7 @@ Item {
         id: expandedWeatherComponent
 
         WeatherExpanded {
-            islandController: root.controller
+            controller: root.controller
         }
     }
 
@@ -432,7 +516,6 @@ Item {
 
         SystemLevelCompact {
             systemModel: root.systemModel
-            dense: root.controller.compactDense
             iconSize: root.controller.compactIconSize
         }
     }
@@ -450,6 +533,7 @@ Item {
 
         NotificationCompact {
             notificationModel: root.notificationModel
+            controller: root.controller
             dense: root.controller.compactDense
             iconSize: root.controller.compactIconSize
         }
@@ -458,8 +542,15 @@ Item {
     Component {
         id: compactNotificationCenterComponent
 
-        NotificationCenterCompact {
+        DestinationCompact {
+            id: notificationCenterFace
+
+            readonly property int unreadCount: NotificationService.notifications.length
+
             controller: root.controller
+            activityId: "notificationcenter"
+            iconName: notificationCenterFace.unreadCount > 0 ? "notifications_active" : "notifications"
+            label: notificationCenterFace.unreadCount > 0 ? I18n.tr("%1 notifications", "island compact face: unread notification count").arg(notificationCenterFace.unreadCount) : I18n.tr("Notifications", "island compact face: notification center label")
         }
     }
 
@@ -467,7 +558,7 @@ Item {
         id: expandedNotificationCenterComponent
 
         NotificationCenterExpanded {
-            islandController: root.controller
+            controller: root.controller
             effectiveScreen: root.effectiveScreen
             transientSurfaceTracker: root.notificationTransientSurfaceTracker
         }

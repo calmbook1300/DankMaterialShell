@@ -550,14 +550,16 @@ Item {
                 settingKey: "barPosition"
                 visible: !dankBarTab.appearanceOnly && selectedBarConfig?.enabled
 
-                SettingsControlledByIsland {
+                SettingsControlledBy {
+                    target: "island"
                     visible: dankBarTab.selectedBarIsIsland
                     parentModal: dankBarTab.parentModal
                     settingLabel: I18n.tr("Island placement")
                     reason: I18n.tr("The Island anchors to the top or bottom edge")
                 }
 
-                SettingsControlledByIsland {
+                SettingsControlledBy {
+                    target: "island"
                     visible: dankBarTab.islandShadowsSelectedBar
                     parentModal: dankBarTab.parentModal
                     settingLabel: I18n.tr("%1 position").arg(dankBarTab.positionLabel(selectedBarConfig?.position ?? SettingsData.Position.Top))
@@ -704,7 +706,8 @@ Item {
                 expanded: true
                 visible: !dankBarTab.appearanceOnly && selectedBarConfig?.enabled
 
-                SettingsControlledByIsland {
+                SettingsControlledBy {
+                    target: "island"
                     visible: dankBarTab.islandOwnsSelectedBarTop
                     parentModal: dankBarTab.parentModal
                     settingLabel: I18n.tr("Bar visibility")
@@ -939,14 +942,15 @@ Item {
                     }
                 }
 
-                SettingsControlledByFrame {
+                SettingsControlledBy {
                     visible: SettingsData.frameEnabled
                     parentModal: dankBarTab.parentModal
                     settingLabel: I18n.tr("Bar Opacity")
                     reason: I18n.tr("Managed by Frame")
                 }
 
-                SettingsControlledByIsland {
+                SettingsControlledBy {
+                    target: "island"
                     visible: !SettingsData.frameEnabled && dankBarTab.islandOwnsSelectedBarTop
                     parentModal: dankBarTab.parentModal
                     settingLabel: I18n.tr("Bar Opacity")
@@ -961,7 +965,7 @@ Item {
                 settingKey: "barSpacing"
                 visible: dankBarTab.appearanceOnly && (selectedBarConfig?.enabled ?? false)
 
-                SettingsControlledByFrame {
+                SettingsControlledBy {
                     visible: SettingsData.frameEnabled
                     parentModal: dankBarTab.parentModal
                     settingLabel: I18n.tr("Bar Spacing")
@@ -976,6 +980,7 @@ Item {
                     value: selectedBarConfig?.spacing ?? 4
                     minimum: 0
                     maximum: 32
+                    unit: "px"
                     defaultValue: 4
                     onSliderDragFinished: finalValue => {
                         SettingsData.updateBarConfig(selectedBarId, {
@@ -1001,6 +1006,7 @@ Item {
                     value: selectedBarConfig?.bottomGap ?? 0
                     minimum: -50
                     maximum: 50
+                    unit: "px"
                     defaultValue: 0
                     onSliderDragFinished: finalValue => {
                         SettingsData.updateBarConfig(selectedBarId, {
@@ -1026,6 +1032,7 @@ Item {
                     value: selectedBarConfig?.innerPadding ?? 4
                     minimum: -8
                     maximum: 24
+                    unit: "px"
                     defaultValue: 4
                     onSliderDragFinished: finalValue => {
                         SettingsData.updateBarConfig(selectedBarId, {
@@ -1193,7 +1200,8 @@ Item {
                     }
                 }
 
-                SettingsControlledByIsland {
+                SettingsControlledBy {
+                    target: "island"
                     visible: !SettingsData.frameEnabled && dankBarTab.islandOwnsSelectedBarTop
                     parentModal: dankBarTab.parentModal
                     settingLabel: I18n.tr("Bar Spacing")
@@ -1264,14 +1272,15 @@ Item {
                 expanded: true
                 visible: dankBarTab.appearanceOnly && selectedBarConfig?.enabled
 
-                SettingsControlledByFrame {
+                SettingsControlledBy {
                     visible: SettingsData.frameEnabled
                     parentModal: dankBarTab.parentModal
                     settingLabel: I18n.tr("Bar corners and background")
                     reason: I18n.tr("Managed by Frame")
                 }
 
-                SettingsControlledByIsland {
+                SettingsControlledBy {
+                    target: "island"
                     visible: !SettingsData.frameEnabled && dankBarTab.islandOwnsSelectedBarTop
                     parentModal: dankBarTab.parentModal
                     settingLabel: I18n.tr("Bar corners")
@@ -1753,14 +1762,15 @@ Item {
                 }
             }
 
-            SettingsControlledByFrame {
+            SettingsControlledBy {
                 visible: dankBarTab.appearanceOnly && dankBarTab.connectedFrameModeActive
                 parentModal: dankBarTab.parentModal
                 settingLabel: I18n.tr("Bar shadow, border, and corners")
                 reason: I18n.tr("Managed by Frame in Connected Mode")
             }
 
-            SettingsControlledByIsland {
+            SettingsControlledBy {
+                target: "island"
                 visible: dankBarTab.appearanceOnly && !dankBarTab.connectedFrameModeActive && dankBarTab.islandOwnsSelectedBarTop
                 parentModal: dankBarTab.parentModal
                 settingLabel: I18n.tr("Bar border and shadow")

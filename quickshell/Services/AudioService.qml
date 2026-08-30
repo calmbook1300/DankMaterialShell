@@ -99,7 +99,7 @@ Singleton {
 
     function getAvailableSinks() {
         const hidden = SessionData.hiddenOutputDeviceNames ?? [];
-        return Pipewire.nodes.values.filter(node => node.audio && node.isSink && !node.isStream && !hidden.includes(node.name));
+        return Pipewire.nodes.values.filter(node => node.audio && node.isSink && (SettingsData.audioShowStreamDevices || !node.isStream) && !hidden.includes(node.name));
     }
 
     property list<PwNode> typedSinks: []
@@ -109,7 +109,7 @@ Singleton {
         const newSinks = [];
         const newSources = [];
         for (const node of Pipewire.nodes.values) {
-            if (!node?.audio || node.isStream)
+            if (!node?.audio || (node.isStream && !SettingsData.audioShowStreamDevices))
                 continue;
             if (node.isSink)
                 newSinks.push(node);
@@ -123,6 +123,13 @@ Singleton {
     Connections {
         target: Pipewire.nodes
         function onValuesChanged() {
+            root.rebuildTypedNodeLists();
+        }
+    }
+
+    Connections {
+        target: SettingsData
+        function onAudioShowStreamDevicesChanged() {
             root.rebuildTypedNodeLists();
         }
     }
@@ -634,16 +641,14 @@ EOFCONFIG
                 for theme in ${themesToSearch}; do
                     for event_name in $names; do
                         for base_path in ${searchPaths.join(" ")}; do
-                            sounds_path="$base_path/sounds"
-                            for ext in ${extensions.join(" ")}; do
-                                file_path="$sounds_path/$theme/stereo/$event_name.$ext"
-                                if [ -f "$file_path" ]; then
-                                    echo "$event_key=$file_path"
-                                    found=1
-                                    break
-                                fi
-                            done
-                            [ $found -eq 1 ] && break
+                            theme_dir="$base_path/sounds/$theme"
+                            [ -d "$theme_dir" ] || continue
+                            file_path=$(find -L "$theme_dir" \\( ${extensions.map(e => `-name "$event_name.${e}"`).join(" -o ")} \\) -print 2>/dev/null | sort | head -1)
+                            if [ -n "$file_path" ]; then
+                                echo "$event_key=$file_path"
+                                found=1
+                                break
+                            fi
                         done
                         [ $found -eq 1 ] && break
                     done
@@ -788,6 +793,19 @@ EOFCONFIG
         if (SettingsData.soundsEnabled && SettingsData.soundVolumeChanged && !notificationsAudioMuted) {
             playVolumeChangeSound();
         }
+    }
+
+    readonly property string sinkVolumeIconName: volumeIconName(sink)
+
+    function volumeIconName(node, noDeviceIcon = "volume_off") {
+        const audio = node?.audio;
+        if (!audio)
+            return noDeviceIcon;
+        if (audio.muted)
+            return "volume_off";
+        if (audio.volume === 0)
+            return "volume_mute";
+        return audio.volume <= 0.33 ? "volume_down" : "volume_up";
     }
 
     function sinkIcon(node) {
@@ -945,7 +963,7 @@ EOFCONFIG
     }
 
     PwObjectTracker {
-        objects: Pipewire.nodes.values.filter(node => node.audio && !node.isStream)
+        objects: Pipewire.nodes.values.filter(node => node.audio && (SettingsData.audioShowStreamDevices || !node.isStream))
     }
 
     function setVolume(percentage) {

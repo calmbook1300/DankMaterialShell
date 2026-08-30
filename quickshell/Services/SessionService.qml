@@ -278,6 +278,19 @@ Singleton {
         return args;
     }
 
+    // Restore pre-wrap Qt paths (Nix) so launched apps use their own.
+    function restoreWrapperEnv(env) {
+        const restore = (target, snapshot) => {
+            const orig = Quickshell.env(snapshot);
+            if (orig === null)
+                return;
+            env[target] = orig.length > 0 ? orig : null;
+        };
+        restore("NIXPKGS_QT6_QML_IMPORT_PATH", "DMS_ORIG_NIXPKGS_QT6_QML_IMPORT_PATH");
+        restore("QT_PLUGIN_PATH", "DMS_ORIG_QT_PLUGIN_PATH");
+        return env;
+    }
+
     function launchDesktopEntry(desktopEntry, useNvidia) {
         if (!desktopEntry || !desktopEntry.command)
             return;
@@ -302,7 +315,7 @@ Singleton {
         const cursorEnv = typeof SettingsData.getCursorEnvironment === "function" ? SettingsData.getCursorEnvironment() : {};
 
         const overrideEnv = override?.envVars ? parseEnvVars(override.envVars) : {};
-        const finalEnv = Object.assign({}, cursorEnv, overrideEnv);
+        const finalEnv = restoreWrapperEnv(Object.assign({}, cursorEnv, overrideEnv));
 
         if (desktopEntry.runInTerminal) {
             const terminal = SessionData.resolveTerminal() || "xterm";
@@ -353,13 +366,14 @@ Singleton {
         const prefix = userPrefix.length > 0 ? userPrefix : defaultPrefix;
         const workDir = desktopEntry.workingDirectory || Quickshell.env("HOME");
         const cursorEnv = typeof SettingsData.getCursorEnvironment === "function" ? SettingsData.getCursorEnvironment() : {};
+        const finalEnv = restoreWrapperEnv(Object.assign({}, cursorEnv));
 
         if (prefix.length > 0 && needsShellExecution(prefix)) {
             const escapedCmd = cmd.map(arg => escapeShellArg(arg)).join(" ");
             Quickshell.execDetached({
                 command: ["sh", "-c", `${prefix} ${escapedCmd}`],
                 workingDirectory: workDir,
-                environment: cursorEnv
+                environment: finalEnv
             });
             return;
         }
@@ -370,7 +384,7 @@ Singleton {
         Quickshell.execDetached({
             command: cmd,
             workingDirectory: workDir,
-            environment: cursorEnv
+            environment: finalEnv
         });
     }
 
@@ -482,6 +496,125 @@ Singleton {
             Quickshell.execDetached(powerManagerCommand("poweroff"));
         } else {
             Quickshell.execDetached(["sh", "-c", SettingsData.customPowerActionPowerOff]);
+        }
+    }
+
+    function isPowerActionSupported(action) {
+        switch (action) {
+        case "hibernate":
+            return hibernateSupported;
+        case "softreboot":
+            return softRebootSupported;
+        default:
+            return true;
+        }
+    }
+
+    function executePowerAction(action) {
+        if (action.startsWith("custom:")) {
+            const button = (SettingsData.customPowerButtons || [])[parseInt(action.slice(7), 10)];
+            if (!button?.command)
+                return false;
+            Quickshell.execDetached(["sh", "-c", button.command]);
+            return true;
+        }
+        switch (action) {
+        case "logout":
+            logout();
+            return true;
+        case "suspend":
+            suspend();
+            return true;
+        case "hibernate":
+            hibernate();
+            return true;
+        case "reboot":
+            reboot();
+            return true;
+        case "softreboot":
+            softReboot();
+            return true;
+        case "poweroff":
+            poweroff();
+            return true;
+        case "restart":
+            Quickshell.execDetached(["dms", "restart"]);
+            return true;
+        default:
+            return false;
+        }
+    }
+
+    function getPowerActionData(action) {
+        if (action.startsWith("custom:")) {
+            const button = (SettingsData.customPowerButtons || [])[parseInt(action.slice(7), 10)];
+            return {
+                "icon": button?.icon || "terminal",
+                "label": button?.label || button?.command || "",
+                "key": ""
+            };
+        }
+        switch (action) {
+        case "reboot":
+            return {
+                "icon": "restart_alt",
+                "label": I18n.tr("Reboot"),
+                "key": "R"
+            };
+        case "softreboot":
+            return {
+                "icon": "autorenew",
+                "label": I18n.tr("Soft Reboot"),
+                "key": "B"
+            };
+        case "logout":
+            return {
+                "icon": "logout",
+                "label": I18n.tr("Log Out"),
+                "key": "X"
+            };
+        case "poweroff":
+            return {
+                "icon": "power_settings_new",
+                "label": I18n.tr("Power Off"),
+                "key": "P"
+            };
+        case "lock":
+            return {
+                "icon": "lock",
+                "label": I18n.tr("Lock"),
+                "key": "L"
+            };
+        case "suspend":
+            return {
+                "icon": "bedtime",
+                "label": I18n.tr("Suspend"),
+                "key": "S"
+            };
+        case "hibernate":
+            return {
+                "icon": "ac_unit",
+                "label": I18n.tr("Hibernate"),
+                "key": "H"
+            };
+        case "restart":
+            return {
+                "icon": "refresh",
+                "label": I18n.tr("Restart DMS"),
+                "key": "D"
+            };
+        case "switchuser":
+            return {
+                "icon": "switch_account",
+                "label": I18n.tr("Switch User"),
+                "key": "U"
+            };
+        default:
+            return {
+                "icon": "help",
+                "label": action,
+                "key": "?"
+            };
         }
     }
 

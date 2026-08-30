@@ -495,6 +495,32 @@
     "icon": "calendar_today"
   },
   {
+    "section": "defaultTaskCalendarId",
+    "label": "Default Task List",
+    "tabIndex": 1,
+    "category": "Time & Weather",
+    "keywords": [
+      "adding",
+      "caldav",
+      "calendar",
+      "clock",
+      "dash",
+      "date",
+      "day",
+      "default",
+      "forecast",
+      "list",
+      "month",
+      "task",
+      "tasks",
+      "time",
+      "todo",
+      "weather",
+      "year"
+    ],
+    "description": "Task list used when adding tasks from the dash calendar"
+  },
+  {
     "section": "weatherEnabled",
     "label": "Enable Weather",
     "tabIndex": 1,
@@ -3594,6 +3620,42 @@
     "description": "Sync dark mode with settings portals for system-wide theme hints"
   },
   {
+    "section": "matugenSmartMode",
+    "label": "Auto From Wallpaper",
+    "tabIndex": 10,
+    "category": "Theme & Colors",
+    "keywords": [
+      "appearance",
+      "auto",
+      "background",
+      "backlight",
+      "bg",
+      "bright",
+      "brightness",
+      "colors",
+      "dark",
+      "dark mode",
+      "day",
+      "desktop",
+      "dim",
+      "follows",
+      "image",
+      "light",
+      "light mode",
+      "look",
+      "matugen",
+      "mode",
+      "night",
+      "picture",
+      "scheme",
+      "smart",
+      "style",
+      "theme",
+      "wallpaper"
+    ],
+    "description": "Dark or light mode follows the wallpaper brightness"
+  },
+  {
     "section": "cursorHideAfterInactive",
     "label": "Auto-Hide Timeout",
     "tabIndex": 10,
@@ -5486,6 +5548,24 @@
     "description": "Bind lock screen to dbus signals from loginctl. Disable if using an external lock screen"
   },
   {
+    "section": "lockScreenClockStyle",
+    "label": "Clock Style",
+    "tabIndex": 11,
+    "category": "Lock Screen",
+    "keywords": [
+      "clock",
+      "lock",
+      "login",
+      "password",
+      "screen",
+      "security",
+      "style",
+      "time",
+      "vertical",
+      "watch"
+    ]
+  },
+  {
     "section": "lockDisplay",
     "label": "Display Assignment",
     "tabIndex": 11,
@@ -6038,7 +6118,9 @@
       "fonts",
       "modal",
       "motion",
+      "physics",
       "speed",
+      "spring",
       "sync",
       "text",
       "transition",
@@ -6058,8 +6140,10 @@
       "duration",
       "fonts",
       "motion",
+      "physics",
       "popout",
       "speed",
+      "spring",
       "sync",
       "text",
       "transition",
@@ -6076,19 +6160,25 @@
       "animate",
       "animation",
       "animations",
+      "based",
+      "bezier",
+      "curves",
       "custom",
       "duration",
       "durations",
       "fonts",
+      "geometric",
       "globally",
       "motion",
+      "physics",
       "scale",
       "speed",
+      "spring",
       "text",
       "transition",
       "typography"
     ],
-    "description": "Globally scale all animation durations"
+    "description": "Globally scale animation durations with geometric motion & spring based physics with bezier curves"
   },
   {
     "section": "animationSpeed",
@@ -6099,41 +6189,25 @@
       "animate",
       "animation",
       "animations",
+      "based",
+      "bezier",
+      "curves",
       "duration",
       "durations",
       "fonts",
+      "geometric",
       "globally",
       "motion",
+      "physics",
       "scale",
       "speed",
+      "spring",
       "text",
       "transition",
       "typography"
     ],
     "icon": "animation",
-    "description": "Globally scale all animation durations"
-  },
-  {
-    "section": "animationVariant",
-    "label": "Animation Style",
-    "tabIndex": 14,
-    "category": "Typography & Motion",
-    "keywords": [
-      "animate",
-      "animation",
-      "animations",
-      "dynamic",
-      "fluent",
-      "fonts",
-      "motion",
-      "slide",
-      "style",
-      "text",
-      "transition",
-      "typography",
-      "variant"
-    ],
-    "icon": "auto_awesome_motion"
+    "description": "Globally scale animation durations with geometric motion & spring based physics with bezier curves"
   },
   {
     "section": "modalCustomAnimationDuration",
@@ -6239,6 +6313,33 @@
     "description": "Select monospace font for process list and technical displays"
   },
   {
+    "section": "animationVariant",
+    "label": "Motion",
+    "tabIndex": 14,
+    "category": "Typography & Motion",
+    "keywords": [
+      "accessibility",
+      "animation",
+      "bounce",
+      "depth",
+      "directional",
+      "dynamic",
+      "effect",
+      "fluent",
+      "fonts",
+      "motion",
+      "physics",
+      "reduce",
+      "slide",
+      "spring",
+      "style",
+      "text",
+      "typography",
+      "variant"
+    ],
+    "icon": "auto_awesome_motion"
+  },
+  {
     "section": "motionEffect",
     "label": "Motion Effects",
     "tabIndex": 14,
@@ -6256,8 +6357,7 @@
       "spring",
       "text",
       "typography"
-    ],
-    "icon": "motion_photos_on"
+    ]
   },
   {
     "section": "fontFamily",
@@ -6276,6 +6376,46 @@
       "typography"
     ],
     "description": "Select the font family for UI text"
+  },
+  {
+    "section": "textRenderQuality",
+    "label": "Quality",
+    "tabIndex": 14,
+    "category": "Typography & Motion",
+    "keywords": [
+      "animation",
+      "fonts",
+      "level",
+      "motion",
+      "quality",
+      "render",
+      "text",
+      "typography"
+    ]
+  },
+  {
+    "section": "reduceMotion",
+    "label": "Reduce Motion",
+    "tabIndex": 14,
+    "category": "Typography & Motion",
+    "keywords": [
+      "accessibility",
+      "animation",
+      "driven",
+      "fonts",
+      "motion",
+      "physics",
+      "reduce",
+      "snap",
+      "spring",
+      "straight",
+      "target",
+      "text",
+      "travel",
+      "typography",
+      "without"
+    ],
+    "description": "Snap spring-driven motion straight to its target without physics travel"
   },
   {
     "section": "enableRippleEffects",
@@ -6303,6 +6443,22 @@
     ],
     "icon": "radio_button_unchecked",
     "description": "Show Material Design ripple animations on interactive elements"
+  },
+  {
+    "section": "springBounce",
+    "label": "Spring Motion",
+    "tabIndex": 14,
+    "category": "Typography & Motion",
+    "keywords": [
+      "animation",
+      "bounce",
+      "fonts",
+      "motion",
+      "physics",
+      "spring",
+      "text",
+      "typography"
+    ]
   },
   {
     "section": "syncComponentAnimationSpeeds",
@@ -6841,6 +6997,58 @@
       "wave"
     ],
     "description": "Use animated wave progress bars for media playback"
+  },
+  {
+    "section": "notificationAnimationSpeed",
+    "label": "Animation Speed",
+    "tabIndex": 17,
+    "category": "Notifications",
+    "keywords": [
+      "alert",
+      "alerts",
+      "animate",
+      "animation",
+      "animations",
+      "control",
+      "duration",
+      "history",
+      "messages",
+      "motion",
+      "notif",
+      "notification",
+      "notifications",
+      "popups",
+      "speed",
+      "toast",
+      "transition"
+    ],
+    "description": "Control animation duration for notification popups and history"
+  },
+  {
+    "section": "notificationPopupBodyInvokesAction",
+    "label": "Body Click Runs Default Action",
+    "tabIndex": 17,
+    "category": "Notifications",
+    "keywords": [
+      "action",
+      "alerts",
+      "body",
+      "click",
+      "clicking",
+      "default",
+      "expand",
+      "expanding",
+      "first",
+      "invoke",
+      "messages",
+      "notification",
+      "notifications",
+      "open",
+      "popup",
+      "runs",
+      "toast"
+    ],
+    "description": "Clicking a popup runs its first action instead of expanding the body"
   },
   {
     "section": "notificationBodyFontSize",
@@ -8791,6 +8999,23 @@
     "description": "Color temperature for night mode"
   },
   {
+    "section": "nightModeTransitionMinutes",
+    "label": "Transition Duration",
+    "tabIndex": 25,
+    "category": "Displays",
+    "keywords": [
+      "displays",
+      "duration",
+      "fade",
+      "gamma",
+      "monitor",
+      "night",
+      "resolution",
+      "screen",
+      "transition"
+    ]
+  },
+  {
     "section": "_tab_26",
     "label": "Widgets",
     "tabIndex": 26,
@@ -8864,18 +9089,57 @@
     "tabIndex": 29,
     "category": "Audio",
     "keywords": [
+      "app",
+      "application",
       "audio",
       "device",
       "devices",
       "headphones",
+      "include",
+      "lists",
       "microphone",
       "output",
       "pipewire",
+      "program",
+      "sinks",
       "sound",
       "speaker",
+      "streams",
+      "virtual",
       "volume"
     ],
-    "icon": "volume_up"
+    "icon": "volume_up",
+    "description": "Include application streams and virtual sinks in the device lists"
+  },
+  {
+    "section": "audioShowStreamDevices",
+    "label": "Show Virtual Devices",
+    "tabIndex": 29,
+    "category": "Audio",
+    "keywords": [
+      "app",
+      "application",
+      "audio",
+      "device",
+      "devices",
+      "headphones",
+      "include",
+      "lists",
+      "loopback",
+      "microphone",
+      "obs",
+      "pipewire",
+      "program",
+      "show",
+      "sinks",
+      "sound",
+      "speaker",
+      "stream",
+      "streams",
+      "virtual",
+      "volume"
+    ],
+    "description": "Include application streams and virtual sinks in the device lists"
   },
   {
     "section": "_tab_29",
@@ -11317,8 +11581,7 @@
       "power",
       "security",
       "status"
-    ],
-    "icon": "battery_charging_full"
+    ]
   },
   {
     "section": "_tab_43",
@@ -11969,6 +12232,28 @@
     "description": "Draw an outline and use the highest-contrast surface tone"
   },
   {
+    "section": "dankIslandSatelliteBackground",
+    "label": "Background",
+    "tabIndex": 46,
+    "category": "Dank Island",
+    "keywords": [
+      "activities",
+      "background",
+      "behind",
+      "chrome",
+      "components",
+      "dank",
+      "draw",
+      "dynamic island",
+      "island",
+      "modules",
+      "satellite",
+      "styled",
+      "widgets"
+    ],
+    "description": "Draw an island-styled background behind satellite widgets"
+  },
+  {
     "section": "dankIslandHomeStatusSlot",
     "label": "Battery / Control Center",
     "tabIndex": 46,
@@ -11994,27 +12279,58 @@
     "description": "Battery gauge opens Control Center"
   },
   {
-    "section": "dankIslandBatteryStyle",
-    "label": "Battery Gauge",
+    "section": "dankIslandInteraction",
+    "label": "Behavior",
     "tabIndex": 46,
     "category": "Dank Island",
     "keywords": [
       "activities",
-      "appearance",
-      "battery",
-      "charge",
-      "charging",
+      "behavior",
+      "click",
+      "compact",
+      "current",
       "dank",
       "dynamic island",
-      "gauge",
+      "expand",
+      "expands",
+      "face",
+      "hover",
+      "hybrid",
+      "intentional",
+      "interaction",
       "island",
-      "material",
-      "outline",
-      "power",
-      "solid",
-      "type"
+      "peeks",
+      "press"
     ],
-    "description": "Solid material type or Outline"
+    "icon": "touch_app",
+    "description": "Click expands only on an intentional press. Hybrid peeks the current compact face on hover"
+  },
+  {
+    "section": "dankIslandNotificationBadgeClearOnOpen",
+    "label": "Clear Badge on Open",
+    "tabIndex": 46,
+    "category": "Dank Island",
+    "keywords": [
+      "active",
+      "activities",
+      "alert",
+      "alerts",
+      "badge",
+      "clear",
+      "clears",
+      "dank",
+      "dismiss",
+      "dynamic island",
+      "home",
+      "island",
+      "keeps",
+      "notif",
+      "notifications",
+      "notifs",
+      "open",
+      "unread"
+    ],
+    "description": "Clears the badge on open but keeps notifications active"
   },
   {
     "section": "dankIslandHomeCompactTight",
@@ -12065,7 +12381,28 @@
     "description": "Resize the resting island to align with nearby widgets"
   },
   {
-    "section": "dankIslandBarId",
+    "section": "dankIslandSatelliteSwoopRadius",
+    "label": "Corner Radius",
+    "tabIndex": 46,
+    "category": "Dank Island",
+    "keywords": [
+      "activities",
+      "corner",
+      "corners",
+      "dank",
+      "dynamic island",
+      "goth",
+      "island",
+      "radius",
+      "round",
+      "rounded",
+      "satellite",
+      "size",
+      "sweep"
+    ]
+  },
+  {
+    "section": "dankIslandInstance",
     "label": "Dank Island - Beta",
     "tabIndex": 46,
     "category": "Dank Island",
@@ -12156,6 +12493,47 @@
     "description": "Floats above windows and other content"
   },
   {
+    "section": "dankIslandSatelliteGothCorners",
+    "label": "Goth Corners",
+    "tabIndex": 46,
+    "category": "Dank Island",
+    "keywords": [
+      "activities",
+      "background",
+      "corners",
+      "dank",
+      "dynamic island",
+      "edges",
+      "goth",
+      "island",
+      "radius",
+      "round",
+      "rounded",
+      "satellite",
+      "screen",
+      "sweep",
+      "wing"
+    ],
+    "description": "Sweep the background into the screen edges"
+  },
+  {
+    "section": "dankIslandHoverCloseDelay",
+    "label": "Hide Delay",
+    "tabIndex": 46,
+    "category": "Dank Island",
+    "keywords": [
+      "activities",
+      "close",
+      "dank",
+      "delay",
+      "dynamic island",
+      "hide",
+      "hover",
+      "interaction",
+      "island"
+    ]
+  },
+  {
     "section": "dankIslandHighContrast",
     "label": "High Contrast",
     "tabIndex": 46,
@@ -12230,64 +12608,6 @@
     "description": "Move island and satellites left or right from display center"
   },
   {
-    "section": "dankIslandHoverCloseDelay",
-    "label": "Hover Close Delay",
-    "tabIndex": 46,
-    "category": "Dank Island",
-    "keywords": [
-      "activities",
-      "close",
-      "dank",
-      "delay",
-      "dynamic island",
-      "hover",
-      "interaction",
-      "island"
-    ]
-  },
-  {
-    "section": "dankIslandHoverOpenDelay",
-    "label": "Hover Open Delay",
-    "tabIndex": 46,
-    "category": "Dank Island",
-    "keywords": [
-      "activities",
-      "dank",
-      "delay",
-      "dynamic island",
-      "hover",
-      "interaction",
-      "island",
-      "open"
-    ]
-  },
-  {
-    "section": "dankIslandInteraction",
-    "label": "Interaction",
-    "tabIndex": 46,
-    "category": "Dank Island",
-    "keywords": [
-      "activities",
-      "click",
-      "compact",
-      "current",
-      "dank",
-      "dynamic island",
-      "expand",
-      "expands",
-      "face",
-      "hover",
-      "hybrid",
-      "intentional",
-      "interaction",
-      "island",
-      "peeks",
-      "press"
-    ],
-    "icon": "touch_app",
-    "description": "Click expands only on an intentional press. Hybrid peeks the current compact face on hover"
-  },
-  {
     "section": "_tab_46",
     "label": "Island",
     "tabIndex": 46,
@@ -12317,6 +12637,23 @@
     ]
   },
   {
+    "section": "dankIslandBarId",
+    "label": "Island Instance",
+    "tabIndex": 46,
+    "category": "Dank Island",
+    "keywords": [
+      "activities",
+      "bar",
+      "dank",
+      "dynamic island",
+      "instance",
+      "island",
+      "media",
+      "notifications",
+      "osd"
+    ]
+  },
+  {
     "section": "dankIslandMediaClockVisible",
     "label": "Keep Clock with Media",
     "tabIndex": 46,
@@ -12338,6 +12675,30 @@
       "watch"
     ],
     "description": "Show a clickable clock beside compact media details"
+  },
+  {
+    "section": "dankIslandBatteryStyle",
+    "label": "Material Battery Style",
+    "tabIndex": 46,
+    "category": "Dank Island",
+    "keywords": [
+      "activities",
+      "appearance",
+      "battery",
+      "charge",
+      "charging",
+      "dank",
+      "dynamic island",
+      "gauge",
+      "island",
+      "material",
+      "outline",
+      "power",
+      "solid",
+      "style",
+      "type"
+    ],
+    "description": "Solid material type or Outline"
   },
   {
     "section": "dankIslandHomeMediaSlot",
@@ -12377,6 +12738,7 @@
     "keywords": [
       "accessibility",
       "activities",
+      "animation",
       "apply",
       "changes",
       "dank",
@@ -12386,6 +12748,7 @@
       "island",
       "motion",
       "overshoot",
+      "reduce",
       "spring",
       "without"
     ],
@@ -12393,8 +12756,83 @@
     "description": "Apply island geometry changes immediately without spring overshoot"
   },
   {
+    "section": "dankIslandNotifications",
+    "label": "Notifications",
+    "tabIndex": 46,
+    "category": "Dank Island",
+    "keywords": [
+      "activities",
+      "alert",
+      "alerts",
+      "arrival",
+      "click",
+      "dank",
+      "default",
+      "dynamic island",
+      "expand",
+      "hover",
+      "island",
+      "notif",
+      "notifications",
+      "notifs",
+      "size"
+    ],
+    "icon": "notifications",
+    "description": "Expand notifications by default instead of click or hover"
+  },
+  {
+    "section": "dankIslandSatelliteTransparency",
+    "label": "Opacity",
+    "tabIndex": 46,
+    "category": "Dank Island",
+    "keywords": [
+      "activities",
+      "background",
+      "blur",
+      "dank",
+      "dynamic island",
+      "island",
+      "opacity",
+      "satellite",
+      "transparency"
+    ]
+  },
+  {
+    "section": "dankIslandTransparency",
+    "label": "Opacity",
+    "tabIndex": 46,
+    "category": "Dank Island",
+    "keywords": [
+      "activities",
+      "appearance",
+      "blur",
+      "dank",
+      "dynamic island",
+      "island",
+      "opacity",
+      "surface",
+      "transparency"
+    ]
+  },
+  {
+    "section": "dankIslandHoverOpenDelay",
+    "label": "Open Delay",
+    "tabIndex": 46,
+    "category": "Dank Island",
+    "keywords": [
+      "activities",
+      "dank",
+      "delay",
+      "dynamic island",
+      "hover",
+      "interaction",
+      "island",
+      "open"
+    ]
+  },
+  {
     "section": "dankIslandOuterGap",
-    "label": "Outer Gap",
+    "label": "Outer Gaps",
     "tabIndex": 46,
     "category": "Dank Island",
     "keywords": [
@@ -12406,6 +12844,7 @@
       "dynamic island",
       "edge",
       "gap",
+      "gaps",
       "island",
       "margin",
       "monitor",
@@ -12436,7 +12875,7 @@
   },
   {
     "section": "dankIslandPlacement",
-    "label": "Placement",
+    "label": "Position",
     "tabIndex": 46,
     "category": "Dank Island",
     "keywords": [
@@ -12451,6 +12890,7 @@
       "island",
       "overlay",
       "placement",
+      "position",
       "reserve",
       "windows"
     ],
@@ -12459,7 +12899,7 @@
   },
   {
     "section": "dankIslandSatellitePosition",
-    "label": "Placement",
+    "label": "Position",
     "tabIndex": 46,
     "category": "Dank Island",
     "keywords": [
@@ -12475,7 +12915,6 @@
       "keep",
       "modules",
       "panel",
-      "placement",
       "position",
       "satellite",
       "standalone",
@@ -12492,7 +12931,9 @@
     "tabIndex": 46,
     "category": "Dank Island",
     "keywords": [
+      "accessibility",
       "activities",
+      "animation",
       "apply",
       "changes",
       "dank",
@@ -12554,6 +12995,32 @@
     "description": "Place independent widgets to left and right of island"
   },
   {
+    "section": "dankIslandHomeNotificationBadge",
+    "label": "Show Badge",
+    "tabIndex": 46,
+    "category": "Dank Island",
+    "keywords": [
+      "activities",
+      "alert",
+      "badge",
+      "beside",
+      "clock",
+      "count",
+      "dank",
+      "dynamic island",
+      "home",
+      "island",
+      "notif",
+      "notification",
+      "notifications",
+      "show",
+      "time",
+      "unread",
+      "watch"
+    ],
+    "description": "Unread notification count beside the clock"
+  },
+  {
     "section": "dankIslandSatellitesEnabled",
     "label": "Show Satellite Widgets",
     "tabIndex": 46,
@@ -12582,6 +13049,7 @@
     "category": "Dank Island",
     "keywords": [
       "activities",
+      "animation",
       "bounce",
       "damping",
       "dank",
@@ -12589,6 +13057,7 @@
       "higher",
       "island",
       "less",
+      "motion",
       "settle",
       "spring",
       "values"
@@ -12602,6 +13071,7 @@
     "category": "Dank Island",
     "keywords": [
       "activities",
+      "animation",
       "dank",
       "dynamic island",
       "give",
@@ -12610,6 +13080,7 @@
       "island",
       "mass",
       "more",
+      "motion",
       "percentages",
       "spring"
     ],
@@ -12622,11 +13093,13 @@
     "category": "Dank Island",
     "keywords": [
       "activities",
+      "animation",
       "dank",
       "dynamic island",
       "higher",
       "island",
       "more",
+      "motion",
       "pull",
       "spring",
       "stiffness",
@@ -12683,5 +13156,46 @@
       "weather"
     ],
     "description": "Weather icon and temperature open the weather activity"
+  },
+  {
+    "section": "networkCellular",
+    "label": "Cellular",
+    "tabIndex": 47,
+    "category": "Network",
+    "keywords": [
+      "cdma",
+      "cellular",
+      "connectivity",
+      "gsm",
+      "lte",
+      "mobile",
+      "modem",
+      "network",
+      "online",
+      "wwan"
+    ],
+    "icon": "network_cell"
+  },
+  {
+    "section": "networkCellularProfiles",
+    "label": "Saved Configurations",
+    "tabIndex": 47,
+    "category": "Network",
+    "keywords": [
+      "apn",
+      "cellular",
+      "config",
+      "configurations",
+      "configure",
+      "connectivity",
+      "mobile",
+      "network",
+      "online",
+      "profile",
+      "saved",
+      "setup",
+      "sim"
+    ],
+    "icon": "sim_card"
   }
 ]

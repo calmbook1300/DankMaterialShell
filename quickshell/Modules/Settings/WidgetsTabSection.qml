@@ -1723,6 +1723,86 @@ Column {
                         acceptedButtons: Qt.NoButton
                     }
                 }
+
+                Rectangle {
+                    width: parent.width
+                    height: 36
+                    radius: Theme.cornerRadius
+                    color: trayIconSpacingArea.containsMouse ? Theme.primaryHover : Theme.withAlpha(Theme.primaryHover, 0)
+
+                    Row {
+                        anchors.left: parent.left
+                        anchors.leftMargin: Theme.spacingS
+                        anchors.right: trayIconSpacingButtons.left
+                        anchors.rightMargin: Theme.spacingXS
+                        anchors.verticalCenter: parent.verticalCenter
+                        spacing: Theme.spacingS
+                        clip: true
+
+                        DankIcon {
+                            name: "open_in_full"
+                            size: 16
+                            color: Theme.surfaceText
+                            anchors.verticalCenter: parent.verticalCenter
+                        }
+
+                        StyledText {
+                            text: I18n.tr("Icon Spacing")
+                            font.pixelSize: Theme.fontSizeSmall
+                            color: Theme.surfaceText
+                            font.weight: Font.Normal
+                            anchors.verticalCenter: parent.verticalCenter
+                            maximumLineCount: 1
+                        }
+
+                        StyledText {
+                            text: {
+                                const value = Math.max(0, trayContextMenu.currentWidgetData?.trayIconSpacing ?? SettingsData.trayIconSpacing);
+                                return `${value}px`;
+                            }
+                            font.pixelSize: Theme.fontSizeSmall
+                            color: Theme.surfaceTextMedium
+                            anchors.verticalCenter: parent.verticalCenter
+                        }
+                    }
+
+                    Row {
+                        id: trayIconSpacingButtons
+                        anchors.right: parent.right
+                        anchors.rightMargin: Theme.spacingXS
+                        anchors.verticalCenter: parent.verticalCenter
+                        spacing: Theme.spacingXXS
+
+                        DankActionButton {
+                            buttonSize: 28
+                            iconName: "remove"
+                            iconSize: 16
+                            iconColor: Theme.surfaceText
+                            onClicked: {
+                                const current = Math.max(0, trayContextMenu.currentWidgetData?.trayIconSpacing ?? SettingsData.trayIconSpacing);
+                                root.overflowSettingChanged(trayContextMenu.sectionId, trayContextMenu.widgetIndex, "trayIconSpacing", Math.max(0, current - 1));
+                            }
+                        }
+
+                        DankActionButton {
+                            buttonSize: 28
+                            iconName: "add"
+                            iconSize: 16
+                            iconColor: Theme.surfaceText
+                            onClicked: {
+                                const current = Math.max(0, trayContextMenu.currentWidgetData?.trayIconSpacing ?? SettingsData.trayIconSpacing);
+                                root.overflowSettingChanged(trayContextMenu.sectionId, trayContextMenu.widgetIndex, "trayIconSpacing", Math.min(20, current + 1));
+                            }
+                        }
+                    }
+
+                    MouseArea {
+                        id: trayIconSpacingArea
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        acceptedButtons: Qt.NoButton
+                    }
+                }
             }
         }
     }
@@ -3316,68 +3396,6 @@ Column {
                         onPressed: {
                             batteryPillToggle.checked = !batteryPillToggle.checked;
                             root.overflowSettingChanged(batteryContextMenu.sectionId, batteryContextMenu.widgetIndex, "batteryPillStyle", batteryPillToggle.checked);
-                        }
-                    }
-                }
-
-                Rectangle {
-                    width: parent.width
-                    height: Math.max(18, Theme.fontSizeSmall) + Theme.spacingM * 2
-                    radius: Theme.cornerRadius
-                    color: batteryPillPercentArea.containsMouse && batteryPillToggle.checked ? Theme.primaryHover : Theme.withAlpha(Theme.primaryHover, 0)
-                    opacity: batteryPillToggle.checked ? 1.0 : 0.5
-
-                    Row {
-                        anchors.left: parent.left
-                        anchors.leftMargin: Theme.spacingS + 18
-                        anchors.right: batteryPillPercentToggle.left
-                        anchors.rightMargin: Theme.spacingS
-                        anchors.verticalCenter: parent.verticalCenter
-                        spacing: Theme.spacingS
-                        clip: true
-
-                        DankIcon {
-                            name: "percent"
-                            size: 18
-                            color: Theme.outline
-                            anchors.verticalCenter: parent.verticalCenter
-                        }
-
-                        StyledText {
-                            text: I18n.tr("Show Percentage")
-                            font.pixelSize: Theme.fontSizeSmall
-                            color: Theme.surfaceText
-                            font.weight: Font.Normal
-                            anchors.verticalCenter: parent.verticalCenter
-                            elide: Text.ElideRight
-                            maximumLineCount: 1
-                            width: parent.width - 18 - Theme.spacingS
-                        }
-                    }
-
-                    DankToggle {
-                        id: batteryPillPercentToggle
-                        anchors.right: parent.right
-                        anchors.rightMargin: Theme.spacingS
-                        anchors.verticalCenter: parent.verticalCenter
-                        width: 40
-                        height: 20
-                        enabled: batteryPillToggle.checked
-                        checked: batteryContextMenu.currentWidgetData?.batteryPillPercentSign ?? SettingsData.batteryPillPercentSign
-                        onToggled: {
-                            root.overflowSettingChanged(batteryContextMenu.sectionId, batteryContextMenu.widgetIndex, "batteryPillPercentSign", toggled);
-                        }
-                    }
-
-                    MouseArea {
-                        id: batteryPillPercentArea
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        enabled: batteryPillToggle.checked
-                        cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
-                        onPressed: {
-                            batteryPillPercentToggle.checked = !batteryPillPercentToggle.checked;
-                            root.overflowSettingChanged(batteryContextMenu.sectionId, batteryContextMenu.widgetIndex, "batteryPillPercentSign", batteryPillPercentToggle.checked);
                         }
                     }
                 }

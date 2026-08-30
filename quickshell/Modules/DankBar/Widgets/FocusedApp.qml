@@ -29,6 +29,8 @@ BasePill {
         }
     }
     property int availableWidth: maxWidth
+    readonly property real effectiveHorizontalWidth: Math.max(0, Math.min(maxWidth, availableWidth))
+    readonly property real effectiveHorizontalInnerWidth: Math.max(0, effectiveHorizontalWidth - horizontalPadding * 2)
     property Toplevel activeWindow: null
     property var activeDesktopEntry: null
     property bool isHovered: mouseArea.containsMouse
@@ -200,9 +202,9 @@ BasePill {
         return activeWindow && (activeWindow.title || activeWindow.appId);
     }
 
-    width: hasWindowsOnCurrentWorkspace ? (isVerticalOrientation ? barThickness : visualWidth) : 0
+    width: hasWindowsOnCurrentWorkspace ? (isVerticalOrientation ? barThickness : (effectiveHorizontalInnerWidth > 0 ? visualWidth : 0)) : 0
     height: hasWindowsOnCurrentWorkspace ? (isVerticalOrientation ? visualHeight : barThickness) : 0
-    visible: hasWindowsOnCurrentWorkspace
+    visible: hasWindowsOnCurrentWorkspace && (isVerticalOrientation || effectiveHorizontalInnerWidth > 0)
 
     content: Component {
         Item {
@@ -211,8 +213,9 @@ BasePill {
                     return 0;
                 if (root.isVerticalOrientation)
                     return root.widgetThickness - root.horizontalPadding * 2;
-                return contentRow.implicitWidth;
+                return Math.min(contentRow.implicitWidth, root.effectiveHorizontalInnerWidth);
             }
+            width: root.isVerticalOrientation ? root.widgetThickness - root.horizontalPadding * 2 : Math.min(implicitWidth, root.effectiveHorizontalInnerWidth)
             implicitHeight: root.widgetThickness - root.horizontalPadding * 2
             clip: false
 
@@ -261,117 +264,134 @@ BasePill {
                 color: Theme.widgetTextColor
             }
 
-            Row {
-                id: contentRow
-                anchors.centerIn: parent
-                spacing: Theme.spacingS
-                visible: !root.isVerticalOrientation
+            Item {
+                clip: true
+                anchors.verticalCenter: parent.verticalCenter
+                width: parent.width
+                height: root.barThickness
 
-                readonly property real iconSize: Theme.barIconSize(root.barThickness, undefined, root.barConfig?.maximizeWidgetIcons, root.barConfig?.iconScale)
-
-                IconImage {
-                    id: horizontalAppIcon
-                    width: contentRow.iconSize
-                    height: contentRow.iconSize
+                Row {
+                    id: contentRow
                     anchors.verticalCenter: parent.verticalCenter
-                    visible: root.showIcon && activeWindow && status === Image.Ready
-                    source: {
-                        if (!activeWindow || !activeWindow.appId)
-                            return "";
-                        return Paths.getAppIcon(activeWindow.appId, activeDesktopEntry);
+                    anchors.left: parent.left
+                    spacing: Theme.spacingS
+                    visible: !root.isVerticalOrientation
+
+                    readonly property real iconSize: Theme.barIconSize(root.barThickness, undefined, root.barConfig?.maximizeWidgetIcons, root.barConfig?.iconScale)
+
+                    IconImage {
+                        id: horizontalAppIcon
+                        width: contentRow.iconSize
+                        height: contentRow.iconSize
+                        anchors.verticalCenter: parent.verticalCenter
+                        visible: root.showIcon && activeWindow && status === Image.Ready
+                        source: {
+                            if (!activeWindow || !activeWindow.appId)
+                                return "";
+                            return Paths.getAppIcon(activeWindow.appId, activeDesktopEntry);
+                        }
+                        smooth: true
+                        mipmap: true
+                        asynchronous: true
+                        layer.enabled: activeWindow && (activeWindow.appId === "org.quickshell" || activeWindow.appId === "com.danklinux.dms")
+                        layer.smooth: true
+                        layer.mipmap: true
+                        layer.effect: MultiEffect {
+                            saturation: 0
+                            colorization: 1
+                            colorizationColor: Theme.primary
+                        }
                     }
-                    smooth: true
-                    mipmap: true
-                    asynchronous: true
-                    layer.enabled: activeWindow && (activeWindow.appId === "org.quickshell" || activeWindow.appId === "com.danklinux.dms")
-                    layer.smooth: true
-                    layer.mipmap: true
-                    layer.effect: MultiEffect {
-                        saturation: 0
-                        colorization: 1
-                        colorizationColor: Theme.primary
+
+                    DankIcon {
+                        id: horizontalSteamIcon
+                        width: contentRow.iconSize
+                        size: contentRow.iconSize
+                        anchors.verticalCenter: parent.verticalCenter
+                        name: "sports_esports"
+                        color: Theme.widgetTextColor
+                        visible: root.showIcon && activeWindow && activeWindow.appId && horizontalAppIcon.status !== Image.Ready && Paths.isSteamApp(activeWindow.appId)
                     }
-                }
 
-                DankIcon {
-                    id: horizontalSteamIcon
-                    width: contentRow.iconSize
-                    size: contentRow.iconSize
-                    anchors.verticalCenter: parent.verticalCenter
-                    name: "sports_esports"
-                    color: Theme.widgetTextColor
-                    visible: root.showIcon && activeWindow && activeWindow.appId && horizontalAppIcon.status !== Image.Ready && Paths.isSteamApp(activeWindow.appId)
-                }
-
-                StyledText {
-                    id: appText
-                    text: {
-                        if (compactMode || !activeWindow || !activeWindow.appId)
-                            return "";
-                        return Paths.getAppName(activeWindow.appId, activeDesktopEntry);
+                    StyledText {
+                        id: appText
+                        text: {
+                            if (compactMode || !activeWindow || !activeWindow.appId)
+                                return "";
+                            return Paths.getAppName(activeWindow.appId, activeDesktopEntry);
+                        }
+                        font.pixelSize: Theme.barTextSize(root.barThickness, root.barConfig?.fontScale, root.barConfig?.maximizeWidgetText)
+                        color: Theme.widgetTextColor
+                        anchors.verticalCenter: parent.verticalCenter
+                        wrapMode: Text.NoWrap
+                        elide: Text.ElideRight
+                        maximumLineCount: 1
+                        width: {
+                            const sp = contentRow.spacing;
+                            let used = 0;
+                            if (horizontalAppIcon.visible)
+                                used += horizontalAppIcon.width + sp;
+                            else if (horizontalSteamIcon.visible)
+                                used += horizontalSteamIcon.width + sp;
+                            const budget = Math.max(0, root.effectiveHorizontalInnerWidth - used);
+                            return Math.min(implicitWidth, compactMode ? 80 : 180, budget);
+                        }
+                        visible: text.length > 0
                     }
-                    font.pixelSize: Theme.barTextSize(root.barThickness, root.barConfig?.fontScale, root.barConfig?.maximizeWidgetText)
-                    color: Theme.widgetTextColor
-                    anchors.verticalCenter: parent.verticalCenter
-                    wrapMode: Text.NoWrap
-                    elide: Text.ElideRight
-                    maximumLineCount: 1
-                    width: Math.min(implicitWidth, compactMode ? 80 : 180)
-                    visible: text.length > 0
-                }
 
-                StyledText {
-                    id: appSeparator
-                    text: compactMode ? "" : "•"
-                    font.pixelSize: Theme.barTextSize(root.barThickness, root.barConfig?.fontScale, root.barConfig?.maximizeWidgetText)
-                    color: Theme.outlineButton
-                    anchors.verticalCenter: parent.verticalCenter
-                    visible: !compactMode && appText.text && titleText.text
-                }
+                    StyledText {
+                        id: appSeparator
+                        text: compactMode ? "" : "•"
+                        font.pixelSize: Theme.barTextSize(root.barThickness, root.barConfig?.fontScale, root.barConfig?.maximizeWidgetText)
+                        color: Theme.outlineButton
+                        anchors.verticalCenter: parent.verticalCenter
+                        visible: !compactMode && appText.text && titleText.text
+                    }
 
-                StyledText {
-                    id: titleText
-                    text: {
-                        const title = activeWindow && activeWindow.title ? activeWindow.title : "";
-                        const appName = appText.text;
+                    StyledText {
+                        id: titleText
+                        text: {
+                            const title = activeWindow && activeWindow.title ? activeWindow.title : "";
+                            const appName = appText.text;
 
-                        if (compactMode) {
-                            if (!title || title === appName)
-                                return title || appName;
+                            if (compactMode) {
+                                if (!title || title === appName)
+                                    return title || appName;
+                                if (title.endsWith(appName))
+                                    return title.substring(0, title.length - appName.length).replace(/ (-|—) $/, "") || appName;
+                                return title;
+                            }
+
+                            if (!title || !appName)
+                                return title;
+
                             if (title.endsWith(appName))
-                                return title.substring(0, title.length - appName.length).replace(/ (-|—) $/, "") || appName;
+                                return title.substring(0, title.length - appName.length).replace(/ (-|—) $/, "");
+
                             return title;
                         }
-
-                        if (!title || !appName)
-                            return title;
-
-                        if (title.endsWith(appName))
-                            return title.substring(0, title.length - appName.length).replace(/ (-|—) $/, "");
-
-                        return title;
+                        font.pixelSize: Theme.barTextSize(root.barThickness, root.barConfig?.fontScale, root.barConfig?.maximizeWidgetText)
+                        color: Theme.widgetTextColor
+                        anchors.verticalCenter: parent.verticalCenter
+                        wrapMode: Text.NoWrap
+                        elide: Text.ElideRight
+                        maximumLineCount: 1
+                        width: {
+                            const sp = contentRow.spacing;
+                            let used = 0;
+                            if (horizontalAppIcon.visible)
+                                used += horizontalAppIcon.width + sp;
+                            else if (horizontalSteamIcon.visible)
+                                used += horizontalSteamIcon.width + sp;
+                            if (appText.visible)
+                                used += appText.width + sp;
+                            if (appSeparator.visible)
+                                used += appSeparator.width + sp;
+                            const budget = root.effectiveHorizontalInnerWidth - used;
+                            return Math.min(implicitWidth, Math.max(0, budget));
+                        }
+                        visible: text.length > 0
                     }
-                    font.pixelSize: Theme.barTextSize(root.barThickness, root.barConfig?.fontScale, root.barConfig?.maximizeWidgetText)
-                    color: Theme.widgetTextColor
-                    anchors.verticalCenter: parent.verticalCenter
-                    wrapMode: Text.NoWrap
-                    elide: Text.ElideRight
-                    maximumLineCount: 1
-                    width: {
-                        const sp = contentRow.spacing;
-                        let used = 0;
-                        if (horizontalAppIcon.visible)
-                            used += horizontalAppIcon.width + sp;
-                        else if (horizontalSteamIcon.visible)
-                            used += horizontalSteamIcon.width + sp;
-                        if (appText.visible)
-                            used += appText.width + sp;
-                        if (appSeparator.visible)
-                            used += appSeparator.width + sp;
-                        const budget = root.maxWidth - root.horizontalPadding * 2 - used;
-                        return Math.min(implicitWidth, Math.max(0, budget));
-                    }
-                    visible: text.length > 0
                 }
             }
         }
@@ -379,7 +399,10 @@ BasePill {
 
     MouseArea {
         id: mouseArea
-        anchors.fill: parent
+        x: -root.leftMargin
+        y: -root.topMargin
+        width: root.width + root.leftMargin + root.rightMargin
+        height: root.height + root.topMargin + root.bottomMargin
         hoverEnabled: root.isVerticalOrientation
         cursorShape: Qt.PointingHandCursor
         onEntered: {

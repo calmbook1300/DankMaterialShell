@@ -17,6 +17,23 @@ Singleton {
     readonly property list<NotifWrapper> allWrappers: []
     readonly property list<NotifWrapper> popups: allWrappers.filter(n => n && n.popup)
 
+    property var seenNotifications: []
+    readonly property int unreadCount: {
+        const seen = root.seenNotifications;
+        if (seen.length === 0)
+            return root.notifications.length;
+        let count = 0;
+        for (const wrapper of root.notifications) {
+            if (seen.indexOf(wrapper) === -1)
+                count++;
+        }
+        return count;
+    }
+
+    function markNotificationsSeen() {
+        root.seenNotifications = root.notifications.slice();
+    }
+
     property var historyList: []
     readonly property string historyFile: Paths.strip(Paths.cache) + "/notification_history.json"
     readonly property string imageCacheDir: Paths.strip(Paths.cache) + "/notification_images"
@@ -548,6 +565,7 @@ Singleton {
 
     function onOverlayOpen() {
         popupsDisabled = true;
+        markNotificationsSeen();
         addGate.stop();
         addGateBusy = false;
 
@@ -564,6 +582,7 @@ Singleton {
 
     function onOverlayClose() {
         popupsDisabled = false;
+        markNotificationsSeen();
         processQueue();
     }
 
@@ -740,6 +759,80 @@ Singleton {
         }
     }
 
+    function isFocusedScreen(screen) {
+        if (!SettingsData.notificationFocusedMonitor)
+            return true;
+        const focused = CompositorService.getFocusedScreen();
+        return !!focused && !!screen && focused.name === screen.name;
+    }
+
+    function notificationIconFromImage(image) {
+        image = image || "";
+        return image.startsWith("image://icon/") ? image.substring(13) : "";
+    }
+
+    function notificationImageHasSpecialPrefix(image) {
+        return /^(material|svg|unicode|image):/.test(notificationIconFromImage(image));
+    }
+
+    function notificationHasImage(image) {
+        image = image || "";
+        return image !== "" && (!image.startsWith("image://icon/") || notificationIconFromImage(image).startsWith("/"));
+    }
+
+    function notificationCleanImage(image) {
+        image = image || "";
+        if (!image)
+            return "";
+        if (image.startsWith("image://icon/")) {
+            const payload = image.substring(13);
+            if (payload.startsWith("/"))
+                return "file://" + payload;
+        }
+        return Paths.strip(image);
+    }
+
+    // Apps like kitty send app_icon as their bundled logo path; the themed icon wins when the basename resolves (#2746).
+    function notificationThemedAppIcon(appIcon) {
+        if (/^https?:\/\//.test(appIcon))
+            return "";
+        const path = appIcon.startsWith("file://") ? appIcon.substring(7) : appIcon;
+        if (!path.startsWith("/"))
+            return "";
+        const file = path.substring(path.lastIndexOf("/") + 1);
+        const dot = file.lastIndexOf(".");
+        const base = dot > 0 ? file.substring(0, dot) : file;
+        if (!base)
+            return "";
+        return Paths.themedIconPath(base) ? base : "";
+    }
+
+    function notificationImageSource(image, appIcon) {
+        image = image || "";
+        appIcon = appIcon || "";
+        if (notificationHasImage(image))
+            return notificationCleanImage(image);
+        if (notificationImageHasSpecialPrefix(image))
+            return "";
+        if (!appIcon)
+            return "";
+        if (notificationThemedAppIcon(appIcon))
+            return "";
+        return /^(file|https?):\/\//.test(appIcon) || appIcon.includes("/") ? appIcon : "";
+    }
+
+    function notificationFallbackIcon(image, appIcon) {
+        image = image || "";
+        appIcon = appIcon || "";
+        const fromImage = notificationIconFromImage(image);
+        if (notificationImageHasSpecialPrefix(image))
+            return fromImage;
+        const themed = notificationThemedAppIcon(appIcon);
+        if (themed)
+            return themed;
+        return appIcon || fromImage || "";
+    }
+
     component NotifWrapper: QtObject {
         id: wrapper
 
@@ -852,16 +945,10 @@ Singleton {
         }
         readonly property string desktopEntry: notification?.desktopEntry ?? ""
         readonly property string image: notification?.image ?? ""
-        readonly property string cleanImage: {
-            if (!image)
-                return "";
-            if (image.startsWith("image://icon/")) {
-                const payload = image.substring(13);
-                if (payload.startsWith("/"))
-                    return "file://" + payload;
-            }
-            return Paths.strip(image);
-        }
+        readonly property string cleanImage: root.notificationCleanImage(image)
+        readonly property bool hasDisplayImage: root.notificationHasImage(image)
+        readonly property string displayImage: root.notificationImageSource(image, appIcon)
+        readonly property string fallbackIconName: root.notificationFallbackIcon(image, appIcon)
         property int urgencyOverride: notification?.urgency ?? NotificationUrgency.Normal
         readonly property int urgency: urgencyOverride
         readonly property list<NotificationAction> actions: notification?.actions ?? []

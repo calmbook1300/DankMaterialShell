@@ -188,6 +188,16 @@ Singleton {
         // Keep map entries until each popout's close animation finishes (hidePopout).
     }
 
+    function dismissAllForScreen(screenName) {
+        if (!screenName)
+            return;
+        if (currentPopoutsByScreen[screenName])
+            closeAllPopouts();
+        if (ModalManager.currentModalsByScreen[screenName])
+            ModalManager.closeAllModalsExcept(null);
+        TrayMenuManager.closeAllMenus();
+    }
+
     function closePopoutForScreen(screen) {
         if (!screen)
             return;
@@ -244,8 +254,7 @@ Singleton {
         if (!popout || !popout.screen)
             return;
 
-        // Clicking a transient popout pins it instead of toggling it closed.
-        const wasTransient = popout.hoverDismissEnabled === true;
+        // Clicks pin a popout, while clicking its active trigger toggles it closed below.
         if (!hoverRequest && popout.hoverDismissEnabled !== undefined)
             popout.hoverDismissEnabled = false;
 
@@ -300,14 +309,7 @@ Singleton {
                 return;
 
             if (!hoverRequest && (triggerId === undefined || sameDefinedTrigger)) {
-                if (!wasTransient) {
-                    _closePopout(popout);
-                    return;
-                }
-                if (popout.updateSurfacePosition)
-                    popout.updateSurfacePosition();
-                if (triggerId !== undefined)
-                    currentPopoutTriggers[screenName] = triggerId;
+                _closePopout(popout);
                 return;
             }
 

@@ -17,6 +17,8 @@ Singleton {
 
     readonly property int settingsConfigVersion: 16
 
+    readonly property bool isGreeterMode: Quickshell.env("DMS_RUN_GREETER") === "1" || Quickshell.env("DMS_RUN_GREETER") === "true"
+
     enum Position {
         Top,
         Bottom,
@@ -165,6 +167,7 @@ Singleton {
     property string customThemeFile: ""
     property var registryThemeVariants: ({})
     property string matugenScheme: "scheme-tonal-spot"
+    property bool matugenSmartMode: false
     property real matugenContrast: 0
     property bool runUserMatugenTemplates: true
     property string matugenTargetMonitor: ""
@@ -227,6 +230,8 @@ Singleton {
     property int firstDayOfWeek: -1
     property bool showWeekNumber: false
     property string calendarBackend: "auto"
+    property string defaultTaskCalendarId: ""
+    property bool audioShowStreamDevices: false
     property string clockFormat: "auto"
     readonly property bool localeUses24Hour: {
         const fmt = Qt.locale().timeFormat(Locale.ShortFormat).replace(/'[^']*'/g, "");
@@ -237,7 +242,6 @@ Singleton {
     property bool padHours12Hour: false
     property bool useFahrenheit: false
     property string windSpeedUnit: "kmh"
-    property bool nightModeEnabled: false
     property int animationSpeed: SettingsData.AnimationSpeed.Short
     property int customAnimationDuration: 500
     property bool syncComponentAnimationSpeeds: true
@@ -246,6 +250,10 @@ Singleton {
     property int popoutCustomAnimationDuration: 150
     property int modalAnimationSpeed: SettingsData.AnimationSpeed.Short
     property int modalCustomAnimationDuration: 150
+    property bool reduceMotion: false
+    onReduceMotionChanged: saveSettings()
+    property int springBounce: 1
+    onSpringBounceChanged: saveSettings()
     property bool enableRippleEffects: true
     onEnableRippleEffectsChanged: saveSettings()
     property int animationVariant: SettingsData.AnimationVariant.Material
@@ -519,6 +527,7 @@ Singleton {
     property bool trayAutoOverflow: true
     property bool trayPopupSingleLine: true
     property int trayMaxVisibleItems: 0
+    property real trayIconSpacing: 0
     property bool appsDockHideIndicators: false
     property bool appsDockColorizeActive: false
     property string appsDockActiveColorMode: "primary"
@@ -806,7 +815,6 @@ Singleton {
     property bool showBatteryTime: false
     property bool showBatteryTimeOnlyOnBattery: false
     property bool batteryPillStyle: false
-    property bool batteryPillPercentSign: false
     property bool lockBeforeSuspend: false
     property bool loginctlLockIntegration: true
     property bool fadeToLockEnabled: true
@@ -898,6 +906,7 @@ Singleton {
     property bool notificationOverlayEnabled: false
     property bool notificationPopupShadowEnabled: true
     property bool notificationPopupPrivacyMode: false
+    property bool notificationPopupBodyInvokesAction: false
     property bool notificationForegroundLayers: true
     property int overviewRows: 2
     property int overviewColumns: 5
@@ -908,6 +917,7 @@ Singleton {
     property bool lockScreenShowPowerActions: true
     property bool lockScreenShowSystemIcons: true
     property bool lockScreenShowTime: true
+    property string lockScreenClockStyle: "horizontal"
     property bool lockScreenShowDate: true
     property bool lockScreenShowProfileImage: true
     property bool lockScreenShowPasswordField: true
@@ -979,8 +989,8 @@ Singleton {
     readonly property int dankIslandPosition: islandBarConfig?.position ?? SettingsData.Position.Top
     readonly property string dankIslandEdge: dankIslandPosition === SettingsData.Position.Bottom ? "bottom" : "top"
     readonly property int dankIslandReservedStripHeight: {
-        const reserve = Math.max(36, Math.min(128, dankIslandReserveHeight));
-        const compact = Math.max(36, Math.min(72, dankIslandCompactHeight));
+        const reserve = Math.max(24, Math.min(128, dankIslandReserveHeight));
+        const compact = Math.max(24, Math.min(72, dankIslandCompactHeight));
         const gap = Math.max(0, Math.min(48, dankIslandOuterGap));
         return Math.max(reserve, gap + compact);
     }
@@ -994,17 +1004,24 @@ Singleton {
     property int dankIslandHoverOpenDelay: 150
     property int dankIslandHoverCloseDelay: 150
     property string dankIslandPalette: "default"
+    property real dankIslandTransparency: 1
     property bool dankIslandHighContrast: false
     property bool dankIslandMediaClockVisible: true
+    property bool dankIslandHomeNotificationBadge: true
+    property bool dankIslandNotificationBadgeClearOnOpen: false
     property bool dankIslandNotificationExpand: false
     property string dankIslandHomeMediaSlot: "left"
-    property string dankIslandHomeStatusSlot: "right"
+    property string dankIslandHomeStatusSlot: "hidden"
     property string dankIslandHomeWeatherSlot: "hidden"
     property bool dankIslandHomeCompactTight: false
     property string dankIslandBatteryStyle: "solid"
     property bool dankIslandSatellitesEnabled: true
     property string dankIslandSatellitePosition: "edges"
     property int dankIslandSatelliteGap: 12
+    property bool dankIslandSatelliteBackground: false
+    property bool dankIslandSatelliteGothCorners: true
+    property real dankIslandSatelliteTransparency: 1
+    property int dankIslandSatelliteSwoopRadius: 24
     property bool dankIslandReducedMotion: false
     property real dankIslandSpringStiffness: 560
     property real dankIslandSpringDamping: 37
@@ -1345,10 +1362,14 @@ Singleton {
     signal notificationPopupsInvalidated
 
     function refreshAuthAvailability() {
+        if (isGreeterMode)
+            return;
         Processes.detectAuthCapabilities();
     }
 
     Component.onCompleted: {
+        if (isGreeterMode)
+            return;
         Processes.settingsRoot = root;
         loadSettings();
         initializeListModels();
@@ -1411,6 +1432,8 @@ Singleton {
     }
 
     function checkIconThemeDrift() {
+        if (isGreeterMode)
+            return;
         if (resolveIconTheme() === "System Default")
             return;
         if (!SessionData.lastAppliedIconTheme)
@@ -1571,6 +1594,8 @@ Singleton {
     }
 
     function scheduleAuthApply() {
+        if (isGreeterMode)
+            return;
         Qt.callLater(() => {
             Processes.settingsRoot = root;
             Processes.scheduleAuthApply();
@@ -1578,6 +1603,8 @@ Singleton {
     }
 
     function scheduleGreeterAutoLoginSync() {
+        if (isGreeterMode)
+            return;
         Qt.callLater(() => {
             Processes.settingsRoot = root;
             Processes.scheduleGreeterAutoLoginSync();
@@ -1585,6 +1612,8 @@ Singleton {
     }
 
     function markGreeterSyncPending(who, key, oldValue) {
+        if (isGreeterMode)
+            return;
         if (!(key in SessionData.greeterSyncBaseline)) {
             var baseline = Object.assign({}, SessionData.greeterSyncBaseline);
             baseline[key] = oldValue;
@@ -2722,6 +2751,12 @@ Singleton {
         }
     }
 
+    function setMatugenSmartMode(enabled) {
+        if (matugenSmartMode === enabled)
+            return;
+        set("matugenSmartMode", enabled);
+    }
+
     function setMatugenContrast(value) {
         if (matugenContrast === value)
             return;
@@ -3325,11 +3360,11 @@ Singleton {
     FileView {
         id: settingsFile
 
-        path: StandardPaths.writableLocation(StandardPaths.ConfigLocation) + "/DankMaterialShell/settings.json"
+        path: isGreeterMode ? "" : StandardPaths.writableLocation(StandardPaths.ConfigLocation) + "/DankMaterialShell/settings.json"
         blockLoading: true
         blockWrites: true
         atomicWrites: true
-        watchChanges: true
+        watchChanges: !isGreeterMode
         onFileChanged: {
             if (_selfWrite) {
                 _selfWrite = false;
@@ -3338,6 +3373,8 @@ Singleton {
             settingsFileReloadDebounce.restart();
         }
         onLoaded: {
+            if (isGreeterMode)
+                return;
             const wasLoaded = _hasLoaded;
             const prevFrameEnabled = frameEnabled;
             const prevFrameMode = frameMode;
@@ -3380,6 +3417,8 @@ Singleton {
                 updateFrameCompositorLayout();
         }
         onLoadFailed: error => {
+            if (isGreeterMode)
+                return;
             applyStoredTheme();
         }
         onSaveFailed: error => {
@@ -3391,16 +3430,20 @@ Singleton {
     FileView {
         id: pluginSettingsFile
 
-        path: pluginSettingsPath
+        path: isGreeterMode ? "" : pluginSettingsPath
         blockLoading: true
         blockWrites: true
         atomicWrites: true
         printErrors: false
-        watchChanges: true
+        watchChanges: !isGreeterMode
         onLoaded: {
+            if (isGreeterMode)
+                return;
             parsePluginSettings(pluginSettingsFile.text());
         }
         onLoadFailed: error => {
+            if (isGreeterMode)
+                return;
             const msg = String(error || "");
             if (!_isMissingPluginSettingsError(error))
                 log.warn("Failed to load plugin_settings.json. Error:", msg);
