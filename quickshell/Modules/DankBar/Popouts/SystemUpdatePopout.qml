@@ -54,7 +54,7 @@ DankPopout {
         }
     }
 
-    popupWidth: 440
+    popupWidth: 480
     popupHeight: 560
     triggerWidth: 55
     positioning: ""
