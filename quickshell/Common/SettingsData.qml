@@ -548,6 +548,7 @@ Singleton {
     property bool greeterAutoLogin: false
     property bool greeterEnableFprint: false
     property bool greeterEnableU2f: false
+    property bool greeterShowWeather: true
     property string greeterWallpaperPath: ""
     property string greeterLockDateFormat: ""
     property string greeterFontFamily: ""
@@ -814,6 +815,8 @@ Singleton {
     property bool showBatteryPercentOnlyOnBattery: false
     property bool showBatteryTime: false
     property bool showBatteryTimeOnlyOnBattery: false
+    property bool showBatteryPowerCharging: false
+    property bool showBatteryPowerDischarging: false
     property bool batteryPillStyle: false
     property bool lockBeforeSuspend: false
     property bool loginctlLockIntegration: true
@@ -874,6 +877,7 @@ Singleton {
     property bool dockAutoHide: false
     property bool dockSmartAutoHide: false
     property bool dockUseOverlayLayer: false
+    property bool dockShowOnFullscreen: false
     property bool dockGroupByApp: false
     property bool dockSeparatePinnedAndRunningApps: false
     property bool dockRestoreSpecialWorkspaceOnClick: false
@@ -922,6 +926,7 @@ Singleton {
     property bool lockScreenShowProfileImage: true
     property bool lockScreenShowPasswordField: true
     property bool lockScreenShowMediaPlayer: true
+    property bool lockScreenShowWeather: true
     property bool lockScreenPowerOffMonitorsOnLock: false
     property bool lockAtStartup: false
 
