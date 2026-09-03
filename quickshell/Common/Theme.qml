@@ -394,6 +394,38 @@ Singleton {
         return schemes[0];
     }
 
+    readonly property var availableSourceModes: [({
+                "value": "dominant",
+                "label": I18n.tr("Dominant", "matugen source color option")
+            }), ({
+                "value": "colorful",
+                "label": I18n.tr("Colorful", "matugen source color option")
+            }), ({
+                "value": "darkness",
+                "label": I18n.tr("Darkest", "matugen source color option")
+            }), ({
+                "value": "lightness",
+                "label": I18n.tr("Lightest", "matugen source color option")
+            }), ({
+                "value": "saturation",
+                "label": I18n.tr("Most Saturated", "matugen source color option")
+            }), ({
+                "value": "less-saturation",
+                "label": I18n.tr("Least Saturated", "matugen source color option")
+            }), ({
+                "value": "value",
+                "label": I18n.tr("Most Vivid", "matugen source color option")
+            })]
+
+    function getSourceMode(value) {
+        const modes = availableSourceModes;
+        for (var i = 0; i < modes.length; i++) {
+            if (modes[i].value === value)
+                return modes[i];
+        }
+        return modes[0];
+    }
+
     property color primary: currentThemeData.primary
     property color primaryText: currentThemeData.primaryText
     property color secondary: currentThemeData.secondary
@@ -1485,7 +1517,7 @@ Singleton {
         const size = (maximizeIcon ?? false) ? iconSizeLarge : iconSize;
         const s = iconScale !== undefined ? iconScale : 1.0;
 
-        return Math.round((barThickness / 48) * (size + defaultOffset) * s);
+        return 2 * Math.round((barThickness / 48) * (size + defaultOffset) * s / 2);
     }
 
     function barTextSize(barThickness, fontScale, maximizeText) {
@@ -1493,10 +1525,30 @@ Singleton {
         const dankBarScale = fontScale !== undefined ? fontScale : 1.0;
         const maxScale = (maximizeText ?? false) ? 1.5 : 1.0;
         if (scale <= 0.75)
-            return Math.round(fontSizeSmall * 0.9 * dankBarScale * maxScale);
+            return evenLineBoxSize(Math.round(fontSizeSmall * 0.9 * dankBarScale * maxScale));
         if (scale >= 1.25)
-            return Math.round(fontSizeMedium * dankBarScale * maxScale);
-        return Math.round(fontSizeSmall * dankBarScale * maxScale);
+            return evenLineBoxSize(Math.round(fontSizeMedium * dankBarScale * maxScale));
+        return evenLineBoxSize(Math.round(fontSizeSmall * dankBarScale * maxScale));
+    }
+
+    FontMetrics {
+        id: lineBoxProbe
+    }
+
+    // Text.implicitHeight is ceil(FontMetrics.height); probe.font is written whole and read via boundingRect() so bindings capture no dependency on the probe
+    function lineBoxHeight(pixelSize) {
+        lineBoxProbe.font = Qt.font({
+            family: fontFamily,
+            weight: fontWeight,
+            pixelSize: pixelSize
+        });
+        return Math.ceil(lineBoxProbe.boundingRect("0").height);
+    }
+
+    function evenLineBoxSize(pixelSize) {
+        if (lineBoxHeight(pixelSize) % 2 === 0)
+            return pixelSize;
+        return lineBoxHeight(pixelSize + 1) % 2 === 0 ? pixelSize + 1 : pixelSize;
     }
 
     function getBatteryIcon(level, isCharging, batteryAvailable) {
@@ -1619,6 +1671,13 @@ Singleton {
         }
         if (typeof SettingsData !== "undefined" && SettingsData.matugenContrast !== 0) {
             args.push("--contrast", SettingsData.matugenContrast.toString());
+        }
+        // Only sent when it would change something. A shell newer than the dms
+        // binary is a supported setup (DMS_SHELL_DIR / -c), and an older binary
+        // exits with "unknown flag: --source-mode" rather than ignoring it, so
+        // the default must not put the flag on the command line at all.
+        if (typeof SettingsData !== "undefined" && SettingsData.matugenSourceMode && SettingsData.matugenSourceMode !== "dominant") {
+            args.push("--source-mode", SettingsData.matugenSourceMode);
         }
 
         if (typeof SettingsData !== "undefined") {
@@ -2041,9 +2100,23 @@ Singleton {
         return Math.round(value * s) / s;
     }
 
+    // Qt rounds a centred anchor offset to whole pixels, so a box must share its content's parity
+    function snapEven(value, dpr) {
+        const s = dpr || 1;
+        return 2 * Math.round(value * s / 2) / s;
+    }
+
     function px(value, dpr) {
         const s = dpr || 1;
         return Math.round(value * s) / s;
+    }
+
+    function barWidgetThickness(innerPadding, dpr) {
+        return snapEven(Math.max(20, 26 + innerPadding * 0.6), dpr);
+    }
+
+    function barThickness(innerPadding, dpr) {
+        return snapEven(Math.max(barWidgetThickness(innerPadding, dpr) + innerPadding + 4, barHeight - 4 - (8 - innerPadding)), dpr);
     }
 
     function hairline(dpr) {

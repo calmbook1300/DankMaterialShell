@@ -16,10 +16,7 @@ Item {
     readonly property var instanceChoices: {
         SettingsData.barConfigs;
         SettingsData.dankIslandBarId;
-        const rows = [({
-                    "id": "",
-                    "name": I18n.tr("Off", "island instance choice: island disabled")
-                })];
+        const rows = [];
         const configs = SettingsData.barConfigs || [];
         for (let i = 0; i < configs.length; i++)
             rows.push({
@@ -29,9 +26,9 @@ Item {
         return rows;
     }
     readonly property int instanceIndex: Math.max(0, root.instanceChoices.findIndex(row => row.id === SettingsData.dankIslandBarId))
-    readonly property var homeSlotValues: ["left", "right", "hidden"]
+    readonly property var systemLevelDisplayValues: ["icon", "percentage", "both"]
     readonly property var paletteValues: ["default", "bright", "dim"]
-    readonly property var batteryStyleValues: ["solid", "outline"]
+    readonly property var batteryStyleValues: ["solid", "outline", "ring"]
     readonly property var satellitePositionValues: ["island", "edges"]
     readonly property var interactionModeValues: ["click", "hybrid"]
 
@@ -57,19 +54,53 @@ Item {
             SettingsCard {
                 width: parent.width
                 iconName: "view_in_ar"
-                title: I18n.tr("Dank Island - Beta", "island settings: page title")
+                title: I18n.tr("Dank Island", "island settings: page title")
                 settingKey: "dankIslandInstance"
+                tags: ["island", "layout", "standard", "frame", "mode", "bar"]
+
+                SettingsLayoutPicker {}
 
                 SettingsButtonGroupRow {
                     settingKey: "dankIslandBarId"
                     tags: ["island", "activities", "media", "notifications", "osd", "bar"]
+                    visible: !!SettingsData.dankIslandBarId && SettingsData.barConfigs.length > 1
                     text: I18n.tr("Island Instance", "island settings: which bar config the island replaces")
                     model: root.instanceChoices.map(row => row.name)
                     currentIndex: root.instanceIndex
                     onSelectionChanged: (index, selected) => {
                         if (selected)
-                            SettingsData.set("dankIslandBarId", root.instanceChoices[index]?.id ?? "");
+                            SettingsData.setIslandBarId(root.instanceChoices[index]?.id ?? "");
                     }
+                }
+
+                SettingsToggleRow {
+                    settingKey: "dankIslandEnable"
+                    tags: ["island", "enable", "show", "hide"]
+                    visible: !!SettingsData.dankIslandBarId
+                    text: I18n.tr("Enable Island")
+                    description: I18n.tr("Toggle the Island on this instance's displays")
+                    checked: SettingsData.dankIslandEnabled
+                    onToggled: checked => SettingsData.updateBarConfig(SettingsData.dankIslandBarId, {
+                            enabled: checked
+                        })
+                }
+            }
+
+            SettingsCard {
+                width: parent.width
+                iconName: "monitor"
+                title: I18n.tr("Display Assignment")
+                settingKey: "dankIslandDisplays"
+                collapsible: true
+                expanded: false
+                visible: SettingsData.dankIslandEnabled
+
+                SettingsDisplayPicker {
+                    emptyMeansAll: false
+                    displayPreferences: SettingsData.islandBarConfig?.screenPreferences ?? ["all"]
+                    onPreferencesChanged: prefs => SettingsData.updateBarConfig(SettingsData.dankIslandBarId, {
+                            screenPreferences: prefs
+                        })
                 }
             }
 
@@ -78,7 +109,7 @@ Item {
                 iconName: "open_with"
                 title: I18n.tr("Position", "island settings: position card title")
                 settingKey: "dankIslandPlacement"
-                enabled: SettingsData.dankIslandEnabled
+                visible: SettingsData.dankIslandEnabled
 
                 SettingsToggleRow {
                     settingKey: "dankIslandFloating"
@@ -161,52 +192,43 @@ Item {
                 iconName: "home"
                 title: I18n.tr("Home Compact", "island settings: home face card title")
                 settingKey: "dankIslandActivities"
-                enabled: SettingsData.dankIslandEnabled
+                visible: SettingsData.dankIslandEnabled
 
                 StyledText {
                     width: parent.width
-                    text: I18n.tr("Choose which shortcuts sit left or right of the clock", "island settings: home face slot hint")
+                    text: I18n.tr("Drag groups above the clock to sit left of it, below to sit right. Click the eye to hide a group.", "island settings: home layout editor hint")
                     color: Theme.surfaceVariantText
                     font.pixelSize: Theme.fontSizeSmall
                     wrapMode: Text.WordWrap
                 }
 
+                IslandHomeLayoutEditor {
+                    width: parent.width
+                }
+
                 SettingsButtonGroupRow {
-                    settingKey: "dankIslandHomeMediaSlot"
-                    tags: ["island", "home", "compact", "media", "launcher", "search", "cava"]
-                    text: I18n.tr("Media / Launcher", "island settings: media or launcher slot row")
-                    description: I18n.tr("Search when idle, visualizer when media is playing", "island settings: media slot description")
-                    model: [I18n.tr("Left", "island settings: media or launcher slot left of the clock"), I18n.tr("Right", "island settings: media or launcher slot right of the clock"), I18n.tr("Hidden", "island settings: media or launcher slot hidden")]
-                    currentIndex: root.valueIndex(root.homeSlotValues, SettingsData.dankIslandHomeMediaSlot, "left")
+                    settingKey: "dankIslandHomeVolumeDisplay"
+                    tags: ["island", "home", "compact", "volume", "icon", "percentage"]
+                    text: I18n.tr("Volume Style", "island settings: volume display mode row")
+                    visible: SettingsData.islandHomeGroupEnabled("volume")
+                    model: [I18n.tr("Icon", "island settings: level shown as icon only"), I18n.tr("Percentage", "island settings: level shown as percentage only"), I18n.tr("Both", "island settings: level shown as icon and percentage")]
+                    currentIndex: root.valueIndex(root.systemLevelDisplayValues, SettingsData.dankIslandHomeVolumeDisplay, "both")
                     onSelectionChanged: (index, selected) => {
                         if (selected)
-                            SettingsData.set("dankIslandHomeMediaSlot", root.homeSlotValues[index] ?? "left");
+                            SettingsData.set("dankIslandHomeVolumeDisplay", root.systemLevelDisplayValues[index] ?? "both");
                     }
                 }
 
                 SettingsButtonGroupRow {
-                    settingKey: "dankIslandHomeStatusSlot"
-                    tags: ["island", "home", "compact", "battery", "control center", "tools"]
-                    text: I18n.tr("Battery / Control Center", "island settings: battery or control center slot row")
-                    description: BatteryService.batteryAvailable ? I18n.tr("Battery gauge opens Control Center", "island settings: status slot description with battery") : I18n.tr("Tools icon opens Control Center", "island settings: status slot description without battery")
-                    model: [I18n.tr("Left", "island settings: battery or control center slot left of the clock"), I18n.tr("Right", "island settings: battery or control center slot right of the clock"), I18n.tr("Hidden", "island settings: battery or control center slot hidden")]
-                    currentIndex: root.valueIndex(root.homeSlotValues, SettingsData.dankIslandHomeStatusSlot, "hidden")
+                    settingKey: "dankIslandHomeBrightnessDisplay"
+                    tags: ["island", "home", "compact", "brightness", "icon", "percentage"]
+                    text: I18n.tr("Brightness Style", "island settings: brightness display mode row")
+                    visible: SettingsData.islandHomeGroupEnabled("brightness")
+                    model: [I18n.tr("Icon", "island settings: level shown as icon only"), I18n.tr("Percentage", "island settings: level shown as percentage only"), I18n.tr("Both", "island settings: level shown as icon and percentage")]
+                    currentIndex: root.valueIndex(root.systemLevelDisplayValues, SettingsData.dankIslandHomeBrightnessDisplay, "both")
                     onSelectionChanged: (index, selected) => {
                         if (selected)
-                            SettingsData.set("dankIslandHomeStatusSlot", root.homeSlotValues[index] ?? "hidden");
-                    }
-                }
-
-                SettingsButtonGroupRow {
-                    settingKey: "dankIslandHomeWeatherSlot"
-                    tags: ["island", "home", "compact", "weather", "forecast"]
-                    text: I18n.tr("Weather", "island settings: weather slot row")
-                    description: SettingsData.weatherEnabled ? I18n.tr("Weather icon and temperature open the weather activity", "island settings: weather slot description") : I18n.tr("Enable weather in Time & Weather to show this shortcut", "island settings: weather slot disabled hint")
-                    model: [I18n.tr("Left", "island settings: weather slot left of the clock"), I18n.tr("Right", "island settings: weather slot right of the clock"), I18n.tr("Hidden", "island settings: weather slot hidden")]
-                    currentIndex: root.valueIndex(root.homeSlotValues, SettingsData.dankIslandHomeWeatherSlot, "hidden")
-                    onSelectionChanged: (index, selected) => {
-                        if (selected)
-                            SettingsData.set("dankIslandHomeWeatherSlot", root.homeSlotValues[index] ?? "hidden");
+                            SettingsData.set("dankIslandHomeBrightnessDisplay", root.systemLevelDisplayValues[index] ?? "both");
                     }
                 }
 
@@ -252,7 +274,7 @@ Item {
                 iconName: "palette"
                 title: I18n.tr("Appearance", "island settings: appearance card title")
                 settingKey: "dankIslandAppearance"
-                enabled: SettingsData.dankIslandEnabled
+                visible: SettingsData.dankIslandEnabled
 
                 SettingsButtonGroupRow {
                     settingKey: "dankIslandPalette"
@@ -279,6 +301,19 @@ Item {
                     onSliderValueChanged: value => SettingsData.set("dankIslandTransparency", value / 100)
                 }
 
+                SettingsSliderRow {
+                    settingKey: "dankIslandCornerRadius"
+                    tags: ["island", "appearance", "corner", "radius", "rounding", "pill", "expanded"]
+                    text: I18n.tr("Corner Radius", "island settings: island corner radius slider")
+                    unit: "px"
+                    minimum: 0
+                    maximum: 64
+                    step: 1
+                    defaultValue: 34
+                    value: SettingsData.dankIslandCornerRadius
+                    onSliderValueChanged: value => SettingsData.set("dankIslandCornerRadius", value)
+                }
+
                 SettingsToggleRow {
                     settingKey: "dankIslandHighContrast"
                     tags: ["island", "appearance", "contrast", "accessibility", "outline"]
@@ -299,11 +334,11 @@ Item {
 
                 SettingsButtonGroupRow {
                     settingKey: "dankIslandBatteryStyle"
-                    tags: ["island", "battery", "gauge", "solid", "outline", "appearance"]
-                    text: I18n.tr("Material Battery Style", "island settings: battery meter style row")
-                    description: I18n.tr("Solid material type or Outline", "island settings: battery style description")
+                    tags: ["island", "battery", "gauge", "solid", "outline", "ring", "circle", "appearance"]
+                    text: I18n.tr("Battery Style", "island settings: battery meter style row")
+                    description: I18n.tr("Solid or outlined material meter, or a circular gauge", "island settings: battery style description")
                     visible: BatteryService.batteryAvailable
-                    model: [I18n.tr("Solid", "island settings: filled battery meter style"), I18n.tr("Outline", "island settings: outlined battery meter style")]
+                    model: [I18n.tr("Solid", "island settings: filled battery meter style"), I18n.tr("Outline", "island settings: outlined battery meter style"), I18n.tr("Circle", "island settings: circular battery meter style")]
                     currentIndex: root.valueIndex(root.batteryStyleValues, SettingsData.dankIslandBatteryStyle, "solid")
                     onSelectionChanged: (index, selected) => {
                         if (selected)
@@ -317,7 +352,7 @@ Item {
                 iconName: "notifications"
                 title: I18n.tr("Notifications", "island settings: notifications card title")
                 settingKey: "dankIslandNotifications"
-                enabled: SettingsData.dankIslandEnabled
+                visible: SettingsData.dankIslandEnabled
 
                 SettingsToggleRow {
                     settingKey: "dankIslandNotificationExpand"
@@ -329,21 +364,12 @@ Item {
                 }
 
                 SettingsToggleRow {
-                    settingKey: "dankIslandHomeNotificationBadge"
-                    tags: ["island", "home", "notifications", "badge", "unread", "count"]
-                    text: I18n.tr("Show Badge", "island settings: unread notification count on the home face")
-                    description: I18n.tr("Unread notification count beside the clock", "island settings: notification badge description")
-                    checked: SettingsData.dankIslandHomeNotificationBadge
-                    onToggled: checked => SettingsData.set("dankIslandHomeNotificationBadge", checked)
-                }
-
-                SettingsToggleRow {
                     settingKey: "dankIslandNotificationBadgeClearOnOpen"
                     tags: ["island", "home", "notifications", "badge", "unread", "clear", "dismiss", "open"]
                     text: I18n.tr("Clear Badge on Open", "island settings: clear the notification badge when the center opens")
                     description: I18n.tr("Clears the badge on open but keeps notifications active", "island settings: clear badge on open description")
                     checked: SettingsData.dankIslandNotificationBadgeClearOnOpen
-                    enabled: SettingsData.dankIslandHomeNotificationBadge
+                    enabled: SettingsData.islandHomeGroupEnabled("notifications")
                     onToggled: checked => SettingsData.set("dankIslandNotificationBadgeClearOnOpen", checked)
                 }
             }
@@ -355,7 +381,7 @@ Item {
                 settingKey: "dankIslandSatellites"
                 collapsible: true
                 expanded: true
-                enabled: SettingsData.dankIslandEnabled
+                visible: SettingsData.dankIslandEnabled
 
                 SettingsToggleRow {
                     settingKey: "dankIslandSatellitesEnabled"
@@ -389,7 +415,7 @@ Item {
                 SettingsSliderRow {
                     settingKey: "dankIslandSatelliteSwoopRadius"
                     tags: ["island", "satellite", "goth", "corners", "radius", "sweep", "size"]
-                    text: I18n.tr("Corner Radius", "island settings: satellite goth corner radius slider")
+                    text: I18n.tr("Goth Corner Radius", "island settings: satellite goth corner radius slider")
                     unit: "px"
                     minimum: 4
                     maximum: 64
@@ -457,7 +483,7 @@ Item {
                 iconName: "touch_app"
                 title: I18n.tr("Behavior", "island settings: behavior card title")
                 settingKey: "dankIslandInteraction"
-                enabled: SettingsData.dankIslandEnabled
+                visible: SettingsData.dankIslandEnabled
 
                 SettingsButtonGroupRow {
                     settingKey: "dankIslandInteractionMode"
@@ -516,7 +542,7 @@ Item {
                 title: I18n.tr("Motion & Accessibility", "island settings: motion card title")
                 settingKey: "dankIslandMotion"
                 collapsible: true
-                enabled: SettingsData.dankIslandEnabled
+                visible: SettingsData.dankIslandEnabled
 
                 SettingsToggleRow {
                     settingKey: "dankIslandReducedMotion"

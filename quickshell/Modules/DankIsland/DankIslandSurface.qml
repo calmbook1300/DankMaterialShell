@@ -38,14 +38,8 @@ Item {
         return Theme.surfaceContainerHigh;
     }
     readonly property bool popupStyled: root.controller.expanded
-    readonly property real compactOpacity: Math.max(0, Math.min(1, SettingsData.dankIslandTransparency))
-    readonly property color effectiveSurfaceColor: {
-        if (root.highContrast)
-            return Theme.surfaceContainerHighest;
-        if (root.popupStyled)
-            return Theme.withAlpha(Theme.surfaceContainer, Theme.popupTransparency);
-        return Theme.withAlpha(root.surfaceColor, root.compactOpacity);
-    }
+    readonly property real islandOpacity: Math.max(0, Math.min(1, SettingsData.dankIslandTransparency))
+    readonly property color effectiveSurfaceColor: root.highContrast ? Theme.surfaceContainerHighest : Theme.withAlpha(root.surfaceColor, root.islandOpacity)
     readonly property real surfaceOpacity: root.effectiveSurfaceColor.a
     readonly property real currentSurfaceRadius: Math.max(0, motion.currentTopLeftRadius, motion.currentBottomLeftRadius)
     readonly property color notificationAccentColor: {
@@ -65,12 +59,9 @@ Item {
     readonly property bool motionRunning: motion.running
     readonly property real springTimeConstantMs: motion.timeConstantMs
     property real trackedHeight: 0
-    readonly property Item mediaDropdownMaskItem: mediaDropdowns.activePanel
     property real fadeCompactHeight: 48
     property real fadeExpandedHeight: 352
     property rect motionStartBounds: Qt.rect(0, 0, 0, 0)
-    property int mediaDropdownType: 0
-    property point mediaDropdownAnchor: Qt.point(0, 0)
     readonly property bool bottomEdge: SettingsData.dankIslandEdge === "bottom"
     readonly property real currentVisualWidth: motion.currentWidth
     readonly property real currentVisualHeight: motion.currentHeight
@@ -109,27 +100,6 @@ Item {
         root.motionStartBounds = Qt.rect(left, top, right - left, bottom - top);
     }
 
-    function openMediaDropdown(type, pos) {
-        stopMediaDropdownCloseTimer();
-        mediaDropdownAnchor = pos;
-        mediaDropdownType = type;
-        controller.mediaDropdownOpen = true;
-    }
-
-    function hideMediaDropdowns() {
-        stopMediaDropdownCloseTimer();
-        mediaDropdownType = 0;
-        controller.mediaDropdownOpen = false;
-    }
-
-    function startMediaDropdownCloseTimer() {
-        mediaDropdownCloseTimer.restart();
-    }
-
-    function stopMediaDropdownCloseTimer() {
-        mediaDropdownCloseTimer.stop();
-    }
-
     function requestActivityFocus() {
         return contentHost.requestActivityFocus();
     }
@@ -156,16 +126,6 @@ Item {
         function onTargetDescriptorChanged() {
             root.applyTarget();
         }
-
-        function onExpandedChanged() {
-            if (!controller.expanded || controller.activeActivity !== "media")
-                root.hideMediaDropdowns();
-        }
-
-        function onActiveActivityChanged() {
-            if (controller.activeActivity !== "media")
-                root.hideMediaDropdowns();
-        }
     }
 
     Connections {
@@ -174,8 +134,6 @@ Item {
         function onRunningChanged() {
             if (motion.running) {
                 root.motionStartBounds = Qt.rect(root.currentVisualX, root.currentVisualY, root.currentVisualWidth, root.currentVisualHeight);
-                if (root.controller.activeActivity === "media")
-                    root.hideMediaDropdowns();
                 return;
             }
             root.controller.releaseIdleVisuals();
@@ -189,13 +147,6 @@ Item {
         stiffness: root.springStiffness
         damping: root.springDamping
         mass: root.springMass
-    }
-
-    Timer {
-        id: mediaDropdownCloseTimer
-
-        interval: 400
-        onTriggered: root.hideMediaDropdowns()
     }
 
     // Frozen start/target union so the Wayland mask is not rewritten every spring frame.
@@ -340,37 +291,12 @@ Item {
         }
     }
 
-    MediaDropdownOverlay {
-        id: mediaDropdowns
-
-        dropdownType: root.mediaDropdownType
-        anchorPos: root.mediaDropdownAnchor
-        isRightEdge: true
-        availableBounds: Qt.rect(0, 0, root.width, root.height)
-        activePlayer: MprisController.activePlayer
-        allPlayers: MprisController.availablePlayers
-        targetWindow: root.Window.window
-        onCloseRequested: root.hideMediaDropdowns()
-        onPanelEntered: root.stopMediaDropdownCloseTimer()
-        onPanelExited: root.startMediaDropdownCloseTimer()
-        onVolumeChanged: volume => {
-            const player = MprisController.activePlayer;
-            const identity = (player?.identity ?? "").toLowerCase();
-            const chrome = identity.includes("chrome") || identity.includes("chromium");
-            if (player && player.volumeSupported && !chrome)
-                player.volume = volume;
-            else if (AudioService.sink?.audio)
-                AudioService.sink.audio.volume = volume;
-        }
-        onDeviceSelected: device => AudioService.setSink(device)
-        onPlayerSelected: player => MprisController.setActivePlayer(player)
-    }
-
     Component {
         id: compactHomeComponent
 
         HomeCompact {
             controller: root.controller
+            systemModel: root.systemModel
         }
     }
 
@@ -396,17 +322,6 @@ Item {
 
         MediaExpanded {
             controller: root.controller
-            geometrySettled: !motion.running
-            effectiveScreen: root.effectiveScreen
-            alignedX: root.targetVisualX
-            alignedY: root.targetVisualY
-            alignedWidth: root.targetVisualWidth
-            alignedHeight: root.targetVisualHeight
-            onShowVolumeDropdown: pos => root.openMediaDropdown(1, pos)
-            onShowAudioDevicesDropdown: pos => root.openMediaDropdown(2, pos)
-            onShowPlayersDropdown: pos => root.openMediaDropdown(3, pos)
-            onHideDropdowns: root.hideMediaDropdowns()
-            onDropdownHoverEnded: root.startMediaDropdownCloseTimer()
         }
     }
 

@@ -11,6 +11,7 @@ Item {
     id: root
 
     required property var controller
+    required property var systemModel
 
     readonly property string timeText: systemClock.date.toLocaleTimeString(I18n.locale(), SettingsData.getEffectiveTimeFormat())
     readonly property string dateText: systemClock.date.toLocaleDateString(I18n.locale(), SettingsData.getEffectiveDateFormat("ddd MMM d"))
@@ -21,24 +22,75 @@ Item {
     readonly property real statusIconSize: root.textSize + Theme.spacingXXS
     readonly property real groupSpacing: root.controller.homeSlotMargin
     readonly property real edgePad: Math.max(root.groupSpacing, (root.width - compactRow.width) / 2)
-    readonly property bool weatherSlotEnabled: root.controller.homeWeatherSlot !== "hidden"
+    readonly property bool weatherSlotEnabled: root.controller.homeWeatherEnabled
+    readonly property var brightnessDevice: DisplayService.getCurrentDeviceInfo()
+    readonly property real brightnessMaximum: DisplayService.brightnessMaximum(root.brightnessDevice)
+    readonly property int brightnessPercent: root.brightnessMaximum > 0 ? Math.round(DisplayService.brightnessLevel / root.brightnessMaximum * 100) : 0
+    readonly property int volumePercent: Math.min(AudioService.sinkMaxVolume, Math.round((AudioService.sink?.audio?.volume ?? 0) * 100))
     readonly property var groupIds: root.groupsForSide("left").concat(["clock"]).concat(root.groupsForSide("right"))
+    readonly property real touchpadThreshold: 100
+    property real wheelAccumulator: 0
     property bool weatherRefHeld: false
 
     function groupsForSide(side) {
-        const ids = [];
-        const media = root.controller.homeMediaSlot === side;
-        if (media && side === "left")
-            ids.push("media");
-        if (root.controller.homeWeatherSlot === side && WeatherService.weather.available)
-            ids.push("weather");
-        if (root.controller.homeStatusSlot === side)
-            ids.push("status");
-        if (side === "right" && root.controller.homeNotificationBadge)
-            ids.push("notifications");
-        if (media && side === "right")
-            ids.push("media");
-        return ids;
+        const groups = side === "left" ? root.controller.homeLeftGroups : root.controller.homeRightGroups;
+        return groups.filter(id => root.groupShown(id));
+    }
+
+    function groupShown(id) {
+        switch (id) {
+        case "weather":
+            return root.controller.homeWeatherEnabled && WeatherService.weather.available;
+        case "notifications":
+            return root.controller.homeNotificationBadge;
+        case "volume":
+            return !!AudioService.sink?.audio;
+        case "brightness":
+            return DisplayService.brightnessAvailable && !!root.brightnessDevice;
+        }
+        return true;
+    }
+
+    function wheelDirection(delta) {
+        const isMouseWheel = Math.abs(delta) >= 120 && Math.abs(delta) % 120 === 0;
+        if (isMouseWheel)
+            return delta > 0 ? 1 : -1;
+        root.wheelAccumulator += delta;
+        if (Math.abs(root.wheelAccumulator) < root.touchpadThreshold)
+            return 0;
+        const direction = root.wheelAccumulator > 0 ? 1 : -1;
+        root.wheelAccumulator = 0;
+        return direction;
+    }
+
+    function adjustSystemLevel(activityId, delta) {
+        const direction = root.wheelDirection(delta);
+        if (direction === 0)
+            return;
+        switch (activityId) {
+        case "volume":
+            root.adjustVolume(direction);
+            return;
+        case "brightness":
+            root.adjustBrightness(direction);
+            return;
+        }
+    }
+
+    function adjustVolume(direction) {
+        if (!AudioService.sink?.audio)
+            return;
+        SessionData.suppressOSDTemporarily();
+        AudioService.adjustDefaultSinkVolume(AudioService.wheelVolumeStep, direction);
+        AudioService.playVolumeChangeSoundIfEnabled();
+    }
+
+    function adjustBrightness(direction) {
+        if (!root.brightnessDevice)
+            return;
+        SessionData.suppressOSDTemporarily();
+        const next = Math.max(DisplayService.brightnessMinimum(root.brightnessDevice), Math.min(root.brightnessMaximum, DisplayService.brightnessLevel + direction * 5));
+        DisplayService.setBrightness(next, root.brightnessDevice.id, true);
     }
 
     function syncWeatherRef(wanted) {
@@ -96,6 +148,8 @@ Item {
         readonly property bool isWeather: item.groupId === "weather"
         readonly property bool isStatus: item.groupId === "status"
         readonly property bool isNotifications: item.groupId === "notifications"
+        readonly property bool isVolume: item.groupId === "volume"
+        readonly property bool isBrightness: item.groupId === "brightness"
         readonly property bool usesBattery: item.isStatus && BatteryService.batteryAvailable
 
         width: {
@@ -105,6 +159,8 @@ Item {
                 return weatherRow.implicitWidth;
             if (item.isNotifications)
                 return notificationRow.implicitWidth;
+            if (item.isVolume || item.isBrightness)
+                return systemLevelRow.implicitWidth;
             if (item.isStatus)
                 return item.usesBattery ? batteryMeter.width : root.iconSize;
             return clockRow.implicitWidth;
@@ -112,7 +168,7 @@ Item {
         height: root.slotSize
 
         HoverBackdrop {
-            visible: item.isMedia || item.isWeather || item.isNotifications || (item.isStatus && !item.usesBattery)
+            visible: item.isMedia || item.isWeather || item.isNotifications || item.isVolume || item.isBrightness || (item.isStatus && !item.usesBattery)
             hovered: groupArea.containsMouse
         }
 
@@ -210,6 +266,33 @@ Item {
             }
         }
 
+        Row {
+            id: systemLevelRow
+
+            readonly property string displayMode: item.isVolume ? root.controller.homeVolumeDisplay : root.controller.homeBrightnessDisplay
+
+            anchors.verticalCenter: parent.verticalCenter
+            visible: item.isVolume || item.isBrightness
+            spacing: Theme.spacingXXS
+
+            DankIcon {
+                anchors.verticalCenter: parent.verticalCenter
+                visible: systemLevelRow.displayMode !== "percentage"
+                name: item.isVolume ? AudioService.sinkVolumeIconName : DisplayService.brightnessIconName(root.brightnessDevice, DisplayService.brightnessLevel)
+                size: root.statusIconSize
+                color: Theme.surfaceTextSecondary
+            }
+
+            NumericText {
+                anchors.verticalCenter: parent.verticalCenter
+                visible: systemLevelRow.displayMode !== "icon"
+                text: (item.isVolume ? root.volumePercent : root.brightnessPercent) + "%"
+                reserveText: item.isVolume ? AudioService.sinkMaxVolume + "%" : "100%"
+                color: Theme.surfaceTextSecondary
+                font.pixelSize: root.textSize
+            }
+        }
+
         BatteryMeter {
             id: batteryMeter
 
@@ -218,7 +301,8 @@ Item {
             thickness: root.statusIconSize
             fontSize: root.textSize
             hovered: groupArea.containsMouse
-            outlined: SettingsData.dankIslandBatteryStyle === "outline"
+            meterStyle: SettingsData.dankIslandBatteryStyle
+            levelColors: (SettingsData.islandBarConfig?.batteryColorMode ?? "theme") === "level"
         }
 
         DankIcon {
@@ -255,7 +339,17 @@ Item {
                     root.controller.requestNotificationCenter(false);
                     return;
                 }
+                if (item.isVolume || item.isBrightness) {
+                    root.systemModel.open(item.groupId);
+                    return;
+                }
                 root.controller.requestControlCenter("", false);
+            }
+            onWheel: wheel => {
+                if (!item.isVolume && !item.isBrightness)
+                    return;
+                root.adjustSystemLevel(item.groupId, wheel.angleDelta.y || wheel.angleDelta.x);
+                wheel.accepted = true;
             }
         }
     }

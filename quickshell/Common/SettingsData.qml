@@ -15,7 +15,7 @@ Singleton {
     id: root
     readonly property var log: Log.scoped("SettingsData")
 
-    readonly property int settingsConfigVersion: 16
+    readonly property int settingsConfigVersion: 17
 
     readonly property bool isGreeterMode: Quickshell.env("DMS_RUN_GREETER") === "1" || Quickshell.env("DMS_RUN_GREETER") === "true"
 
@@ -168,6 +168,7 @@ Singleton {
     property var registryThemeVariants: ({})
     property string matugenScheme: "scheme-tonal-spot"
     property bool matugenSmartMode: false
+    property string matugenSourceMode: "dominant"
     property real matugenContrast: 0
     property bool runUserMatugenTemplates: true
     property string matugenTargetMonitor: ""
@@ -511,6 +512,7 @@ Singleton {
     property bool mediaHideWhenIdleEnabled: false
     property bool audioVisualizerEnabled: true
     property bool mediaUseAlbumArtAccent: false
+    property bool mediaWallpaperEnabled: true
     property bool appleMusicAnimatedArtEnabled: false
     property string audioScrollMode: "volume"
     property int audioWheelScrollAmount: 5
@@ -817,7 +819,7 @@ Singleton {
     property bool showBatteryTimeOnlyOnBattery: false
     property bool showBatteryPowerCharging: false
     property bool showBatteryPowerDischarging: false
-    property bool batteryPillStyle: false
+    property string batteryStyle: "icon"
     property bool lockBeforeSuspend: false
     property bool loginctlLockIntegration: true
     property bool fadeToLockEnabled: true
@@ -1010,15 +1012,94 @@ Singleton {
     property int dankIslandHoverCloseDelay: 150
     property string dankIslandPalette: "default"
     property real dankIslandTransparency: 1
+    property int dankIslandCornerRadius: 34
     property bool dankIslandHighContrast: false
     property bool dankIslandMediaClockVisible: true
-    property bool dankIslandHomeNotificationBadge: true
     property bool dankIslandNotificationBadgeClearOnOpen: false
     property bool dankIslandNotificationExpand: false
-    property string dankIslandHomeMediaSlot: "left"
-    property string dankIslandHomeStatusSlot: "hidden"
-    property string dankIslandHomeWeatherSlot: "hidden"
     property bool dankIslandHomeCompactTight: false
+    property string dankIslandHomeVolumeDisplay: "both"
+    property string dankIslandHomeBrightnessDisplay: "both"
+    readonly property var _islandHomeGroupIds: ["media", "clock", "weather", "status", "volume", "brightness", "notifications"]
+    readonly property var _islandHomeLayoutDefault: [
+        {
+            "id": "media",
+            "enabled": true
+        },
+        {
+            "id": "clock",
+            "enabled": true
+        },
+        {
+            "id": "weather",
+            "enabled": false
+        },
+        {
+            "id": "status",
+            "enabled": false
+        },
+        {
+            "id": "volume",
+            "enabled": false
+        },
+        {
+            "id": "brightness",
+            "enabled": false
+        },
+        {
+            "id": "notifications",
+            "enabled": true
+        }
+    ]
+    property var dankIslandHomeLayout: _islandHomeLayoutDefault
+
+    function getIslandHomeLayout() {
+        const stored = Array.isArray(dankIslandHomeLayout) ? dankIslandHomeLayout : [];
+        const result = [];
+        const seen = {};
+        for (const entry of stored) {
+            const id = entry && entry.id;
+            if (_islandHomeGroupIds.indexOf(id) < 0 || seen[id])
+                continue;
+            seen[id] = true;
+            result.push({
+                "id": id,
+                "enabled": id === "clock" || entry.enabled !== false
+            });
+        }
+        for (const fallback of _islandHomeLayoutDefault) {
+            if (!seen[fallback.id])
+                result.push({
+                    "id": fallback.id,
+                    "enabled": fallback.enabled
+                });
+        }
+        return result;
+    }
+
+    function islandHomeGroupEnabled(id) {
+        const entry = getIslandHomeLayout().find(g => g.id === id);
+        return entry ? entry.enabled : false;
+    }
+
+    function setIslandHomeLayoutOrder(ids) {
+        const current = getIslandHomeLayout();
+        const ordered = ids.map(id => current.find(g => g.id === id)).filter(g => g);
+        for (const entry of current) {
+            if (ids.indexOf(entry.id) < 0)
+                ordered.push(entry);
+        }
+        set("dankIslandHomeLayout", ordered);
+    }
+
+    function setIslandHomeGroupEnabled(id, on) {
+        if (id === "clock")
+            return;
+        set("dankIslandHomeLayout", getIslandHomeLayout().map(g => g.id === id ? {
+                "id": g.id,
+                "enabled": on
+            } : g));
+    }
     property string dankIslandBatteryStyle: "solid"
     property bool dankIslandSatellitesEnabled: true
     property string dankIslandSatellitePosition: "edges"
@@ -1103,6 +1184,7 @@ Singleton {
             "maximizeWidgetText": false,
             "removeWidgetPadding": false,
             "widgetPadding": 8,
+            "batteryColorMode": "theme",
             "gothCornersEnabled": false,
             "gothCornerRadiusOverride": false,
             "gothCornerRadiusValue": 12,
@@ -2221,15 +2303,11 @@ Singleton {
                 continue;
             if (other.autoHide)
                 continue;
-            const otherScreens = other.screenPreferences || ["all"];
-            const barScreens = barConfig.screenPreferences || ["all"];
-            const onSameScreen = otherScreens.includes("all") || barScreens.includes("all") || otherScreens.some(s => isScreenInPreferences(screen, [s]));
-
-            if (!onSameScreen)
+            if (!barConfigCoversScreen(other, screen))
                 continue;
             const otherSpacing = other.spacing !== undefined ? other.spacing : (defaultBar?.spacing ?? 4);
             const otherPadding = other.innerPadding !== undefined ? other.innerPadding : (defaultBar?.innerPadding ?? 4);
-            const otherThickness = Math.max(26 + otherPadding * 0.6, Theme.barHeight - 4 - (8 - otherPadding)) + otherSpacing;
+            const otherThickness = Theme.barThickness(otherPadding, CompositorService.getScreenScale(screen)) + otherSpacing;
 
             const useAutoGaps = other.popupGapsAuto !== undefined ? other.popupGapsAuto : (defaultBar?.popupGapsAuto ?? true);
             const manualGap = other.popupGapsManual !== undefined ? other.popupGapsManual : (defaultBar?.popupGapsManual ?? 4);
@@ -2301,15 +2379,11 @@ Singleton {
                 const other = enabledBars[i];
                 if (other.id === barConfig.id)
                     continue;
-                const otherScreens = other.screenPreferences || ["all"];
-                const barScreens = barConfig.screenPreferences || ["all"];
-                const onSameScreen = otherScreens.includes("all") || barScreens.includes("all") || otherScreens.some(s => isScreenInPreferences(screen, [s]));
-
-                if (!onSameScreen)
+                if (!barConfigCoversScreen(other, screen))
                     continue;
                 const otherSpacing = other.spacing !== undefined ? other.spacing : (defaultBar?.spacing ?? 4);
                 const otherPadding = other.innerPadding !== undefined ? other.innerPadding : (defaultBar?.innerPadding ?? 4);
-                const otherThickness = Math.max(26 + otherPadding * 0.6, Theme.barHeight - 4 - (8 - otherPadding)) + otherSpacing + wingSize;
+                const otherThickness = Theme.barThickness(otherPadding, CompositorService.getScreenScale(screen)) + otherSpacing + wingSize;
                 const otherBottomGap = isConnected ? 0 : (other.bottomGap !== undefined ? other.bottomGap : (defaultBar?.bottomGap ?? 0));
 
                 switch (other.position) {
@@ -2396,6 +2470,23 @@ Singleton {
 
     function getBarConfig(barId) {
         return barConfigs.find(cfg => cfg.id === barId) || null;
+    }
+
+    function setIslandBarId(barId) {
+        const config = getBarConfig(barId);
+        if (!config)
+            return;
+        set("dankIslandBarId", barId);
+        const updates = {};
+        if (!config.enabled)
+            updates.enabled = true;
+        if ((config.screenPreferences ?? []).length === 0)
+            updates.screenPreferences = ["all"];
+        const position = config.position ?? SettingsData.Position.Top;
+        if (position !== SettingsData.Position.Top && position !== SettingsData.Position.Bottom)
+            updates.position = SettingsData.Position.Top;
+        if (Object.keys(updates).length > 0)
+            updateBarConfig(barId, updates);
     }
 
     function isBarIpcRevealed(barId) {
@@ -2668,76 +2759,38 @@ Singleton {
     }
 
     function getActiveBarEdgesForScreen(screen) {
-        if (!screen)
-            return [];
-        var edges = [];
-        for (var i = 0; i < barConfigs.length; i++) {
-            var bc = barConfigs[i];
-            if (!bc.enabled)
-                continue;
-            if (!barConfigCoversScreen(bc, screen))
-                continue;
-            if (isIslandBarConfig(bc))
-                continue;
-            if (dankIslandOwnsEdge(screen, positionToSide(bc.position ?? SettingsData.Position.Top)))
-                continue;
-            switch (bc.position ?? 0) {
-            case SettingsData.Position.Top:
-                edges.push("top");
-                break;
-            case SettingsData.Position.Bottom:
-                edges.push("bottom");
-                break;
-            case SettingsData.Position.Left:
-                edges.push("left");
-                break;
-            case SettingsData.Position.Right:
-                edges.push("right");
-                break;
-            }
-        }
-        return edges;
+        return ["top", "bottom", "left", "right"].filter(edge => getActiveBarConfigsForEdge(screen, edge).length > 0);
     }
 
     function getOverlayBarEdgesForScreen(screen) {
-        if (!screen)
-            return [];
-        var edges = [];
-        for (var i = 0; i < barConfigs.length; i++) {
-            var bc = barConfigs[i];
-            if (!bc.enabled || !(bc.useOverlayLayer ?? false))
-                continue;
-            if (!barConfigCoversScreen(bc, screen))
-                continue;
-            if (isIslandBarConfig(bc))
-                continue;
-            if (dankIslandOwnsEdge(screen, positionToSide(bc.position ?? SettingsData.Position.Top)))
-                continue;
-            switch (bc.position ?? 0) {
-            case SettingsData.Position.Top:
-                edges.push("top");
-                break;
-            case SettingsData.Position.Bottom:
-                edges.push("bottom");
-                break;
-            case SettingsData.Position.Left:
-                edges.push("left");
-                break;
-            case SettingsData.Position.Right:
-                edges.push("right");
-                break;
-            }
-        }
-        return edges;
+        return ["top", "bottom", "left", "right"].filter(edge => getActiveBarConfigsForEdge(screen, edge).some(bc => bc.useOverlayLayer ?? false));
     }
 
     readonly property real frameBarContentGap: frameBarInsetPadding < 0 ? frameThickness : frameBarInsetPadding
     readonly property real frameBarContentGapExtra: Math.max(0, frameBarContentGap - frameThickness)
 
+    function getActiveBarConfigsForEdge(screen, edge) {
+        if (!screen)
+            return [];
+        const sidePos = _sideToPosition(edge);
+        if (sidePos < 0 || dankIslandOwnsEdge(screen, edge))
+            return [];
+        return barConfigs.filter(bc => bc.enabled && (bc.position ?? SettingsData.Position.Top) === sidePos && !isIslandBarConfig(bc) && barConfigCoversScreen(bc, screen));
+    }
+
+    function getFrameHostedBarConfigsForEdge(screen, edge) {
+        return getActiveBarConfigsForEdge(screen, edge).filter(bc => !(bc.useOverlayLayer ?? false));
+    }
+
+    // Connected mode hosts one row per non-overlay bar; an edge holding only overlay bars keeps one band.
     function frameEdgeReservation(screen, edge) {
         if (!screen)
             return 0;
-        return getActiveBarEdgesForScreen(screen).includes(edge) ? frameBarSize : frameThickness;
+        const active = getActiveBarConfigsForEdge(screen, edge);
+        if (active.length === 0)
+            return frameThickness;
+        const rows = FrameTransitionState.effectiveConnectedFrameModeActive ? active.filter(bc => !(bc.useOverlayLayer ?? false)) : active;
+        return frameBarSize * Math.max(1, rows.length);
     }
 
     function frameEdgeInsetForSide(screen, side) {
@@ -2760,6 +2813,17 @@ Singleton {
         if (matugenSmartMode === enabled)
             return;
         set("matugenSmartMode", enabled);
+    }
+
+    function setMatugenSourceMode(mode) {
+        var normalized = mode || "dominant";
+        if (matugenSourceMode === normalized)
+            return;
+        // Regeneration comes from the regenSystemThemes onChange hook in
+        // SettingsSpec.js, which set() dispatches. matugenScheme above also
+        // calls Theme.generateSystemThemesFromCurrentTheme() directly, which is
+        // redundant with its own hook.
+        set("matugenSourceMode", normalized);
     }
 
     function setMatugenContrast(value) {
@@ -2881,14 +2945,13 @@ Singleton {
     function getCursorEnvironment() {
         const isSystemDefault = cursorSettings.theme === "System Default";
         const isDefaultSize = !cursorSettings.size || cursorSettings.size === 24;
-        if (isSystemDefault && isDefaultSize)
-            return {};
-
         const themeName = isSystemDefault ? "" : cursorSettings.theme;
         const size = String(cursorSettings.size || 24);
         const env = {};
 
-        if (!isDefaultSize) {
+        // Started from systemd the shell inherits no XCURSOR_SIZE from the compositor
+        // XWayland children would size their cursor from the display instead
+        if (!isDefaultSize || !Quickshell.env("XCURSOR_SIZE")) {
             env["XCURSOR_SIZE"] = size;
             env["HYPRCURSOR_SIZE"] = size;
         }

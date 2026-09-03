@@ -35,8 +35,8 @@ Item {
     readonly property string scrollYBehavior: satelliteConfig?.scrollYBehavior ?? "workspace"
     readonly property real screenScale: CompositorService.getScreenScale(root.targetScreen)
     readonly property real innerPadding: root.satelliteConfig?.innerPadding ?? 4
-    readonly property real widgetThickness: Theme.snap(Math.max(20, 26 + root.innerPadding * 0.6), root.screenScale)
-    readonly property real barThickness: Theme.snap(Math.max(root.widgetThickness + root.innerPadding + 4, Theme.barHeight - 4 - (8 - root.innerPadding)), root.screenScale)
+    readonly property real widgetThickness: Theme.barWidgetThickness(root.innerPadding, root.screenScale)
+    readonly property real barThickness: Theme.barThickness(root.innerPadding, root.screenScale)
     readonly property real satelliteSpacing: root.satelliteConfig?.spacing ?? 4
     readonly property bool edgeAligned: SettingsData.dankIslandSatellitePosition === "edges"
     readonly property real edgeBaseMargin: Math.max(Theme.spacingXS, root.innerPadding * 0.8)
@@ -72,6 +72,7 @@ Item {
     }
     readonly property color chromeColor: Theme.withAlpha(root.chromeBase, root.chromeOpacity)
     readonly property bool chromeTranslucent: root.backgroundEnabled && root.chromeOpacity > 0 && root.chromeOpacity < 1
+    readonly property bool chromeCoversWidgets: root.backgroundEnabled && root.chromeOpacity > 0
     readonly property real islandOpacity: root.islandSurface?.surfaceOpacity ?? 1
     readonly property bool islandTranslucent: root.islandOpacity > 0 && root.islandOpacity < 1
     readonly property bool tracksIsland: !root.edgeAligned && root.visible
@@ -190,7 +191,7 @@ Item {
         }
         if (!BlurService.enabled)
             return;
-        const widgets = root._blurWidgetItems.filter(w => w && w.visible && w.width > 0 && w.height > 0);
+        const widgets = root.chromeCoversWidgets ? [] : root._blurWidgetItems.filter(w => w && w.visible && w.width > 0 && w.height > 0);
         const chromes = [leftChrome, rightChrome].filter(c => root.chromeTranslucent && c.visible);
         if (chromes.length === 0 && widgets.length === 0 && !root.islandTranslucent)
             return;
@@ -204,8 +205,8 @@ Item {
                 subRegions.push(islandSub);
         }
         for (const chrome of chromes) {
-            const body = blurItemRegionComp.createObject(region, {
-                w: chrome
+            const body = blurChromeRegionComp.createObject(region, {
+                chrome: chrome
             });
             if (body)
                 subRegions.push(body);
@@ -233,6 +234,7 @@ Item {
     }
 
     onChromeTranslucentChanged: blurRebuildTimer.restart()
+    onChromeCoversWidgetsChanged: blurRebuildTimer.restart()
     onEdgeAlignedChanged: {
         blurRebuildTimer.restart();
         blurTrailTimer.restart();
@@ -310,6 +312,49 @@ Item {
 
             item: w
             radius: Theme.cornerRadius
+        }
+    }
+
+    Component {
+        id: blurChromeRegionComp
+
+        // The chrome paints square corners at the attached edge (and above the sweep in edge mode); square those blur corners too
+        Region {
+            id: body
+
+            property Item chrome
+
+            readonly property real cr: body.chrome.cornerR
+            readonly property real edgeY: body.chrome.bottomEdge ? body.y + body.height - body.cr : body.y
+            readonly property real sweepY: body.chrome.bottomEdge ? body.y : body.y + body.height - body.cr
+            readonly property bool sweepSquare: !body.chrome.floating && body.chrome.sweepR > 0
+
+            x: body.chrome.x
+            y: body.chrome.y
+            width: body.chrome.width
+            height: body.chrome.height
+            radius: body.cr
+
+            Region {
+                x: body.x
+                y: body.edgeY
+                width: body.cr
+                height: body.cr
+            }
+
+            Region {
+                x: body.x + body.width - body.cr
+                y: body.edgeY
+                width: body.cr
+                height: body.cr
+            }
+
+            Region {
+                x: body.chrome.rightSide ? body.x + body.width - body.cr : body.x
+                y: body.sweepY
+                width: body.sweepSquare ? body.cr : 0
+                height: body.sweepSquare ? body.cr : 0
+            }
         }
     }
 

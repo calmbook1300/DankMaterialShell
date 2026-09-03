@@ -32,9 +32,8 @@ Item {
             for (let i = 0; i < root.dankBarRepeater.count; i++)
                 bars.push(...(root.dankBarRepeater.itemAt(i)?.item?.barVariants?.instances || []));
         }
-        const frameBars = BarWidgetService.frameHostedBars;
-        for (const screenName in frameBars)
-            bars.push(frameBars[screenName]);
+        for (const screenName in BarWidgetService.frameHostedBars)
+            bars.push(...BarWidgetService.frameBarsForScreen(screenName));
 
         let currentBar = null;
         for (const bar of bars) {
@@ -1061,11 +1060,8 @@ Item {
         }
 
         function tabs(): string {
-            if (!PopoutService.settingsModal)
-                return "wallpaper\ntheme\ntypography\ntime_weather\nsounds\ndankbar\ndankbar_settings\ndankbar_appearance\ndankbar_widgets\nframe\nworkspaces\ncompositor\nmedia_player\nnotifications\nosd\nrunning_apps\nupdater\ndock\nlauncher\nkeybinds\ndisplays\nnetwork\nnetwork_status\nnetwork_ethernet\nnetwork_wifi\nnetwork_cellular\nnetwork_vpn\nprinters\nlock_screen\npower_sleep\nplugins\nabout";
-            var modal = PopoutService.settingsModal;
             var ids = [];
-            var structure = modal.sidebar?.categoryStructure ?? [];
+            var structure = SettingsTabs.structure;
             for (var i = 0; i < structure.length; i++) {
                 var cat = structure[i];
                 if (cat.separator)

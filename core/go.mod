@@ -4,6 +4,7 @@ go 1.26.5
 
 require (
 	github.com/AvengeMedia/dgop v0.2.4-0.20260819141338-085d828cf577
+	github.com/Nadim147c/material/v3 v3.1.1
 	github.com/Wifx/gonetworkmanager/v2 v2.2.0
 	github.com/alecthomas/chroma/v2 v2.27.0
 	github.com/charmbracelet/bubbles v1.0.0
@@ -79,7 +80,7 @@ require (
 )
 
 require (
-	github.com/AvengeMedia/dankgo v0.0.0-20260827031318-2e04b1617d75
+	github.com/AvengeMedia/dankgo v0.0.0-20260902003743-aeb6467c214e
 	github.com/atotto/clipboard v0.1.4 // indirect
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
 	github.com/charmbracelet/colorprofile v0.4.3 // indirect

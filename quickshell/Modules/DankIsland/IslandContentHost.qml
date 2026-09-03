@@ -52,6 +52,8 @@ Item {
     property real outgoingMorph: 0
     property bool homeExpandedTouched: false
 
+    Keys.onEscapePressed: root.controller.requestCollapse()
+
     function fadeCompact(morph) {
         return 1 - Math.max(0, Math.min(1, morph / 0.34));
     }
@@ -76,34 +78,20 @@ Item {
         return Math.max(incoming, outgoing);
     }
 
+    readonly property var focusableFaces: ({
+            "home": homeExpandedLoader,
+            "media": mediaExpandedLoader,
+            "launcher": launcherExpandedLoader,
+            "wallpaper": wallpaperExpandedLoader,
+            "weather": weatherExpandedLoader,
+            "notificationcenter": notificationCenterExpandedLoader
+        })
+
     function requestActivityFocus() {
-        switch (root.activityId) {
-        case "launcher":
-            if (!launcherExpandedLoader.item)
-                return false;
-            launcherExpandedLoader.item.focusSearch();
-            return true;
-        case "home":
-            if (!homeExpandedLoader.item)
-                return false;
-            homeExpandedLoader.item.focusOverview();
-            return true;
-        case "media":
-            return mediaExpandedLoader.item?.focusPlayer() === true;
-        case "wallpaper":
-            if (!wallpaperExpandedLoader.item)
-                return false;
-            wallpaperExpandedLoader.item.focusGrid();
-            return true;
-        case "weather":
-            if (!weatherExpandedLoader.item)
-                return false;
-            weatherExpandedLoader.item.focusWeather();
-            return true;
-        case "notificationcenter":
-            return notificationCenterExpandedLoader.item?.focusList() === true;
-        }
-        return false;
+        const face = root.focusableFaces[root.activityId]?.item;
+        if (!face || typeof face.focusFace !== "function")
+            return false;
+        return face.focusFace() === true;
     }
 
     function latchHomeExpanded() {
@@ -200,6 +188,7 @@ Item {
         id: mediaExpandedLoader
 
         activity: "media"
+        height: Math.max(target.height, root.height)
         active: root.mediaSurfaceActive && (root.expanded || root.expandedFade > 0)
         asynchronous: false
         sourceComponent: root.mediaExpandedComponent

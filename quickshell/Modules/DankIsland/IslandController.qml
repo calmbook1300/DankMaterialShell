@@ -13,7 +13,6 @@ QtObject {
     property bool pointerInside: false
     property int slotHoverCount: 0
     readonly property bool slotHovered: slotHoverCount > 0
-    property bool mediaDropdownOpen: false
     property bool keyboardDismissRequested: false
     property string activeActivity: "home"
     property bool mediaAvailable: false
@@ -27,16 +26,16 @@ QtObject {
     }
     property string launcherPendingQuery: ""
     property string launcherPendingMode: ""
-    property bool _launcherPendingExpand: true
-    property bool _launcherPendingKeyboardFocus: true
     property string controlCenterPendingSection: ""
     property bool notificationExpandAllowed: false
     property bool keyboardYielded: false
     property real horizontalOffset: 0
     property real outerGap: 8
     readonly property bool bottomEdge: SettingsData.dankIslandEdge === "bottom"
-    readonly property real anchoredRadius: bottomEdge ? 34 : 26
-    readonly property real freeRadius: bottomEdge ? 26 : 34
+    readonly property real cornerRadius: Math.max(0, Math.min(64, SettingsData.dankIslandCornerRadius))
+    readonly property real edgeCornerRadius: Math.round(cornerRadius * 0.75)
+    readonly property real topCornerRadius: bottomEdge ? cornerRadius : edgeCornerRadius
+    readonly property real bottomCornerRadius: bottomEdge ? edgeCornerRadius : cornerRadius
     property real compactHeight: 38
     property int transientTimeout: 2200
     property int notificationTimeout: 5000
@@ -59,10 +58,12 @@ QtObject {
     readonly property real homeCompactFaceHeight: homeCompactTight ? Math.max(16, Math.min(32, compactHeight - 8)) : compactFaceHeight
 
     property int unreadNotificationCount: 0
-    readonly property bool homeNotificationBadge: SettingsData.dankIslandHomeNotificationBadge && unreadNotificationCount > 0
+    readonly property bool homeNotificationBadge: SettingsData.islandHomeGroupEnabled("notifications") && unreadNotificationCount > 0
+    readonly property bool homeWeatherEnabled: SettingsData.weatherEnabled && SettingsData.islandHomeGroupEnabled("weather")
     readonly property real homeSlotMargin: homeCompactTight ? Theme.spacingS : Theme.spacingM
     property real homeContentWidth: 200
     property real mediaContentWidth: 360
+    property real mediaExpandedHeight: 324
     readonly property real mediaCompactMaxWidth: 360
     property real notificationContentWidth: 0
     readonly property real notificationCompactMinWidth: compactDense ? 200 : 240
@@ -84,6 +85,13 @@ QtObject {
         notificationContentWidth = next;
     }
 
+    function setMediaExpandedHeight(height) {
+        const next = Math.ceil(height);
+        if (!isFinite(next) || next <= 0 || Math.abs(next - mediaExpandedHeight) < 1)
+            return;
+        mediaExpandedHeight = next;
+    }
+
     function setMediaContentWidth(width) {
         const next = Math.ceil(Math.min(root.mediaCompactMaxWidth, width));
         if (!isFinite(next) || next <= 0 || Math.abs(next - mediaContentWidth) < 2)
@@ -92,6 +100,7 @@ QtObject {
     }
 
     readonly property var destinations: ["launcher", "controlcenter", "wallpaper", "weather", "notificationcenter"]
+    readonly property var blankClickOwners: ["launcher", "controlcenter", "wallpaper", "notificationcenter"]
     readonly property var destinationDefaults: ({
             "launcher": {
                 "contentWidth": 160,
@@ -124,6 +133,7 @@ QtObject {
                 "requested": false,
                 "ready": false,
                 "pending": false,
+                "pendingKeyboardFocus": false,
                 "contentWidth": destinationDefaults[id].contentWidth,
                 "contentHeight": destinationDefaults[id].contentHeight
             };
@@ -192,11 +202,7 @@ QtObject {
         destinationRevision++;
         if (!pending)
             return;
-        if (activityId === "launcher") {
-            requestActivity("launcher", _launcherPendingExpand, _launcherPendingKeyboardFocus);
-            return;
-        }
-        requestActivity(activityId, true, true);
+        requestActivity(activityId, true, entry.pendingKeyboardFocus);
     }
 
     function clearPendingRequests(exceptId) {
@@ -264,21 +270,29 @@ QtObject {
         return Math.ceil(Math.max(root.compactFaceHeight, destinationContentWidth(activityId) + root.destinationCompactEndPad * 2));
     }
 
-    function resolvedHomeSlot(value, fallback) {
-        if (value === "left" || value === "right" || value === "hidden")
-            return value;
-        return fallback;
+    function homeGroups(side) {
+        const layout = SettingsData.getIslandHomeLayout();
+        const clock = layout.findIndex(g => g.id === "clock");
+        const groups = side === "left" ? layout.slice(0, clock) : layout.slice(clock + 1);
+        return groups.filter(g => g.enabled).map(g => g.id);
     }
 
-    readonly property string homeMediaSlot: resolvedHomeSlot(SettingsData.dankIslandHomeMediaSlot, "left")
-    readonly property string homeStatusSlot: resolvedHomeSlot(SettingsData.dankIslandHomeStatusSlot, "hidden")
-    readonly property string homeWeatherSlot: SettingsData.weatherEnabled ? resolvedHomeSlot(SettingsData.dankIslandHomeWeatherSlot, "hidden") : "hidden"
+    function resolvedSystemLevelDisplay(value) {
+        if (value === "icon" || value === "percentage" || value === "both")
+            return value;
+        return "both";
+    }
+
+    readonly property var homeLeftGroups: homeGroups("left")
+    readonly property var homeRightGroups: homeGroups("right")
+    readonly property string homeVolumeDisplay: resolvedSystemLevelDisplay(SettingsData.dankIslandHomeVolumeDisplay)
+    readonly property string homeBrightnessDisplay: resolvedSystemLevelDisplay(SettingsData.dankIslandHomeBrightnessDisplay)
 
     readonly property real homeCompactWidth: Math.ceil(homeSlotMargin * 2 + Math.max(homeContentWidth, 1))
     readonly property real mediaCompactWidth: Math.ceil(Math.max(1, mediaContentWidth))
 
     function pillTarget(width, height) {
-        const radius = height / 2;
+        const radius = Math.min(height / 2, root.cornerRadius);
         return {
             "width": width,
             "height": height,
@@ -297,21 +311,19 @@ QtObject {
             "height": height,
             "offsetX": root.horizontalOffset,
             "offsetY": root.outerGap,
-            "topLeftRadius": root.anchoredRadius,
-            "topRightRadius": root.anchoredRadius,
-            "bottomLeftRadius": root.freeRadius,
-            "bottomRightRadius": root.freeRadius
+            "topLeftRadius": root.topCornerRadius,
+            "topRightRadius": root.topCornerRadius,
+            "bottomLeftRadius": root.bottomCornerRadius,
+            "bottomRightRadius": root.bottomCornerRadius
         };
     }
 
     readonly property var homeCompactTarget: pillTarget(homeCompactWidth, homeCompactFaceHeight)
-    readonly property var homeExpandedTarget: sheetTarget(SettingsData.showWeekNumber ? 736 : 700, 452)
     readonly property var mediaCompactTarget: pillTarget(mediaCompactWidth, compactFaceHeight)
-    readonly property var mediaExpandedTarget: sheetTarget(600, 352)
+    readonly property var dashSheetTarget: sheetTarget(SettingsData.showWeekNumber ? 736 : 700, 452)
+    readonly property var mediaExpandedTarget: sheetTarget(600, mediaExpandedHeight)
     readonly property var launcherExpandedTarget: sheetTarget(680, 560)
     readonly property var controlCenterExpandedTarget: sheetTarget(580, controlCenterHeight)
-    readonly property var wallpaperExpandedTarget: sheetTarget(700, 452)
-    readonly property var weatherExpandedTarget: sheetTarget(SettingsData.showWeekNumber ? 736 : 700, 452)
     readonly property var systemCompactTarget: pillTarget(SettingsData.osdAlwaysShowValue ? 330 : 282, compactFaceHeight)
     readonly property var systemExpandedTarget: sheetTarget(460, 176)
     readonly property var notificationCompactTarget: pillTarget(Math.ceil(Math.max(notificationCompactMinWidth, Math.min(notificationCompactMaxWidth, notificationContentWidth))), compactFaceHeight)
@@ -323,7 +335,7 @@ QtObject {
     readonly property bool notificationHeldForSystem: root.systemActivityActive && root.transientReturnActivity === "notification"
     readonly property bool transientActive: systemActivityActive || notificationActive
     readonly property bool timeoutSuspended: pointerInside || (expanded && !notificationActive)
-    readonly property bool activityOwnsBlankClicks: isDestination(activeActivity)
+    readonly property bool activityOwnsBlankClicks: blankClickOwners.indexOf(activeActivity) !== -1
     readonly property bool hoverExpandEnabled: root.interactionMode === "hybrid" && !root.systemActivityActive
     function compactTargetFor(activityId) {
         switch (activityId) {
@@ -352,16 +364,12 @@ QtObject {
             return launcherExpandedTarget;
         case "controlcenter":
             return controlCenterExpandedTarget;
-        case "wallpaper":
-            return wallpaperExpandedTarget;
-        case "weather":
-            return weatherExpandedTarget;
         case "notificationcenter":
             return notificationCenterExpandedTarget;
         case "media":
             return mediaExpandedTarget;
         }
-        return homeExpandedTarget;
+        return dashSheetTarget;
     }
 
     readonly property var expandedTarget: expandedTargetFor(activeActivity)
@@ -411,7 +419,7 @@ QtObject {
         keyboardYielded = false;
         launcherSessionActive = false;
         clearPendingRequests("");
-        if (activityOwnsBlankClicks)
+        if (isDestination(activeActivity))
             activeActivity = mediaAvailable && mediaPreferred ? "media" : "home";
     }
 
@@ -452,7 +460,7 @@ QtObject {
             syncTransientTimeout(true);
             return false;
         }
-        if (activityOwnsBlankClicks)
+        if (isDestination(activeActivity))
             return requestActivity(activeActivity, true, requestKeyboardFocus);
         if (notificationActive && !notificationExpandAllowed)
             return requestNotificationCenter(false);
@@ -484,7 +492,7 @@ QtObject {
             finishTransient();
             return true;
         }
-        if (activityOwnsBlankClicks)
+        if (isDestination(activeActivity))
             activeActivity = mediaAvailable && mediaPreferred ? "media" : "home";
         return true;
     }
@@ -528,12 +536,9 @@ QtObject {
         if (destination && shouldExpand === true && !visualsReady(activityId)) {
             const entry = destinationState[activityId];
             entry.pending = true;
+            entry.pendingKeyboardFocus = requestKeyboardFocus === true;
             entry.requested = true;
             destinationRevision++;
-            if (activityId === "launcher") {
-                _launcherPendingExpand = true;
-                _launcherPendingKeyboardFocus = requestKeyboardFocus === true;
-            }
             return true;
         }
 
@@ -747,16 +752,6 @@ QtObject {
             hoverOpenTimer.restart();
     }
 
-    onMediaDropdownOpenChanged: {
-        if (mediaDropdownOpen) {
-            hoverOpenTimer.stop();
-            hoverCloseTimer.stop();
-            return;
-        }
-        if (!pointerInside && hoverExpanded && expanded)
-            hoverCloseTimer.restart();
-    }
-
     function updatePointerInside(inside) {
         pointerInside = inside === true;
         syncNotificationTimeout(!pointerInside);
@@ -764,7 +759,7 @@ QtObject {
         if (!pointerInside) {
             slotHoverCount = 0;
             hoverOpenTimer.stop();
-            if (hoverExpanded && expanded && !mediaDropdownOpen)
+            if (hoverExpanded && expanded)
                 hoverCloseTimer.restart();
             return;
         }
@@ -785,7 +780,7 @@ QtObject {
     property Timer hoverCloseTimer: Timer {
         interval: root.hoverCloseDelay
         onTriggered: {
-            if (!root.pointerInside && !root.mediaDropdownOpen && root.hoverExpanded)
+            if (!root.pointerInside && root.hoverExpanded)
                 root.requestHoverCollapse();
         }
     }
