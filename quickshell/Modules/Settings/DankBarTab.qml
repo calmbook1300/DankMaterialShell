@@ -61,12 +61,11 @@ Item {
 
     // The selected instance is itself the island, so bar-surface settings do not apply to it.
     readonly property bool selectedBarIsIsland: {
-        SettingsData.dankIslandBarId;
+        SettingsData.barConfigs;
         selectedBarId;
-        return !!selectedBarId && selectedBarId === SettingsData.dankIslandBarId;
+        return SettingsData.isIslandBarConfig(selectedBarConfig);
     }
     readonly property int islandShadowedScreenCount: {
-        SettingsData.dankIslandBarId;
         SettingsData.barConfigs;
         if (!selectedBarConfig || dankBarTab.selectedBarIsIsland)
             return 0;
@@ -84,14 +83,12 @@ Item {
     readonly property bool selectedBarFrameStyled: SettingsData.frameEnabled && dankBarTab.frameStyledScreenCount === dankBarTab.selectedBarScreens.length
     // Connected mode sanitizes shadow/corner/border fields on every config, so those stay frame-managed shell-wide.
     readonly property bool selectedBarFrameSanitized: SettingsData.connectedFrameModeActive || dankBarTab.selectedBarFrameStyled
+    // An edge another island already holds on every covered screen would just stack on top of it.
     readonly property var positionChoices: {
-        SettingsData.dankIslandBarId;
         SettingsData.barConfigs;
         Quickshell.screens;
         selectedBarId;
         const all = [SettingsData.Position.Top, SettingsData.Position.Bottom, SettingsData.Position.Left, SettingsData.Position.Right];
-        if (dankBarTab.selectedBarIsIsland)
-            return [SettingsData.Position.Top, SettingsData.Position.Bottom];
         if (!selectedBarConfig)
             return all;
         const screens = dankBarTab.selectedBarScreens;
@@ -102,6 +99,8 @@ Item {
             if (pos === current)
                 return true;
             const edge = SettingsData.positionToSide(pos);
+            if (dankBarTab.selectedBarIsIsland)
+                return !screens.some(screen => SettingsData.islandEdgeTakenFor(selectedBarConfig, screen, edge));
             return !screens.every(screen => SettingsData.dankIslandOwnsEdge(screen, edge));
         });
     }
@@ -254,14 +253,14 @@ Item {
     function deleteBar(barId) {
         if (barId === "default")
             return;
-        if (SettingsData.getBarKindConfigs().length <= 1 && barId !== SettingsData.dankIslandBarId)
+        if (SettingsData.getBarKindConfigs().length <= 1 && !SettingsData.isIslandBarConfig(SettingsData.getBarConfig(barId)))
             return;
         SettingsData.deleteBarConfig(barId);
         selectedBarId = "default";
     }
 
     function toggleBarEnabled(barId) {
-        if (barId === "default" && barId !== SettingsData.dankIslandBarId)
+        if (barId === "default" && !SettingsData.isIslandBarConfig(SettingsData.getBarConfig(barId)))
             return;
         const config = SettingsData.getBarConfig(barId);
         if (!config)
@@ -502,7 +501,7 @@ Item {
                                             font.pixelSize: Theme.fontSizeSmall
                                             color: Theme.surfaceVariantText
                                             horizontalAlignment: Text.AlignLeft
-                                            visible: SettingsData.dankIslandBarId === barCard.modelData.id
+                                            visible: SettingsData.isIslandBarConfig(barCard.modelData)
                                         }
 
                                         StyledText {
@@ -511,7 +510,7 @@ Item {
                                             font.weight: Font.Medium
                                             color: Theme.primary
                                             horizontalAlignment: Text.AlignLeft
-                                            visible: SettingsData.dankIslandBarId === barCard.modelData.id
+                                            visible: SettingsData.isIslandBarConfig(barCard.modelData)
                                         }
                                     }
                                 }
@@ -524,7 +523,7 @@ Item {
                                     backgroundColor: Theme.withAlpha(Theme.error, 0.15)
                                     iconColor: Theme.error
                                     visible: barCard.modelData.id !== "default"
-                                    enabled: SettingsData.getBarKindConfigs().length > 1 || SettingsData.dankIslandBarId === barCard.modelData.id
+                                    enabled: SettingsData.getBarKindConfigs().length > 1 || SettingsData.isIslandBarConfig(barCard.modelData)
                                     anchors.verticalCenter: parent.verticalCenter
                                     onClicked: dankBarTab.deleteBar(barCard.modelData.id)
                                 }
@@ -581,16 +580,16 @@ Item {
                     target: "island"
                     visible: dankBarTab.selectedBarIsIsland
                     parentModal: dankBarTab.parentModal
-                    section: "dankIslandPlacement"
+                    section: "islandPlacement"
                     settingLabel: I18n.tr("Island placement")
-                    reason: I18n.tr("The Island anchors to the top or bottom edge")
+                    reason: I18n.tr("The Island anchors to one screen edge")
                 }
 
                 SettingsControlledBy {
                     target: "island"
                     visible: dankBarTab.islandShadowedScreenCount > 0
                     parentModal: dankBarTab.parentModal
-                    section: "dankIslandPlacement"
+                    section: "islandPlacement"
                     settingLabel: I18n.tr("%1 position").arg(dankBarTab.positionLabel(selectedBarConfig?.position ?? SettingsData.Position.Top))
                     reason: I18n.tr("The Island holds this edge on a display this bar covers, so the bar stays hidden there")
                 }
@@ -739,7 +738,7 @@ Item {
                     target: "island"
                     visible: dankBarTab.islandOwnsSelectedBarTop
                     parentModal: dankBarTab.parentModal
-                    section: "dankIslandPlacement"
+                    section: "islandPlacement"
                     settingLabel: I18n.tr("Bar visibility")
                     reason: I18n.tr("Additional settings are managed by the Island")
                 }
@@ -1813,12 +1812,13 @@ Item {
                 visible: dankBarTab.appearanceOnly && (selectedBarConfig?.enabled ?? false) && !dankBarTab.selectedBarFrameSanitized && !dankBarTab.islandOwnsSelectedBarTop
 
                 readonly property bool shadowActive: (selectedBarConfig?.shadowIntensity ?? 0) > 0
+                readonly property bool barShadowsEnabled: (SettingsData.m3ElevationEnabled ?? true) && (SettingsData.barElevationEnabled ?? true)
                 readonly property bool isCustomColor: (selectedBarConfig?.shadowColorMode ?? "default") === "custom"
                 readonly property string directionSource: selectedBarConfig?.shadowDirectionMode ?? "inherit"
 
                 StyledText {
                     width: parent.width
-                    text: I18n.tr("Enable a custom override below to set per-bar shadow intensity, opacity, and color.")
+                    text: shadowCard.barShadowsEnabled ? I18n.tr("Enable a custom override below to set per-bar shadow intensity, opacity, and color.") : I18n.tr("Requires Bar Shadows to be enabled in Theme & Colors.")
                     font.pixelSize: Theme.fontSizeSmall
                     color: Theme.surfaceVariantText
                     wrapMode: Text.WordWrap
